@@ -13,6 +13,9 @@ const h = vi.hoisted(() => ({
   db: null as unknown as DB,
   current: null as null | { id: string; email: string; name: string },
   dispatched: [] as string[],
+  /** A-11 : session trop ancienne pour le back-office (requireRecentLogin redirige). */
+  staleSession: false,
+  recentLoginChecks: [] as { maxAgeMs: number; next: string }[],
 }));
 
 vi.mock('@devappstore/db', async (importOriginal) => {
@@ -31,7 +34,15 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-vi.mock('./session', () => ({ getCurrentUser: async () => h.current }));
+vi.mock('./session', () => ({
+  getCurrentUser: async () => h.current,
+  ADMIN_RECENT_LOGIN_MS: 12 * 60 * 60_000,
+  requireRecentLogin: async (maxAgeMs: number, next: string) => {
+    h.recentLoginChecks.push({ maxAgeMs, next });
+    if (h.staleSession) throw Object.assign(new Error('NEXT_REDIRECT'), { url: `/login?reauth=1&next=${encodeURIComponent(next)}` });
+    return h.current;
+  },
+}));
 
 vi.mock('./delivery', async () => {
   const { deliveries, eq } = await import('@devappstore/db');
@@ -136,6 +147,27 @@ describe('requirePlatformAdmin — accès', () => {
     await expect(admin.requirePlatformAdmin(['superadmin', 'support'])).rejects.toThrow('NEXT_NOT_FOUND');
     await expect(admin.requireAdminPermission('games.moderate')).rejects.toThrow('NEXT_NOT_FOUND');
     await expect(admin.requireAdminPermission('dashboard.read')).resolves.toMatchObject({ role: 'finance' });
+  });
+
+  it('A-11 : un administrateur à la session trop ancienne est renvoyé vers la ré-authentification, sans rien modifier', async () => {
+    login(U.support);
+    h.recentLoginChecks.length = 0;
+    h.staleSession = true;
+    try {
+      const before = (await h.db.select().from(adminAuditLog)).length;
+      await expect(admin.requireAdminPermission('users.read')).rejects.toMatchObject({ message: 'NEXT_REDIRECT', url: '/login?reauth=1&next=%2Fadmin' });
+      await expect(admin.disableUser(U.player.id, { reason: 'Fraude à la carte bancaire avérée.' })).rejects.toThrow('NEXT_REDIRECT');
+      expect(await h.db.select().from(userSuspensions).where(eq(userSuspensions.userId, U.player.id))).toHaveLength(0);
+      expect((await h.db.select().from(adminAuditLog)).length).toBe(before);
+      expect(h.recentLoginChecks.every((c) => c.maxAgeMs === 12 * 60 * 60_000)).toBe(true);
+      // Un non-administrateur reçoit toujours la 404, avant tout contrôle d'âge.
+      h.recentLoginChecks.length = 0;
+      login(U.player);
+      await expect(admin.requirePlatformAdmin()).rejects.toThrow('NEXT_NOT_FOUND');
+      expect(h.recentLoginChecks).toHaveLength(0);
+    } finally {
+      h.staleSession = false;
+    }
   });
 
   it('renvoie le contexte administrateur', async () => {

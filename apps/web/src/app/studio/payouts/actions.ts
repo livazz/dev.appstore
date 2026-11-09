@@ -2,14 +2,15 @@
 
 import { redirect } from 'next/navigation';
 import { canManagePayouts, createDashboardLink, createOnboardingLink, ensureConnectAccount, getPayoutStudio } from '@/server/payouts';
-import { requireUser } from '@/server/session';
+import { PAYOUTS_RECENT_LOGIN_MS, requireRecentLogin } from '@/server/session';
 import { appOrigin, isStripeEnabled } from '@/server/stripe';
 
 const page = (studioId: string, extra = '') => `/studio/payouts?studio=${encodeURIComponent(studioId)}${extra}`;
 
 async function authorize(formData: FormData) {
   const studioId = String(formData.get('studio') ?? '');
-  const user = await requireUser(page(studioId));
+  // Revue de sécurité A-11 : compte de versement = connexion de moins de 30 min (sinon ré-authentification).
+  const user = await requireRecentLogin(PAYOUTS_RECENT_LOGIN_MS, page(studioId));
   const studio = await getPayoutStudio(user.id, studioId);
   if (!studio) redirect('/studio/payouts?error=forbidden');
   // Lecture seule pour `finance` : seul le propriétaire crée / modifie le compte de versement.

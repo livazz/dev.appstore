@@ -32,7 +32,7 @@ import {
   type PlatformAdminRole,
 } from '@devappstore/db';
 import { contextFromEnv, createMailerFromEnv, sendEmail, type Mailer } from '@devappstore/emails';
-import { getCurrentUser, type SessionUser } from './session';
+import { ADMIN_RECENT_LOGIN_MS, getCurrentUser, requireRecentLogin, type SessionUser } from './session';
 import { dispatchDelivery } from './delivery';
 import { moderationEmail } from './admin-emails';
 import {
@@ -104,6 +104,9 @@ export async function getPlatformAdmin(): Promise<PlatformAdminContext | null> {
 export async function requirePlatformAdmin(roles?: readonly PlatformAdminRole[]): Promise<PlatformAdminContext> {
   const admin = await getPlatformAdmin();
   if (!admin || (roles && !roles.includes(admin.role))) notFound();
+  // A-11 : back-office (lectures et actions) seulement avec une connexion de moins de 12 h. Vérifié après le rôle :
+  // un non-administrateur reçoit toujours la même 404.
+  await requireRecentLogin(ADMIN_RECENT_LOGIN_MS, '/admin');
   return admin;
 }
 
