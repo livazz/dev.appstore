@@ -99,7 +99,9 @@ describe('inscription', () => {
   it('refuse un e-mail déjà utilisé', async () => {
     const res = await flows.signUpWithPassword({ name: 'Autre', email: 'dev@test.fr', password: 'motdepasse9' });
     expect(res.ok).toBe(false);
-    expect(res.fieldErrors?.email).toMatch(/existe déjà/);
+    // Revue de sécurité A-07 : message neutre, aucune erreur rattachée au champ e-mail.
+    expect(res.error).toMatch(/Impossible de créer un compte/);
+    expect(res.fieldErrors).toBeUndefined();
   });
 
   it('refuse un mot de passe trop court', async () => {

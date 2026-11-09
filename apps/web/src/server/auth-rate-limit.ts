@@ -19,8 +19,13 @@ export interface RateRule {
 }
 
 export const AUTH_RATE_LIMITS = {
-  /** Échecs de connexion par adresse e-mail (bourrage d'identifiants sur un compte). */
-  signInFailuresPerEmail: { max: 8, windowMs: 15 * 60_000 },
+  /**
+   * Échecs de connexion par couple e-mail + IP : blocage dur d'une source qui s'acharne sur un compte. Un tiers ne peut
+   * donc plus bloquer la connexion de la titulaire depuis une autre IP (revue de sécurité A-09).
+   */
+  signInFailuresPerEmailIp: { max: 8, windowMs: 15 * 60_000 },
+  /** Échecs par adresse e-mail toutes IP confondues : plafond haut contre le bourrage d'identifiants distribué. */
+  signInFailuresPerEmail: { max: 50, windowMs: 15 * 60_000 },
   /** Échecs de connexion par IP (tous comptes confondus). */
   signInFailuresPerIp: { max: 40, windowMs: 15 * 60_000 },
   /** Inscriptions (réussies ou non) par IP : limite la création de comptes en masse et l'énumération d'e-mails. */
@@ -66,7 +71,30 @@ export class SlidingWindowLimiter {
   }
 }
 
-/** Instance partagée par les Server Actions d'authentification. */
+/** Clés des compteurs de connexion (e-mail normalisé). */
+function signInKeys(email: string, ip: string) {
+  const e = email.trim().toLowerCase();
+  return [
+    [`signin:emailip:${e}|${ip}`, AUTH_RATE_LIMITS.signInFailuresPerEmailIp],
+    [`signin:email:${e}`, AUTH_RATE_LIMITS.signInFailuresPerEmail],
+    [`signin:ip:${ip}`, AUTH_RATE_LIMITS.signInFailuresPerIp],
+  ] as const;
+}
+
+/**
+ * Secondes d'attente avant une nouvelle tentative de connexion (0 si autorisée). Même réponse que le compte existe ou
+ * non. Utilisé par le formulaire (auth-flows.ts) ET par la route HTTP Better Auth `/api/auth/sign-in/email` (auth.ts).
+ */
+export function signInRetryAfter(limiter: SlidingWindowLimiter, email: string, ip: string, now = Date.now()): number {
+  return Math.max(0, ...signInKeys(email, ip).map(([k, rule]) => limiter.retryAfter(k, rule, now)));
+}
+
+/** Enregistre un échec de connexion pour l'e-mail, le couple e-mail + IP et l'IP. */
+export function recordSignInFailure(limiter: SlidingWindowLimiter, email: string, ip: string, now = Date.now()): void {
+  for (const [k, rule] of signInKeys(email, ip)) limiter.record(k, rule, now);
+}
+
+/** Instance partagée par les Server Actions d'authentification et la route HTTP Better Auth. */
 export const authLimiter = new SlidingWindowLimiter();
 
 /**
