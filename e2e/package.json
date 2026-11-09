@@ -1,0 +1,20 @@
+{
+  "name": "@wolleen/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tests de bout en bout (Playwright) : parcours joueur, liaison, studio, sécurité.",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^20",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
