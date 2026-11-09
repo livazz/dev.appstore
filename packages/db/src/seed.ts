@@ -1,13 +1,14 @@
 /* Données de démo : `npm run db:push && npm run db:seed` (idempotent). */
 import { DEFAULT_ITEM_STYLE, hashApiKey, type ItemStyle } from '@wolleen/core';
 import { hashPassword } from 'better-auth/crypto';
-import { account, and, db, eq, games, items, studios, studioMembers, user } from './index';
+import { account, and, db, eq, games, isNull, items, studios, studioMembers, user } from './index';
 import * as A from './demo-assets';
 
 /** Clés de développement connues — utilisées par apps/demo-game. Jamais en production. */
 export const DEMO_KEYS = {
-  crystal: { apiKey: 'wk_test_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
-  farm: { apiKey: 'wk_test_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
+  // apiKey = clé SECRÈTE (serveur du studio) ; publishableKey = clé PUBLIQUE (SDK embarqué dans le client du jeu).
+  crystal: { apiKey: 'wk_test_demo_crystal_clash', publishableKey: 'wk_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
+  farm: { apiKey: 'wk_test_demo_pixel_farm', publishableKey: 'wk_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
 };
 
 const lavender: ItemStyle = { ...DEFAULT_ITEM_STYLE, bg1: '#eef0ff', bg2: '#9fb0f0', titleColor: '#ffffff', titleOutline: true, titleShadow: true, subtitleColor: '#2d3a6b', priceBg: 'transparent', priceOutline: true, priceShadow: true, borderWidth: 3, borderColor: '#141826' };
@@ -59,6 +60,7 @@ async function main() {
       status: 'live' as const, linkMethods: ['code', 'id_confirm'] as ('code' | 'id_confirm')[],
       playerLookupUrl: 'http://localhost:4100/wolleen/players/{player_id}', webhookUrl: 'http://localhost:4100/wolleen/webhook',
       webhookSecret: DEMO_KEYS.crystal.webhookSecret, apiKeyHash: hashApiKey(DEMO_KEYS.crystal.apiKey), apiKeyPrefix: 'wk_test_demo',
+      publishableKey: DEMO_KEYS.crystal.publishableKey,
     },
     {
       id: 'gam_farm', studioId: 'std_nova', slug: 'pixel-farm', name: 'Pixel Farm', subtitle: 'Cultivez, récoltez, échangez',
@@ -67,9 +69,14 @@ async function main() {
       theme: { gradient: { enabled: true, c1: '#8fd16a', c2: '#ffffff', style: 'radial' as const }, grid: { width: 200, height: 260, margin: 24 } },
       status: 'live' as const, linkMethods: ['code'] as 'code'[],
       webhookSecret: DEMO_KEYS.farm.webhookSecret, apiKeyHash: hashApiKey(DEMO_KEYS.farm.apiKey), apiKeyPrefix: 'wk_test_demo',
+      publishableKey: DEMO_KEYS.farm.publishableKey,
     },
   ];
-  for (const g of gameRows) await db.insert(games).values(g).onConflictDoNothing();
+  for (const g of gameRows) {
+    await db.insert(games).values(g).onConflictDoNothing();
+    // Base créée avant l'ajout des clés publiques : on les complète sans toucher au reste.
+    await db.update(games).set({ publishableKey: g.publishableKey }).where(and(eq(games.id, g.id), isNull(games.publishableKey)));
+  }
 
   const it = (gameId: string, position: number, v: Omit<typeof items.$inferInsert, 'id' | 'gameId' | 'position' | 'style'> & { style?: ItemStyle }) => ({
     id: `itm_${gameId.slice(4)}_${v.productId}`, gameId, position, style: lavender, ...v,

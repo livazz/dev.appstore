@@ -14,7 +14,15 @@ import type { PurchaseEvent } from '@wolleen/core';
  * `GET /api/v1/deliveries` au lancement / retour au premier plan.
  */
 
-export type PurchaseListener = (event: PurchaseEvent) => void;
+/**
+ * Métadonnées serveur jointes à un événement (jamais envoyées au jeu) : `userId` = compte Wolleen acheteur.
+ * Un flux ouvert avec un jeton joueur ne relaie que les achats de SON compte (sec/delivery-keys).
+ */
+export interface PurchaseMeta {
+  userId: string | null;
+}
+
+export type PurchaseListener = (event: PurchaseEvent, meta: PurchaseMeta) => void;
 
 const g = globalThis as unknown as { __wolleenDeliveryBus?: Map<string, Set<PurchaseListener>> };
 /** Survit au rechargement à chaud de Next.js (sinon les flux ouverts seraient orphelins). */
@@ -37,13 +45,13 @@ export function subscribe(gameId: string, playerId: string, listener: PurchaseLi
 }
 
 /** Publie un événement à tous les abonnés (gameId, playerId). Renvoie le nombre d'abonnés notifiés. */
-export function publish(gameId: string, playerId: string, event: PurchaseEvent): number {
+export function publish(gameId: string, playerId: string, event: PurchaseEvent, meta: PurchaseMeta = { userId: null }): number {
   const set = bus.get(keyOf(gameId, playerId));
   if (!set) return 0;
   let n = 0;
   for (const listener of [...set]) {
     try {
-      listener(event);
+      listener(event, meta);
       n++;
     } catch (e) {
       console.error('[events] abonné en erreur', e);

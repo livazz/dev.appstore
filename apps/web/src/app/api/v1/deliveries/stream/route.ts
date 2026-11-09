@@ -1,7 +1,7 @@
 import type { PurchaseEvent } from '@wolleen/core';
-import { authenticateGame } from '@/server/api-key';
+import { authenticateApi } from '@/server/api-key';
 import { ensureDevRetryLoop, markFetchedBySdk, takeOpenDeliveries } from '@/server/delivery';
-import { CORS_HEADERS, corsPreflight, missingPlayerId, readPlayerId, unauthorized } from '@/server/delivery-http';
+import { CORS_HEADERS, corsPreflight, resolvePlayerScope, unauthorized } from '@/server/delivery-http';
 import { subscribe } from '@/server/events';
 
 export const runtime = 'nodejs';
@@ -10,16 +10,22 @@ export const dynamic = 'force-dynamic';
 const HEARTBEAT_MS = 15_000;
 
 /**
- * GET /api/v1/deliveries/stream?player_id=… — Server-Sent Events.
- * Envoie d'abord l'arriéré (pending + delivered non acquittées), puis chaque nouvel achat en direct
- * (`event: purchase`, `id: <delivery_id>`, `data: <PurchaseEvent>`), et un commentaire `: ping` toutes les 15 s.
+ * GET /api/v1/deliveries/stream — Server-Sent Events.
+ * Clé secrète : `?player_id=` obligatoire. Clé publique : jeton joueur obligatoire (`Wolleen-Player-Token`),
+ * le flux ne porte que les achats du joueur du jeton faits par son compte Wolleen.
+ * Envoie d'abord l'arriéré (pending + delivered non acquittées), puis chaque nouvel événement en direct
+ * (`event: purchase`, `id: <delivery_id>`, `data: <PurchaseEvent>` — achat ou remboursement), et `: ping` toutes les 15 s.
+ * La clé n'est jamais acceptée dans l'URL (EventSource natif : utiliser le SDK, qui lit le flux via fetch).
  */
 export async function GET(req: Request) {
   ensureDevRetryLoop();
-  const game = await authenticateGame(req);
-  if (!game) return unauthorized();
-  const playerId = readPlayerId(req);
-  if (!playerId) return missingPlayerId();
+  const auth = await authenticateApi(req);
+  if (!auth) return unauthorized();
+  const target = resolvePlayerScope(auth, req, { requirePlayerId: true });
+  if (!target.ok) return target.res;
+  const playerId = target.playerId!;
+  const buyer = target.scope?.userId;
+  const game = auth.game;
 
   const encoder = new TextEncoder();
   let cleanup = () => {};
@@ -45,7 +51,8 @@ export async function GET(req: Request) {
       // Abonnement AVANT la lecture de l'arriéré : aucun achat ne peut passer entre les deux.
       let backlogSent = false;
       const queued: PurchaseEvent[] = [];
-      const unsubscribe = subscribe(game.id, playerId, (e) => {
+      const unsubscribe = subscribe(game.id, playerId, (e, meta) => {
+        if (buyer !== undefined && meta.userId !== buyer) return; // jeton joueur : seulement les achats de son compte
         if (!backlogSent) {
           queued.push(e);
           return;
@@ -69,7 +76,7 @@ export async function GET(req: Request) {
 
       send('retry: 5000\n\n');
       try {
-        for (const e of await takeOpenDeliveries(game, playerId)) sendPurchase(e);
+        for (const e of await takeOpenDeliveries(game, playerId, 100, { userId: buyer })) sendPurchase(e);
       } catch (e) {
         console.error('[deliveries/stream] arriéré', e);
       }
