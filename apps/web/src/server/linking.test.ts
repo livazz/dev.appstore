@@ -69,6 +69,10 @@ function startLookupServer() {
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify({ player_id: 'X', display_name: 'x'.repeat(40_000) }));
     }
+    if (url.startsWith('/bidi')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ player_id: 'B1', display_name: '‮etuor‬  Lina​<script>alert(1)</script>' }));
+    }
     if (url.startsWith('/garbage')) {
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end('<html>pas du json</html>');
@@ -404,5 +408,119 @@ describe('pages joueur et réglages studio', () => {
     expect(await L.getLinkSettings(g.id)).toMatchObject({ linkMethods: ['code', 'id_confirm'] });
     expect(await save(['code'], '')).toMatchObject({ ok: true, playerLookupUrl: null });
     expect(L.availableLinkMethods({ linkMethods: ['code', 'id_confirm', 'oauth'], playerLookupUrl: null })).toEqual(['code']);
+  });
+});
+
+/* ------------------------------------------------------------------------------------------------ */
+/* Revue de sécurité (vague 2) — tests de non-régression                                             */
+/* ------------------------------------------------------------------------------------------------ */
+
+const WRONG_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+/** Codes bien formés mais inexistants (« YYYY-YYAB », …). */
+const wrongCode = (i: number) => `YYYY-YY${WRONG_ALPHABET[Math.floor(i / WRONG_ALPHABET.length) % WRONG_ALPHABET.length]}${WRONG_ALPHABET[i % WRONG_ALPHABET.length]}`;
+
+describe('revue de sécurité — liaison', () => {
+  it('CHK-LNK-03 : la limite des codes erronés tient sous des saisies parallèles (atomicité)', async () => {
+    const user = await newUser();
+    const { max } = L.LINK_LIMITS.codeFailuresPerUser;
+    const { code } = await issue(gameA, 'p-par-brute');
+    const results = await Promise.all(Array.from({ length: 4 * max }, (_, i) => L.redeemLinkCode(user, gameA, wrongCode(i), { now: at(1000) })));
+    expect(results.filter((r) => !r.ok && r.error === 'invalid_code')).toHaveLength(max);
+    expect(results.filter((r) => !r.ok && r.error === 'rate_limited')).toHaveLength(3 * max);
+    const failures = await D.db
+      .select()
+      .from(D.linkAttempts)
+      .where(D.and(D.eq(D.linkAttempts.userId, user), D.eq(D.linkAttempts.kind, 'code'), D.eq(D.linkAttempts.ok, 0)));
+    expect(failures).toHaveLength(max);
+    // Le bon code reste refusé pendant le blocage et n'est pas consommé.
+    expect(await L.redeemLinkCode(user, gameA, code, { now: at(2000) })).toMatchObject({ ok: false, error: 'rate_limited' });
+    const [row] = await D.db.select().from(D.linkCodes).where(D.and(D.eq(D.linkCodes.gameId, gameA.id), D.eq(D.linkCodes.playerId, 'p-par-brute')));
+    expect(row.consumedAt).toBeNull();
+  });
+
+  it('CHK-LNK-07 : la limite des recherches tient sous des appels parallèles (aucun appel sortant au-delà)', async () => {
+    const user = await newUser();
+    const { max } = L.LINK_LIMITS.lookupsPerUser;
+    const before = hits.length;
+    const results = await Promise.all(Array.from({ length: 3 * max }, (_, i) => L.startIdConfirm(user, gameLookup, `PAR${i}`, { now: at(1000) })));
+    expect(results.filter((r) => r.ok)).toHaveLength(max);
+    expect(results.filter((r) => !r.ok && r.error === 'rate_limited')).toHaveLength(2 * max);
+    expect(hits.length - before).toBe(max);
+  });
+
+  it('CHK-LNK-02 : un code ne lie qu’au jeu qui l’a émis et ne sert qu’une fois', async () => {
+    const [u1, u2] = [await newUser(), await newUser()];
+    const { code } = await issue(gameB, 'p-scope');
+    expect(await L.redeemLinkCode(u1, gameA, code, { now: at(1000) })).toMatchObject({ ok: false, error: 'invalid_code' });
+    const ok = await L.redeemLinkCode(u1, gameB, code, { now: at(2000) });
+    expect(ok.ok && ok.link).toMatchObject({ gameId: gameB.id, playerId: 'p-scope', verified: 1 });
+    expect(await L.redeemLinkCode(u2, gameB, code, { now: at(3000) })).toMatchObject({ ok: false, error: 'invalid_code' });
+  });
+
+  it('CHK-SSRF-02 : en production, https:// uniquement (enregistrement et appel)', async () => {
+    expect(L.checkOutboundUrl('http://api.example.com/players/x', false, true).ok).toBe(false);
+    expect(L.checkOutboundUrl('https://api.example.com/players/x', false, true).ok).toBe(true);
+    const g = await insertGame('gam_https');
+    expect(
+      await L.updateLinkSettings(g.id, { methods: ['id_confirm'], playerLookupUrl: 'http://api.example.com/p/{player_id}' }, { allowPrivate: false, requireHttps: true }),
+    ).toMatchObject({ ok: false, error: 'unsafe_url' });
+    const before = hits.length;
+    const r = await L.fetchPlayerLookup({ playerLookupUrl: `${base}/players/{player_id}`, webhookSecret: SECRET }, 'P1', { allowPrivate: true, requireHttps: true, now: T0 });
+    expect(r).toMatchObject({ ok: false, error: 'unsafe_url' });
+    expect(hits.length).toBe(before);
+  });
+
+  it('CHK-LNK-08 / T-LNK-06 : {player_id} seulement dans le chemin ou la query string', async () => {
+    for (const bad of ['https://{player_id}.evil.example/x', 'https://{player_id}@api.example.com/x', 'https://api.example.com/x#{player_id}', '{player_id}']) {
+      expect(L.checkLookupTemplate(bad), bad).not.toBeNull();
+    }
+    expect(L.checkLookupTemplate('https://api.example.com/players/{player_id}')).toBeNull();
+    expect(L.checkLookupTemplate('https://api.example.com/players?id={player_id}&v=1')).toBeNull();
+    const g = await insertGame('gam_tpl');
+    expect(
+      await L.updateLinkSettings(g.id, { methods: ['id_confirm'], playerLookupUrl: 'https://{player_id}.example.com/p' }, { allowPrivate: true }),
+    ).toMatchObject({ ok: false, error: 'invalid_input' });
+    // Modèle déjà en base (enregistré avant la règle) : refusé à l'appel, aucune requête.
+    const before = hits.length;
+    expect(
+      await L.fetchPlayerLookup({ playerLookupUrl: 'http://{player_id}/players', webhookSecret: SECRET }, '127.0.0.1', { allowPrivate: true, now: T0 }),
+    ).toMatchObject({ ok: false, error: 'unsafe_url' });
+    expect(hits.length).toBe(before);
+  });
+
+  it('CHK-LNK-08 : un identifiant « .. » ne fait pas remonter le chemin appelé', async () => {
+    const user = await newUser();
+    const gameProfile = await insertGame('gam_profile', { linkMethods: ['id_confirm'], playerLookupUrl: `${base}/players/{player_id}/profile` });
+    expect(await L.startIdConfirm(user, gameProfile, '..', { now: T0 })).toMatchObject({ ok: false, error: 'invalid_input' });
+    expect(await L.startIdConfirm(user, gameProfile, '.', { now: T0 })).toMatchObject({ ok: false, error: 'invalid_input' });
+    const before = hits.length;
+    expect(await L.fetchPlayerLookup(gameProfile, '..', { allowPrivate: true, now: T0 })).toMatchObject({ ok: false, error: 'unsafe_url' });
+    expect(hits.length).toBe(before);
+    // Les formes encodées restent encodées : le chemin ne change pas.
+    await L.fetchPlayerLookup(gameProfile, '%2e%2e', { allowPrivate: true, now: T0 });
+    expect(hits[before].url).toBe('/players/%252e%252e/profile');
+  });
+
+  it('CHK-LNK-10 / T-UPL-07 : display_name nettoyé (caractères invisibles, surcharges bidi) et rendu comme texte', async () => {
+    expect(L.cleanDisplayName('‮etuor‬  Lina​')).toBe('etuor Lina');
+    const user = await newUser();
+    const g = await insertGame('gam_bidi', { linkMethods: ['id_confirm'], playerLookupUrl: `${base}/bidi/{player_id}` });
+    const r = await L.startIdConfirm(user, g, 'B1', { now: T0 });
+    expect(r.ok && r.player.display_name).toBe('etuor Lina<script>alert(1)</script>'); // texte brut, échappé par React à l'affichage
+    // Un nom vide une fois nettoyé, ou un player_id avec caractères invisibles, est refusé.
+    expect(L.playerLookupResponseSchema.safeParse({ player_id: 'x', display_name: '​‮' }).success).toBe(false);
+    expect(L.playerLookupResponseSchema.safeParse({ player_id: 'a‮b', display_name: 'ok' }).success).toBe(false);
+    // Même nettoyage pour le nom transmis par le jeu à la création d'un code.
+    expect(L.linkCodeRequestSchema.parse({ player_id: 'p1', player_name: ' Li‮na ' }).player_name).toBe('Lina');
+    expect(L.linkCodeRequestSchema.safeParse({ player_id: 'p​1' }).success).toBe(false);
+  });
+
+  it('désliaison : impossible sur le lien d’un autre utilisateur', async () => {
+    const [owner, other] = [await newUser(), await newUser()];
+    const { code } = await issue(gameA, 'p-unlink');
+    const r = await L.redeemLinkCode(owner, gameA, code, { now: at(1000) });
+    if (!r.ok) throw new Error(r.message);
+    expect(await L.unlinkGameLink(other, r.link.id)).toBe(false);
+    expect(await D.db.select().from(D.gameLinks).where(D.eq(D.gameLinks.id, r.link.id))).toHaveLength(1);
   });
 });

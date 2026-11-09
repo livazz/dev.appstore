@@ -14,7 +14,7 @@ import {
   type LinkMethod,
   type PlayerLookupResponse,
 } from '@wolleen/core';
-import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttempts, linkCodes, lt, studioMembers, type DB } from '@wolleen/db';
+import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttempts, linkCodes, lt, sql, studioMembers, type DB } from '@wolleen/db';
 
 /*
  * Liaison d'un compte Wolleen à un compte de jeu (tâche « linking »). Point de sécurité critique :
@@ -103,10 +103,33 @@ const minutes = (s: number) => Math.max(1, Math.ceil(s / 60));
 /* Codes de liaison (méthode `code`)                                                                 */
 /* ------------------------------------------------------------------------------------------------ */
 
+/** Caractères de contrôle et de mise en forme invisibles (dont surcharges bidi U+202E, espaces de largeur nulle). */
+const INVISIBLE_CHARS = /[\p{Cc}\p{Cf}\u2028\u2029]/gu;
+const HAS_INVISIBLE = /[\p{Cc}\p{Cf}\u2028\u2029]/u;
+
+/**
+ * Nettoie un nom affiché fourni par un jeu (player_name, display_name) : retire les caractères invisibles qui
+ * permettent d'usurper l'affichage (« Est-ce bien vous : <nom> ? ») et compacte les espaces. L'échappement HTML
+ * reste assuré par React à l'affichage (jamais de dangerouslySetInnerHTML).
+ */
+export function cleanDisplayName(raw: string): string {
+  return raw.replace(INVISIBLE_CHARS, '').replace(/\s+/g, ' ').trim();
+}
+
 /** Corps de POST /api/v1/link-codes. */
 export const linkCodeRequestSchema = z.object({
-  player_id: z.string().trim().min(1).max(128),
-  player_name: z.string().trim().max(64).nullish(),
+  player_id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(128)
+    .refine((v) => !HAS_INVISIBLE.test(v), 'player_id contient des caractères interdits'),
+  player_name: z
+    .string()
+    .max(256)
+    .transform(cleanDisplayName)
+    .pipe(z.string().max(64))
+    .nullish(),
 });
 
 /**
@@ -155,9 +178,25 @@ export async function createLinkCode(
   return { ok: true, code, expiresAt };
 }
 
+/**
+ * Sérialise les tentatives d'un utilisateur (verrou transactionnel Postgres, libéré au COMMIT/ROLLBACK) :
+ * la lecture de la fenêtre et l'enregistrement de la tentative deviennent atomiques. Sans ce verrou, N requêtes
+ * simultanées liraient toutes « 0 échec » et contourneraient la limite (force brute en parallèle).
+ */
+async function lockUserAttempts(tx: Tx, userId: string, kind: 'code' | 'lookup') {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`wolleen:link:${kind}:${userId}`}))`);
+}
+
 /** Fenêtre glissante sur link_attempts pour un utilisateur. */
-async function attemptWindow(userId: string, kind: 'code' | 'lookup', now: Date, limit: { max: number; windowMs: number }, failuresOnly: boolean) {
-  const rows = await db
+async function attemptWindow(
+  ex: Executor,
+  userId: string,
+  kind: 'code' | 'lookup',
+  now: Date,
+  limit: { max: number; windowMs: number },
+  failuresOnly: boolean,
+) {
+  const rows = await ex
     .select({ createdAt: linkAttempts.createdAt })
     .from(linkAttempts)
     .where(
@@ -190,12 +229,14 @@ export async function redeemLinkCode(
   if (!code) return fail('invalid_format', 'Le code comporte 8 caractères, par exemple K7QF-M2XA.');
   const now = opts.now ?? new Date();
   const limit = LINK_LIMITS.codeFailuresPerUser;
-  const win = await attemptWindow(userId, 'code', now, limit, true);
-  if (win.blocked) {
-    return fail('rate_limited', `Trop de codes erronés. Réessayez dans ${minutes(win.retryAfterS)} min.`, { retryAfterS: win.retryAfterS, remaining: 0 });
-  }
 
   return db.transaction(async (tx): Promise<LinkResult<{ link: GameLink }>> => {
+    // Vérification de la limite et consommation dans la même transaction, sous verrou par utilisateur.
+    await lockUserAttempts(tx, userId, 'code');
+    const win = await attemptWindow(tx, userId, 'code', now, limit, true);
+    if (win.blocked) {
+      return fail('rate_limited', `Trop de codes erronés. Réessayez dans ${minutes(win.retryAfterS)} min.`, { retryAfterS: win.retryAfterS, remaining: 0 });
+    }
     const [consumed] = await tx
       .update(linkCodes)
       .set({ consumedAt: now })
@@ -289,8 +330,15 @@ export function isBlockedAddress(ip: string): boolean {
 /** En production, les adresses internes sont refusées ; en dev on autorise localhost (démo sur :4100). */
 export const allowPrivateTargets = () => process.env.NODE_ENV !== 'production';
 
+/** En production, seules les URL https:// sont appelées (requête signée et réponse affichée : pas de MITM). */
+export const requireHttpsTargets = () => process.env.NODE_ENV === 'production';
+
 /** Vérification statique d'une URL sortante (schéma, identifiants, hôte littéral). */
-export function checkOutboundUrl(raw: string, allowPrivate = allowPrivateTargets()): { ok: true; url: URL } | { ok: false; message: string } {
+export function checkOutboundUrl(
+  raw: string,
+  allowPrivate = allowPrivateTargets(),
+  requireHttps = requireHttpsTargets(),
+): { ok: true; url: URL } | { ok: false; message: string } {
   let url: URL;
   try {
     url = new URL(raw);
@@ -298,6 +346,7 @@ export function checkOutboundUrl(raw: string, allowPrivate = allowPrivateTargets
     return { ok: false, message: 'URL invalide.' };
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return { ok: false, message: 'Seules les URL http:// ou https:// sont autorisées.' };
+  if (requireHttps && url.protocol !== 'https:') return { ok: false, message: 'Seules les URL https:// sont autorisées.' };
   if (url.username || url.password) return { ok: false, message: "L'URL ne doit pas contenir d'identifiants." };
   if (!allowPrivate) {
     const host = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
@@ -335,9 +384,9 @@ function guardedLookup(allowPrivate: boolean): LookupFunction {
 export function safeHttpGet(
   url: URL,
   headers: Record<string, string>,
-  o: { allowPrivate: boolean; timeoutMs: number; maxBytes: number },
+  o: { allowPrivate: boolean; timeoutMs: number; maxBytes: number; requireHttps?: boolean },
 ): Promise<{ status: number; body: string }> {
-  const shape = checkOutboundUrl(url.href, o.allowPrivate);
+  const shape = checkOutboundUrl(url.href, o.allowPrivate, o.requireHttps ?? requireHttpsTargets());
   if (!shape.ok) return Promise.reject(new BlockedAddressError(url.hostname));
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -382,14 +431,41 @@ export const playerIdSchema = z
   .trim()
   .min(1, 'Saisissez votre identifiant joueur.')
   .max(64, 'Identifiant trop long.')
-  .regex(/^[^\p{Cc}]+$/u, 'Identifiant invalide.');
+  .regex(/^[^\p{Cc}\p{Cf}\u2028\u2029]+$/u, 'Identifiant invalide.')
+  // « . » et « .. » sont des segments de chemin spéciaux, même encodés (%2e) : ils feraient remonter l'URL de
+  // recherche (https://api.jeu/players/.. → https://api.jeu/). encodeURIComponent couvre « / ? # % ».
+  .refine((v) => v !== '.' && v !== '..', 'Identifiant invalide.');
+
+/**
+ * Vérifie le modèle d'URL de recherche : `{player_id}` présent, et seulement dans le chemin ou la query string
+ * (jamais dans le schéma, l'hôte, le port, les identifiants ou le fragment) — un joueur ne doit pas pouvoir choisir
+ * le serveur appelé.
+ */
+export function checkLookupTemplate(template: string): string | null {
+  if (!template.includes('{player_id}')) return "L'URL doit contenir {player_id}, remplacé par l'identifiant saisi.";
+  let a: URL;
+  let b: URL;
+  try {
+    a = new URL(template.replaceAll('{player_id}', 'wolleenplayera'));
+    b = new URL(template.replaceAll('{player_id}', 'wolleenplayerb'));
+  } catch {
+    return 'URL invalide.';
+  }
+  if (a.origin !== b.origin || a.username !== b.username || a.password !== b.password || a.hash !== b.hash) {
+    return '{player_id} ne peut figurer que dans le chemin ou les paramètres de l’URL.';
+  }
+  return null;
+}
 
 const optionalLenient = <T extends z.ZodTypeAny>(schema: T) => schema.optional().catch(undefined);
 
 /** Validation de la réponse du studio : strict sur les champs requis, tolérant sur les optionnels. */
 export const playerLookupResponseSchema = z.object({
-  player_id: z.union([z.string().trim().min(1).max(128), z.number().int().nonnegative()]).transform(String),
-  display_name: z.string().trim().min(1).max(100),
+  player_id: z
+    .union([z.string().trim().min(1).max(128), z.number().int().nonnegative()])
+    .transform(String)
+    .refine((v) => !HAS_INVISIBLE.test(v)),
+  display_name: z.string().max(400).transform(cleanDisplayName).pipe(z.string().min(1).max(100)),
   level: optionalLenient(z.number().int().min(0).max(1_000_000)),
   avatar_url: optionalLenient(z.string().max(2048).url().refine((u) => /^https?:\/\//i.test(u))),
 });
@@ -398,12 +474,17 @@ export const playerLookupResponseSchema = z.object({
 export async function fetchPlayerLookup(
   game: Pick<Game, 'playerLookupUrl' | 'webhookSecret'>,
   playerId: string,
-  opts: { allowPrivate?: boolean; timeoutMs?: number; now?: Date } = {},
+  opts: { allowPrivate?: boolean; requireHttps?: boolean; timeoutMs?: number; now?: Date } = {},
 ): Promise<LinkResult<{ player: PlayerLookupResponse }>> {
   const allowPrivate = opts.allowPrivate ?? allowPrivateTargets();
+  const requireHttps = opts.requireHttps ?? requireHttpsTargets();
   const template = game.playerLookupUrl?.trim();
   if (!template || !template.includes('{player_id}')) return fail('not_configured', "La recherche par identifiant n'est pas configurée pour ce jeu.");
-  const shape = checkOutboundUrl(template.replaceAll('{player_id}', encodeURIComponent(playerId)), allowPrivate);
+  // Revérifié à chaque appel (l'URL a pu être enregistrée avant ces règles) ; l'ID est aussi revalidé ici.
+  if (checkLookupTemplate(template) || !playerIdSchema.safeParse(playerId).success) {
+    return fail('unsafe_url', "L'adresse de recherche du jeu est refusée.");
+  }
+  const shape = checkOutboundUrl(template.replaceAll('{player_id}', encodeURIComponent(playerId)), allowPrivate, requireHttps);
   if (!shape.ok) return fail('unsafe_url', "L'adresse de recherche du jeu est refusée.");
   const ts = Math.floor((opts.now ?? new Date()).getTime() / 1000);
   let res: { status: number; body: string };
@@ -411,7 +492,7 @@ export async function fetchPlayerLookup(
     res = await safeHttpGet(
       shape.url,
       { accept: 'application/json', 'user-agent': 'Wolleen-PlayerLookup/1.0', [SIGNATURE_HEADER]: signPayload(playerId, game.webhookSecret, ts) },
-      { allowPrivate, timeoutMs: opts.timeoutMs ?? LINK_LIMITS.lookupTimeoutMs, maxBytes: LINK_LIMITS.lookupMaxBytes },
+      { allowPrivate, requireHttps, timeoutMs: opts.timeoutMs ?? LINK_LIMITS.lookupTimeoutMs, maxBytes: LINK_LIMITS.lookupMaxBytes },
     );
   } catch (e) {
     if (e instanceof BlockedAddressError) return fail('unsafe_url', "L'adresse de recherche du jeu est refusée.");
@@ -430,7 +511,8 @@ export async function fetchPlayerLookup(
   const { player_id, display_name, level, avatar_url } = parsed.data;
   const player: PlayerLookupResponse = { player_id, display_name };
   if (level !== undefined) player.level = level;
-  if (avatar_url !== undefined) player.avatar_url = avatar_url;
+  // En production, avatar en https uniquement (pas de contenu mixte ni de pistage en clair).
+  if (avatar_url !== undefined && (!requireHttps || avatar_url.startsWith('https://'))) player.avatar_url = avatar_url;
   return { ok: true, player };
 }
 
@@ -442,23 +524,32 @@ export async function startIdConfirm(
   userId: string,
   game: Pick<Game, 'id' | 'linkMethods' | 'playerLookupUrl' | 'webhookSecret'>,
   rawPlayerId: string,
-  opts: { now?: Date; allowPrivate?: boolean; timeoutMs?: number } = {},
+  opts: { now?: Date; allowPrivate?: boolean; requireHttps?: boolean; timeoutMs?: number } = {},
 ): Promise<LinkResult<{ attemptId: string; player: PlayerLookupResponse }>> {
   if (!game.linkMethods.includes('id_confirm')) return fail('method_disabled', 'La liaison par identifiant est désactivée pour ce jeu.');
   const parsedId = playerIdSchema.safeParse(rawPlayerId);
   if (!parsedId.success) return fail('invalid_input', parsedId.error.issues[0]?.message ?? 'Identifiant invalide.');
   const playerId = parsedId.data;
   const now = opts.now ?? new Date();
-  const win = await attemptWindow(userId, 'lookup', now, LINK_LIMITS.lookupsPerUser, false);
-  if (win.blocked) return fail('rate_limited', `Trop de recherches. Réessayez dans ${minutes(win.retryAfterS)} min.`, { retryAfterS: win.retryAfterS });
+  const id = newId('lat');
+  // Réservation atomique d'une recherche (verrou par utilisateur) AVANT l'appel sortant : des recherches lancées
+  // en parallèle ne peuvent pas dépasser la limite, et un appel qui échoue ou expire reste compté.
+  const reserved = await db.transaction(async (tx) => {
+    await lockUserAttempts(tx, userId, 'lookup');
+    const win = await attemptWindow(tx, userId, 'lookup', now, LINK_LIMITS.lookupsPerUser, false);
+    if (win.blocked) return win;
+    await tx.insert(linkAttempts).values({ id, userId, gameId: game.id, kind: 'lookup', ok: 0, playerId, playerName: null, createdAt: now });
+    return null;
+  });
+  if (reserved) return fail('rate_limited', `Trop de recherches. Réessayez dans ${minutes(reserved.retryAfterS)} min.`, { retryAfterS: reserved.retryAfterS });
 
   const r = await fetchPlayerLookup(game, playerId, opts);
-  const id = newId('lat');
-  await db.insert(linkAttempts).values({
-    id, userId, gameId: game.id, kind: 'lookup', ok: r.ok ? 1 : 0,
-    playerId: r.ok ? r.player.player_id : playerId, playerName: r.ok ? r.player.display_name : null, createdAt: now,
-  });
-  return r.ok ? { ok: true, attemptId: id, player: r.player } : r;
+  if (!r.ok) return r;
+  await db
+    .update(linkAttempts)
+    .set({ ok: 1, playerId: r.player.player_id, playerName: r.player.display_name })
+    .where(eq(linkAttempts.id, id));
+  return { ok: true, attemptId: id, player: r.player };
 }
 
 /** Étape 2 de `id_confirm` : « Oui, c'est moi » → lien déclaratif (verified = 0). Jeton à usage unique. */
@@ -572,17 +663,19 @@ export async function getLinkSettings(gameId: string) {
 export async function updateLinkSettings(
   gameId: string,
   input: { methods: string[]; playerLookupUrl: string },
-  opts: { allowPrivate?: boolean } = {},
+  opts: { allowPrivate?: boolean; requireHttps?: boolean } = {},
 ): Promise<LinkResult<{ linkMethods: LinkMethod[]; playerLookupUrl: string | null }>> {
   const allowPrivate = opts.allowPrivate ?? allowPrivateTargets();
+  const requireHttps = opts.requireHttps ?? requireHttpsTargets();
   const methods = (['code', 'id_confirm'] as const).filter((m) => input.methods.includes(m));
   if (!methods.length) return fail('invalid_input', 'Activez au moins une méthode de liaison.');
   const url = input.playerLookupUrl.trim();
   if (methods.includes('id_confirm') && !url) return fail('invalid_input', "L'URL de recherche est obligatoire pour la confirmation par identifiant.");
   if (url) {
     if (url.length > 2048) return fail('invalid_input', 'URL trop longue.');
-    if (!url.includes('{player_id}')) return fail('invalid_input', "L'URL doit contenir {player_id}, remplacé par l'identifiant saisi.");
-    const shape = checkOutboundUrl(url.replaceAll('{player_id}', 'player'), allowPrivate);
+    const templateError = checkLookupTemplate(url);
+    if (templateError) return fail('invalid_input', templateError);
+    const shape = checkOutboundUrl(url.replaceAll('{player_id}', 'player'), allowPrivate, requireHttps);
     if (!shape.ok) return fail('unsafe_url', shape.message);
     const host = shape.url.hostname.replace(/^\[|\]$/g, '');
     if (!allowPrivate && !isIP(host)) {
