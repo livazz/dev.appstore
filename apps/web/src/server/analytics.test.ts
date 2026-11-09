@@ -195,6 +195,18 @@ describe('getTopItems / getTransactions', () => {
     expect(lines[2]).toContain(',"Pack ""deluxe"", x2",');
     expect(lines[2].endsWith(',paid,')).toBe(true);
   });
+  it('neutralise les formules (CSV injection) dans les champs saisis par un studio ou un joueur', async () => {
+    const [base] = await getTransactions('gam_a', { days: 7, now: NOW, limit: 1 }, t);
+    const csv = transactionsToCsv([
+      { ...base, itemTitle: '=HYPERLINK("https://evil.tld","Clique")', playerId: '@SUM(1+1)', productId: '+cmd|calc' },
+      { ...base, itemTitle: '-2+3', playerId: '\tpid', productId: 'ok' },
+    ]);
+    const [, l1, l2] = csv.trimEnd().split('\r\n');
+    expect(l1).toContain(`,'+cmd|calc,"'=HYPERLINK(""https://evil.tld"",""Clique"")",'@SUM(1+1),`);
+    expect(l2).toContain(`,ok,'-2+3,"'\tpid",`);
+    // Les montants (générés par Wolleen) ne sont pas touchés.
+    expect(l1).toContain(',10.00,0.50,9.50,');
+  });
 });
 
 describe('getPlayerPurchases', () => {

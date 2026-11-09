@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { db, eq, games } from '@wolleen/db';
 import { feeCents, formatMoney, STORE_FEE_BPS } from '@wolleen/core';
 import { requireGameAccess } from '@/server/session';
-import { getDailyRevenue, getSalesTotals, getTopItems, getTransactions } from '@/server/analytics';
+import { SALES_ROLES, getDailyRevenue, getSalesTotals, getTopItems, getTransactions } from '@/server/analytics';
 import { formatDateTime, parseSalesPeriod, SALES_PERIODS, studioDeliveryLabel, TONE_CLASSES } from '@/lib/analytics-format';
 import { RevenueChart } from '@/components/analytics/RevenueChart';
 
@@ -20,7 +20,7 @@ export default async function SalesPage({
   const { id } = await params;
   const days = parseSalesPeriod((await searchParams).days);
   try {
-    await requireGameAccess(id);
+    await requireGameAccess(id, [...SALES_ROLES]);
   } catch (e) {
     if (e instanceof Error && e.message === 'FORBIDDEN') notFound();
     throw e;

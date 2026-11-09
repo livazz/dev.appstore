@@ -1,17 +1,18 @@
 import { db, eq, games } from '@wolleen/db';
 import { requireGameAccess } from '@/server/session';
-import { getTransactions, localDay, transactionsToCsv } from '@/server/analytics';
+import { SALES_ROLES, getTransactions, localDay, transactionsToCsv } from '@/server/analytics';
 import { parseSalesPeriod } from '@/lib/analytics-format';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /studio/games/[id]/sales/export?days=7|30|90 → CSV des transactions de la période (membres du studio). */
+/** GET /studio/games/[id]/sales/export?days=7|30|90 → CSV des transactions de la période (owner, admin, finance). */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    await requireGameAccess(id); // redirige vers /login si non connecté
+    // Ventes : owner, admin, finance (matrice des rôles, CHK-MT-06). Redirige vers /login si non connecté.
+    await requireGameAccess(id, [...SALES_ROLES]);
   } catch (e) {
-    if (e instanceof Error && e.message === 'FORBIDDEN') return new Response('Accès refusé', { status: 403 });
+    if (e instanceof Error && e.message === 'FORBIDDEN') return new Response('Accès refusé', { status: 403, headers: { 'Cache-Control': 'private, no-store' } });
     throw e;
   }
   const [game] = await db.select({ slug: games.slug }).from(games).where(eq(games.id, id));

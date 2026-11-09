@@ -14,6 +14,9 @@ import { and, db, deliveries, desc, eq, games, inArray, orders, sql, type DB } f
 
 export const DEFAULT_TZ = 'Europe/Paris';
 
+/** Rôles autorisés à voir les ventes et l'export CSV (matrice du modèle de menaces § 6.6, CHK-MT-06). */
+export const SALES_ROLES = ['owner', 'admin', 'finance'] as const;
+
 export interface WindowOptions {
   days: number;
   now?: Date;
@@ -191,9 +194,19 @@ export async function getTransactions(gameId: string, opts: WindowOptions & { li
   return opts.limit ? q.limit(opts.limit) : q;
 }
 
-function csvCell(v: string | number) {
-  const s = String(v);
-  return /[",;\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+/**
+ * Neutralise l'injection de formules (CSV injection) : un texte fourni par un studio ou un joueur (titre, product_id,
+ * player_id) qui commence par = + - @ (ou tabulation / retour chariot) serait interprété comme une formule par Excel,
+ * LibreOffice ou Sheets à l'ouverture de l'export (=HYPERLINK(…), =cmd|…). Préfixe apostrophe (recommandation OWASP).
+ */
+export function neutralizeFormula(s: string) {
+  return /^[=+\-@\t\r＝＋－＠]/.test(s) ? `'${s}` : s;
+}
+
+/** Cellule CSV ; `untrusted` : texte saisi par un studio ou un joueur (neutralisé contre les formules). */
+function csvCell(v: string | number, untrusted = false) {
+  const s = untrusted ? neutralizeFormula(String(v)) : String(v);
+  return /[",;\n\r\t]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 const decimal = (cents: number) => (cents / 100).toFixed(2);
 
@@ -202,21 +215,19 @@ export function transactionsToCsv(rows: Transaction[]) {
   const header = ['date_utc', 'order_id', 'product_id', 'article', 'player_id', 'quantite', 'montant_brut', 'commission_wolleen', 'montant_net', 'devise', 'statut_commande', 'statut_livraison'];
   const lines = rows.map((r) =>
     [
-      r.date.toISOString(),
-      r.id,
-      r.productId,
-      r.itemTitle,
-      r.playerId,
-      r.quantity,
-      decimal(r.amountCents),
-      decimal(r.platformFeeCents),
-      decimal(r.amountCents - r.platformFeeCents),
-      r.currency,
-      r.orderStatus,
-      r.deliveryStatus ?? '',
-    ]
-      .map(csvCell)
-      .join(','),
+      csvCell(r.date.toISOString()),
+      csvCell(r.id),
+      csvCell(r.productId, true),
+      csvCell(r.itemTitle, true),
+      csvCell(r.playerId, true),
+      csvCell(r.quantity),
+      csvCell(decimal(r.amountCents)),
+      csvCell(decimal(r.platformFeeCents)),
+      csvCell(decimal(r.amountCents - r.platformFeeCents)),
+      csvCell(r.currency),
+      csvCell(r.orderStatus),
+      csvCell(r.deliveryStatus ?? ''),
+    ].join(','),
   );
   return [header.join(','), ...lines].join('\r\n') + '\r\n';
 }
