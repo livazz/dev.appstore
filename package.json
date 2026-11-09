@@ -12,7 +12,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "db:push": "npm run push -w @wolleen/db",
-    "db:seed": "npm run seed -w @wolleen/db"
+    "db:seed": "npm run seed -w @wolleen/db",
+    "demo": "npm run dev -w @wolleen/demo-game"
   },
   "engines": {
     "node": ">=20"
