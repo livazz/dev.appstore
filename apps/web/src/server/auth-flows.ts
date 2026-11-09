@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { newId, slugify } from '@wolleen/core';
 import { db, eq, ilike, or, studioMembers, studios, type DB } from '@wolleen/db';
 import { auth as defaultAuth, PASSWORD_MIN_LENGTH, type Auth } from './auth';
+import { AUTH_RATE_LIMITS, authLimiter, clientIp, type SlidingWindowLimiter } from './auth-rate-limit';
 
 /*
  * Logique serveur des formulaires /login, /signup et /studio/signup (tâche « auth »).
@@ -24,6 +25,7 @@ const email = z
   .trim()
   .toLowerCase()
   .min(1, 'Saisissez votre adresse e-mail.')
+  .max(254, 'Adresse e-mail trop longue.')
   .email('Adresse e-mail invalide.');
 const password = z
   .string({ required_error: 'Saisissez un mot de passe.' })
@@ -40,7 +42,13 @@ const studioName = z
   .min(2, 'Le nom du studio doit contenir au moins 2 caractères.')
   .max(60, 'Le nom du studio ne doit pas dépasser 60 caractères.');
 
-export const signInSchema = z.object({ email, password: z.string({ required_error: 'Saisissez votre mot de passe.' }).min(1, 'Saisissez votre mot de passe.') });
+export const signInSchema = z.object({
+  email,
+  password: z
+    .string({ required_error: 'Saisissez votre mot de passe.' })
+    .min(1, 'Saisissez votre mot de passe.')
+    .max(128, 'Le mot de passe ne doit pas dépasser 128 caractères.'),
+});
 export const signUpSchema = z.object({ name, email, password });
 export const studioSignUpSchema = z.object({ studioName, name, email, password });
 
@@ -85,18 +93,36 @@ interface FlowDeps {
   database?: DB;
   /** En-têtes de la requête (IP, user-agent) transmis à Better Auth. */
   headers?: Headers;
+  /** Limiteur de débit (instance partagée par défaut ; injectable en test). */
+  limiter?: SlidingWindowLimiter;
+}
+
+function rateLimited(retryAfterS: number): AuthFormResult {
+  const min = Math.max(1, Math.ceil(retryAfterS / 60));
+  return { ok: false, error: `Trop de tentatives. Réessayez dans ${min} min.` };
 }
 
 /** Connexion e-mail + mot de passe. En cas de succès, le cookie de session est posé (plugin nextCookies). */
 export async function signInWithPassword(input: Record<string, unknown>, deps: FlowDeps = {}): Promise<AuthFormResult & { userId?: string }> {
   const parsed = signInSchema.safeParse(input);
   if (!parsed.success) return fieldErrors(parsed.error);
+  const limiter = deps.limiter ?? authLimiter;
+  const emailKey = `signin:email:${parsed.data.email}`;
+  const ipKey = `signin:ip:${clientIp(deps.headers)}`;
+  // Même réponse que le compte existe ou non (pas d'énumération par le blocage).
+  const wait = Math.max(
+    limiter.retryAfter(emailKey, AUTH_RATE_LIMITS.signInFailuresPerEmail),
+    limiter.retryAfter(ipKey, AUTH_RATE_LIMITS.signInFailuresPerIp),
+  );
+  if (wait) return rateLimited(wait);
   const a = deps.auth ?? defaultAuth;
   try {
     const res = await a.api.signInEmail({ body: parsed.data, headers: deps.headers ?? new Headers() });
     return { ok: true, userId: res.user.id };
   } catch (e) {
     if (!isApiError(e)) throw e;
+    limiter.record(emailKey, AUTH_RATE_LIMITS.signInFailuresPerEmail);
+    limiter.record(ipKey, AUTH_RATE_LIMITS.signInFailuresPerIp);
     return { ok: false, error: authErrorMessage(e) };
   }
 }
@@ -105,6 +131,11 @@ export async function signInWithPassword(input: Record<string, unknown>, deps: F
 export async function signUpWithPassword(input: Record<string, unknown>, deps: FlowDeps = {}): Promise<AuthFormResult & { userId?: string }> {
   const parsed = signUpSchema.safeParse(input);
   if (!parsed.success) return fieldErrors(parsed.error);
+  const limiter = deps.limiter ?? authLimiter;
+  const ipKey = `signup:ip:${clientIp(deps.headers)}`;
+  const wait = limiter.retryAfter(ipKey, AUTH_RATE_LIMITS.signUpPerIp);
+  if (wait) return rateLimited(wait);
+  limiter.record(ipKey, AUTH_RATE_LIMITS.signUpPerIp);
   const a = deps.auth ?? defaultAuth;
   try {
     const res = await a.api.signUpEmail({ body: parsed.data, headers: deps.headers ?? new Headers() });

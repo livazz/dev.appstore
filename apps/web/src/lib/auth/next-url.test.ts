@@ -13,6 +13,26 @@ describe('safeNext', () => {
     }
   });
 
+  it('CHK-AUTH-06 : refuse les variantes encodées, normalisées ou à identifiants', () => {
+    for (const bad of [
+      '/%2F%2Fevil.tld',
+      '/%2f%2fevil.tld/x',
+      '/%5Cevil.tld',
+      '/%5c%5cevil.tld',
+      '/..//evil.tld',
+      '/./\\evil.tld',
+      '/\tevil',
+      '/%E0%A4%A',
+      ' /x',
+      'http:/evil.tld',
+      '\\\\evil.tld',
+      `/${'a'.repeat(2048)}`,
+    ]) {
+      expect(safeNext(bad), JSON.stringify(bad)).toBe('/');
+    }
+    expect(safeNext('/games/caf%C3%A9?q=%2F')).toBe('/games/caf%C3%A9?q=%2F');
+  });
+
   it('ne renvoie pas vers les pages de connexion', () => {
     expect(safeNext('/login?next=/x')).toBe('/');
     expect(safeNext('/signup', '/studio')).toBe('/studio');
