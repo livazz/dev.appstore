@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { db, eq, games } from '@wolleen/db';
 import { requireGameAccess } from '@/server/session';
 import { GameActions, GameTabs } from '@/components/studio/GameNav';
+import { SuspensionNotice } from '@/components/moderation/SuspensionNotice';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export default async function GameLayout({ children, params }: { children: React
         </h1>
         <GameActions gameId={game.id} slug={game.slug} name={game.name} status={game.status} />
       </div>
+      <SuspensionNotice gameId={game.id} />
       <GameTabs gameId={game.id} />
       {children}
     </>

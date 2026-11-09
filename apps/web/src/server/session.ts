@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { and, db, eq, games, studioMembers, type DB } from '@wolleen/db';
 import type { StudioRole } from '@wolleen/core';
 import { auth } from './auth';
+import { isUserDisabled } from './user-suspension';
 
 /*
  * CONTRAT PARTAGÉ — signatures stables, utilisées par toutes les tâches.
@@ -17,11 +18,16 @@ export interface SessionUser {
   name: string;
 }
 
-/** Lecture de la session dédupliquée sur la durée d'un rendu serveur. */
+/**
+ * Lecture de la session dédupliquée sur la durée d'un rendu serveur.
+ * Un compte désactivé par le back-office (user-suspension.ts) n'a plus de session, même avec un cookie encore valide.
+ */
 const readSession = cache(async (): Promise<SessionUser | null> => {
   const { headers } = await import('next/headers');
   const s = await auth.api.getSession({ headers: await headers() });
-  return s ? { id: s.user.id, email: s.user.email, name: s.user.name } : null;
+  if (!s) return null;
+  if (await isUserDisabled(s.user.id)) return null;
+  return { id: s.user.id, email: s.user.email, name: s.user.name };
 });
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
