@@ -145,7 +145,9 @@ describe('CHK-AUTH-04 / CHK-AUTH-05 : limitation de débit et énumération', ()
     const limiter = new RL.SlidingWindowLimiter();
     const headers = new Headers({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' });
     const { max } = RL.AUTH_RATE_LIMITS.signInFailuresPerIp;
-    for (let i = 0; i < max; i++) await flows.signInWithPassword({ email: `cible${i}@sec.test`, password: 'mauvais-mdp' }, { limiter, headers });
+    // max - 1 échecs déjà enregistrés pour cette IP (évite max hachages de mot de passe), puis un vrai échec.
+    for (let i = 0; i < max - 1; i++) limiter.record('signin:ip:203.0.113.7', RL.AUTH_RATE_LIMITS.signInFailuresPerIp);
+    await flows.signInWithPassword({ email: 'cible@sec.test', password: 'mauvais-mdp' }, { limiter, headers });
     const r = await flows.signInWithPassword({ email: 'joueur@sec.test', password: 'motdepasse1' }, { limiter, headers });
     expect(r.error).toMatch(/Trop de tentatives/);
     // Une autre IP n'est pas concernée.
