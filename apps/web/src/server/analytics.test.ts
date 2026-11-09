@@ -13,13 +13,16 @@ import { createTestDb } from '@wolleen/db/testing';
 import { deliveries, games, items, orders, studios, user, type DB } from '@wolleen/db';
 import type { Currency, DeliveryStatus, OrderStatus } from '@wolleen/core';
 import {
+  DEFAULT_SALES_STORE_FEE_BPS,
   getDailyRevenue,
   getPlayerPurchases,
   getSalesTotals,
   getTopItems,
   getTransactions,
   localDay,
+  resolveStoreFeeBps,
   salesWindow,
+  storeFeeLabel,
   transactionsToCsv,
 } from './analytics';
 
@@ -126,7 +129,9 @@ describe('getSalesTotals', () => {
       grossCents: 3500,
       platformFeeCents: 175,
       netCents: 3325,
-      savingsCents: 1050 - 175,
+      // Comparaison par défaut au taux store réduit (15 %) : 525 − 175.
+      savingsCents: 525 - 175,
+      storeFeeBps: 1500,
       avgCents: 1167,
     });
     // La devise étrangère est isolée, jamais additionnée à l'euro.
@@ -219,5 +224,38 @@ describe('getPlayerPurchases', () => {
     const page = await getPlayerPurchases('usr_p', { limit: 3, offset: 3 }, t);
     expect(page.rows).toHaveLength(3);
     expect(page.rows[0].id).toBe(rows[3].id);
+  });
+});
+
+describe('int/security — commission store choisie et commandes à 0 €', () => {
+  it('savingsCents suit la commission store choisie (15 % / 30 %) et la renvoie pour le libellé', async () => {
+    const [d15] = await getSalesTotals('gam_a', { days: 7, now: NOW, storeFeeBps: 1500 }, t);
+    expect(d15).toMatchObject({ savingsCents: 525 - 175, storeFeeBps: 1500 });
+    const [d30] = await getSalesTotals('gam_a', { days: 7, now: NOW, storeFeeBps: 3000 }, t);
+    expect(d30).toMatchObject({ savingsCents: 1050 - 175, storeFeeBps: 3000 });
+    // Taux hors STORE_FEE_OPTIONS_BPS : repli sur le taux par défaut (15 %), jamais un taux arbitraire.
+    const [odd] = await getSalesTotals('gam_a', { days: 7, now: NOW, storeFeeBps: 9000 }, t);
+    expect(odd).toMatchObject({ savingsCents: 525 - 175, storeFeeBps: DEFAULT_SALES_STORE_FEE_BPS });
+    expect(resolveStoreFeeBps(undefined)).toBe(1500);
+    expect(storeFeeLabel(1500)).toBe('15 %');
+    expect(storeFeeLabel(3000)).toBe('30 %');
+    // Économie jamais négative (commission Wolleen supérieure à la commission store évitée).
+    const [empty] = await getSalesTotals('gam_a', { days: 7, now: new Date('2025-01-01T00:00:00Z'), storeFeeBps: 3000 }, t);
+    expect(empty).toMatchObject({ savingsCents: 0, storeFeeBps: 3000 });
+  });
+
+  it('exclut les commandes à 0 € (objets bonus fidélité) des ventes, mais pas de l’historique du joueur', async () => {
+    const bonus = await order({ at: '2026-11-07T10:00:00Z', amount: 0, fee: 0, game: 'gam_b', user: 'usr_q', delivery: 'delivered' });
+    await order({ at: '2026-11-07T11:00:00Z', amount: 0, fee: 0, game: 'gam_b', user: 'usr_q', status: 'refunded' });
+    const [eur] = await getSalesTotals('gam_b', { days: 7, now: NOW }, t);
+    expect(eur).toMatchObject({ count: 1, grossCents: 9999, avgCents: 9999 });
+    const daily = await getDailyRevenue('gam_b', 'EUR', { days: 7, now: NOW }, t);
+    expect(daily.find((d) => d.day === '2026-11-07')).toMatchObject({ grossCents: 0, count: 0 });
+    const top = await getTopItems('gam_b', 'EUR', { days: 7, now: NOW }, t);
+    expect(top.map((i) => i.count)).toEqual([1]);
+    const tx = await getTransactions('gam_b', { days: 7, now: NOW }, t);
+    expect(tx.map((x) => x.amountCents)).toEqual([9999]);
+    const { rows } = await getPlayerPurchases('usr_q', {}, t);
+    expect(rows.map((r) => r.id)).toContain(bonus);
   });
 });

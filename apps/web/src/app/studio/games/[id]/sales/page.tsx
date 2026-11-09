@@ -1,12 +1,20 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, eq, games } from '@wolleen/db';
-import { formatMoney, STORE_FEE_BPS, STORE_FEE_OPTIONS_BPS } from '@wolleen/core';
+import { formatMoney, STORE_FEE_OPTIONS_BPS } from '@wolleen/core';
 import { requireGameAccess } from '@/server/session';
-import { SALES_ROLES, getDailyRevenue, getSalesTotals, getTopItems, getTransactions } from '@/server/analytics';
+import {
+  DEFAULT_SALES_STORE_FEE_BPS,
+  SALES_ROLES,
+  getDailyRevenue,
+  getSalesTotals,
+  getTopItems,
+  getTransactions,
+  storeFeeLabel,
+} from '@/server/analytics';
 import { formatDateTime, parseSalesPeriod, SALES_PERIODS, studioDeliveryLabel, TONE_CLASSES } from '@/lib/analytics-format';
 import { RevenueChart } from '@/components/analytics/RevenueChart';
-import { bpsToPercentLabel, netViaStoresCents, parseStoreFeeBps, savingsVsStoreCents } from '@/components/marketing/savings';
+import { bpsToPercentLabel, netViaStoresCents, parseStoreFeeBps } from '@/components/marketing/savings';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Ventes et tendances — Wolleen' };
@@ -21,12 +29,13 @@ export default async function SalesPage({
   const { id } = await params;
   const sp = await searchParams;
   const days = parseSalesPeriod(sp.days);
-  // Commission store de référence pour la tuile « Gagné en plus » : 30 % par défaut, 15 % au choix (?store=15).
-  const storeBps = parseStoreFeeBps(sp.store, STORE_FEE_OPTIONS_BPS, STORE_FEE_BPS);
+  // Commission store de référence pour la tuile « Gagné en plus » : 15 % par défaut (comparaison prudente),
+  // 30 % au choix (?store=30). Le même taux sert au calcul serveur (savingsCents) et au libellé.
+  const storeBps = parseStoreFeeBps(sp.store, STORE_FEE_OPTIONS_BPS, DEFAULT_SALES_STORE_FEE_BPS);
   const qs = (next: { days?: number; store?: number }) => {
     const p = new URLSearchParams({ days: String(next.days ?? days) });
     const store = next.store ?? storeBps;
-    if (store !== STORE_FEE_BPS) p.set('store', String(store / 100));
+    if (store !== DEFAULT_SALES_STORE_FEE_BPS) p.set('store', String(store / 100));
     return `?${p.toString()}`;
   };
   try {
@@ -39,14 +48,17 @@ export default async function SalesPage({
   if (!game) notFound();
 
   const opts = { days };
-  const [totals, transactions] = await Promise.all([getSalesTotals(id, opts), getTransactions(id, { ...opts, limit: 12 })]);
+  const [totals, transactions] = await Promise.all([
+    getSalesTotals(id, { ...opts, storeFeeBps: storeBps }),
+    getTransactions(id, { ...opts, limit: 12 }),
+  ]);
   const [main, ...others] = totals;
   const c = main.currency;
   const [daily, top] = await Promise.all([getDailyRevenue(id, c, opts), getTopItems(id, c, { ...opts, limit: 5 })]);
   const feePct = main.grossCents ? (main.platformFeeCents / main.grossCents) * 100 : null;
-  const viaStores = netViaStoresCents(main.grossCents, storeBps);
-  const savings = savingsVsStoreCents(main.grossCents, main.platformFeeCents, storeBps);
-  const storeLabel = bpsToPercentLabel(storeBps);
+  const viaStores = netViaStoresCents(main.grossCents, main.storeFeeBps);
+  const savings = main.savingsCents;
+  const storeLabel = storeFeeLabel(main.storeFeeBps);
 
   return (
     <div className="flex flex-col gap-5 py-6">
