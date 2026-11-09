@@ -58,17 +58,20 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
 
 ## Ce qui reste à faire
 
-1. **Vague 6 (arrêtée avant de commencer, rien n'a été modifié)** — spécifications complètes et prêtes à relancer
-   dans `docs/handoff/vague-6-taches.js` (5 tâches sur des fichiers disjoints, parallélisables) :
-   - `realtime` : bus d'événements et limiteurs multi-instance (Postgres LISTEN/NOTIFY, store de compteurs Postgres) ;
-   - `db` : index (Better Auth 1.7 + requêtes chaudes) et migration 0001, `db:push` idempotent
-     (contrainte `loyalty_entries_order_reason_uq`), bruit « Aborted() » PGlite pendant `next build` ;
-   - `web-hardening` : CSP avec nonce (supprimer `unsafe-inline`), sitemap/robots/metadata/Open Graph, audit perf ;
-   - `api-sdk` : spec OpenAPI 3.1 de `/api/v1` servie sur `/api/openapi.json` + test de contrat, SDK JS publiable (dist ESM/CJS) ;
-   - `visual-qa` : comparaison avec les maquettes PDF, refonte du pied du panneau d'article (bouton « Annuler » violet maladroit).
+1. **Vague 6 : faite et fusionnée (10 novembre 2026)** — temps réel multi-instance (LISTEN/NOTIFY, `RATE_LIMIT_STORE=postgres`,
+   migration 0002), base (index, migration 0001, `db:push` idempotent via `uniqueIndex`, base ouverte paresseusement :
+   plus d'`Aborted()` au build, `npm run db:migrate`, `packages/db/README.md`), CSP à nonce + SEO (sitemap, robots, OG,
+   icônes, manifest), spec OpenAPI 3.1 sur `/api/openapi.json` + test de contrat, SDK JS 0.1.0 publiable (dist ESM/CJS),
+   revue visuelle (pied du panneau d'article refait). 858 tests vitest, 24 e2e.
+   Restes signalés : contraste du pied de page joueur (`text-ink-3`, 3,26:1) et des couleurs choisies par les studios
+   (imposer un contraste minimal dans `style-safety.ts` ?), modale « Nouvel article » trop haute à 800 px,
+   `/docs/api` cite encore `das_live_` et ignore la clé publique, ARCHITECTURE.md à compléter (`/api/openapi.json`,
+   multi-instance), plafond SSE et limiteur des formulaires de connexion encore par instance, concurrence du limiteur
+   Postgres testée seulement sous PGlite.
 2. **Revue de sécurité complète** par un regard neuf après la vague 6 (base : `docs/security/threat-model.md`,
    `docs/security/review-checklist.md`), puis corrections.
 3. **En premier** : créer le dépôt GitHub `dev.appstore` (privé) et pousser l'historique complet (voir CLAUDE.md, étape 0).
+   En local : Node et gh sont installés dans `~/.local/bin` (pas de Homebrew).
 
 ## Décisions en attente (fondateur)
 
@@ -81,6 +84,9 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
 - **Domaine** : `devappstore.com` utilisé comme exemple partout — à remplacer par le vrai.
 - **Textes légaux** : à faire valider par un avocat, compléter les `[à compléter : …]`, puis `LEGAL_STATUS = 'published'`
   dans `apps/web/src/lib/legal-versions.ts`.
+- Vague 6 : toutes les pages sont rendues à la demande (nonce CSP) ; `style-src` garde `'unsafe-inline'` ;
+  repli en mémoire du limiteur si Postgres est injoignable ; SDK : choisir une licence et vérifier le scope npm
+  `@devappstore` ; le bouton « Annuler » violet de la modale studio est conservé (maquette).
 - Rétractation d'une livraison en échec : autorisée (consumer.md § 2.4) — à confirmer juridiquement.
 
 ## Points connus / pièges
@@ -89,7 +95,7 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
   supprimer les worktrees fusionnés (`git worktree remove`).
 - Tests e2e : lancer depuis `e2e/` avec `npx playwright test --trace off` (`npm run test:e2e -- …` perd les options).
   `E2E_WEB_PORT=…` si le port 3000 est pris, `E2E_DEMO_GAME=0` pour se passer du jeu de démo.
-- Limiteurs de débit et bus SSE en mémoire : une seule instance tant que la vague 6 `realtime` n'est pas faite.
+- Nouvelles clés uniques multi-colonnes : utiliser `uniqueIndex` (sinon `db:push` redemande une confirmation).
 - `@devappstore/core` a une entrée navigateur (`@devappstore/core/client`) : les composants client doivent l'utiliser
   (`crypto.ts` est serveur uniquement).
 - Montants toujours en centimes.

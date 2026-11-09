@@ -117,6 +117,20 @@ const baseSchema = z.object({
   S3_PUBLIC_URL: optionalUrl('https://cdn.devappstore.eu'),
   /** Copie publique de S3_PUBLIC_URL, lue par le rendu client des images (style-safety.ts → safeImageUrl). */
   NEXT_PUBLIC_S3_PUBLIC_URL: optionalUrl('https://cdn.devappstore.eu'),
+
+  // Plusieurs instances (docs/deploy.md) : relais des événements de livraison et compteurs des limiteurs.
+  EVENTS_TRANSPORT: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined),
+    z.enum(['postgres', 'pglite', 'memory', 'none']).optional(),
+  ),
+  /** URL directe (sans pooler) pour LISTEN ; défaut : DATABASE_URL. */
+  EVENTS_DATABASE_URL: optionalString.refine((v) => v === undefined || /^postgres(ql)?:\/\//.test(v), {
+    message: 'doit être une URL postgres:// ou postgresql://',
+  }),
+  RATE_LIMIT_STORE: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined),
+    z.enum(['memory', 'postgres']).default('memory'),
+  ),
 });
 
 /** Variables lues par ce module (sert aussi d'empreinte pour relire process.env quand il change). */
