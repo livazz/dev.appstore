@@ -5,3 +5,4 @@ export * from './notifications';
 export * from './ai';
 export * from './imports';
 export * from './loyalty';
+export * from './admin';
