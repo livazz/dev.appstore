@@ -1,4 +1,5 @@
 import 'server-only';
+import { after } from 'next/server';
 import { newId, type Currency, type StudioRole } from '@wolleen/core';
 import {
   and,
@@ -24,6 +25,7 @@ import {
 } from '@wolleen/db';
 import {
   contextFromEnv,
+  createConsoleMailer,
   createMailerFromEnv,
   deliveryFailedEmail,
   playerWelcomeEmail,
@@ -40,6 +42,7 @@ import {
   type ResolvedContext,
   type WeeklyGameStats,
 } from '@wolleen/emails';
+import { env } from '@/env';
 
 /**
  * E-mails transactionnels (propriétaire : tâche « notifications »).
@@ -52,6 +55,30 @@ import {
  *
  * Transport : `createMailerFromEnv()` de @wolleen/emails (console + `.data/mails` en dev, Resend si `RESEND_API_KEY`).
  */
+
+/**
+ * Libellé exact de la case cochée au checkout (BuyButton), repris mot pour mot dans le reçu (support durable de la
+ * renonciation au droit de rétractation). Ré-exporté par payments.ts.
+ */
+export const WITHDRAWAL_WAIVER_LABEL = 'Je demande la livraison immédiate et renonce à mon droit de rétractation';
+
+/**
+ * Lance un envoi sans faire attendre l'appelant (livraison, ack du SDK, inscription). Dans une requête Next.js, la
+ * tâche passe par `after()` : elle s'exécute après la réponse, sans être coupée par l'hébergeur (serverless). Hors
+ * requête (tests, boucle de relance en dev, scripts), elle part immédiatement en arrière-plan. Ne lève jamais.
+ */
+export function runInBackground(label: string, task: () => Promise<unknown>): void {
+  const run = () =>
+    task().then(
+      () => undefined,
+      (e: unknown) => console.error(`[notifications] ${label} : ${errorMessage(e)}`),
+    );
+  try {
+    after(run);
+  } catch {
+    void run();
+  }
+}
 
 export type NotificationResult =
   | { ok: true; status: 'sent'; recipients: string[] }
@@ -97,7 +124,9 @@ const WELCOME_ROLES: StudioRole[] = ['owner'];
 
 let envMailer: Mailer | null = null;
 function defaultMailer(): Mailer {
-  return (envMailer ??= createMailerFromEnv());
+  // Sous vitest, les e-mails déclenchés par les branchements (paiement, livraison, inscription) ne sont ni écrits
+  // sur disque ni journalisés ; les tests qui vérifient un envoi injectent leur propre `mailer`.
+  return (envMailer ??= process.env.VITEST === 'true' ? createConsoleMailer({ dir: false, log: () => {} }) : createMailerFromEnv());
 }
 
 interface Ctx {
@@ -261,9 +290,12 @@ const itemOf = (o: { itemTitle: string; quantity: number }) => ({ name: o.itemTi
  * Joueur
  * ---------------------------------------------------------------------------------------------- */
 
-/** Version des CGV acceptées au checkout (variable `CGV_VERSION`). */
+/**
+ * Version des CGV en vigueur (WOLLEEN_CGV_VERSION, ancien nom CGV_VERSION) — repli du reçu pour une commande
+ * antérieure à l'enregistrement de la preuve de consentement (la version acceptée est stockée sur la commande).
+ */
 export function cgvVersion() {
-  return process.env.CGV_VERSION || '2026-11-09';
+  return env.WOLLEEN_CGV_VERSION || env.CGV_VERSION || '2026-11-09';
 }
 
 /**
@@ -290,10 +322,12 @@ export function sendPurchaseReceipt(orderId: string, deps: NotifyDeps = {}): Pro
         gameAccount,
         seller: { name: studio.name },
         consent: {
-          // La case est cochée à la validation de la commande (création de la session de paiement).
-          acceptedAt: order.createdAt,
-          cgvVersion: cgvVersion(),
-          cgvUrl: process.env.CGV_URL || link(c, '/legal/cgv'),
+          // Preuve enregistrée au checkout (payments.createCheckout) : horodatage de la case cochée, version des CGV
+          // acceptées et libellé affiché. Repli sur la date de la commande pour les commandes plus anciennes.
+          acceptedAt: order.withdrawalWaiverAt ?? order.createdAt,
+          cgvVersion: order.termsVersion ?? cgvVersion(),
+          cgvUrl: env.CGV_URL || link(c, '/legal/cgv'),
+          waiverText: WITHDRAWAL_WAIVER_LABEL,
         },
         purchasesUrl: link(c, '/account/purchases'),
       },
@@ -463,7 +497,7 @@ export function sendStudioWelcome(studioId: string, deps: NotifyDeps = {}): Prom
     const [s] = await c.database.select({ name: studios.name }).from(studios).where(eq(studios.id, studioId));
     if (!s) return skip('not_found');
     const owners = await studioRecipients(c, studioId, WELCOME_ROLES);
-    const fee = Number(process.env.PLATFORM_FEE_BPS);
+    const fee = env.PLATFORM_FEE_BPS;
     return {
       messages: owners.map((o) => ({
         to: o.email,

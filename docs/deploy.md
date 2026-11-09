@@ -94,18 +94,35 @@ previews la base ou la clé Stripe de production. Marquer les secrets comme *Sen
    à définir dans l'application (`next.config.ts` ou `middleware.ts`), car elle dépend des nonces de scripts.
 3. Domaine : ajouter le domaine, puis `APP_URL=https://<domaine>`.
 
-### Cron des livraisons
+### Tâches planifiées (cron)
 
-`GET /api/cron/deliveries` relance les webhooks dus (`WEBHOOK_RETRY_SCHEDULE_MS`). `vercel.json` le planifie
-**toutes les minutes** (`* * * * *`), ce qui exige l'offre **Pro**. Sur l'offre Hobby, Vercel n'accepte qu'une exécution
-par jour : remplacer alors par `"0 3 * * *"` et faire appeler l'URL chaque minute par un planificateur externe
-(Cloudflare Workers Cron Triggers, cron-job.org…) :
+Quatre routes `GET`, déclarées dans `apps/web/vercel.json` :
+
+| Route | Planning | Rôle |
+|---|---|---|
+| `/api/cron/deliveries` | `* * * * *` (chaque minute) | relance les webhooks dus (`WEBHOOK_RETRY_SCHEDULE_MS`), achats et remboursements ; e-mails « livré » / « échec définitif » |
+| `/api/checkout/expire` | `17 * * * *` (toutes les heures) | passe à `failed` les commandes `pending` de plus de 24 h |
+| `/api/cron/loyalty` | `40 3 * * *` (chaque nuit) | Points Wolleen : inscrit les expirations de points et de bons, rattrape la livraison des objets bonus |
+| `/api/cron/weekly-reports` | `0 6 * * 1` (lundi 6 h UTC) | rapport hebdomadaire de chaque studio (semaine complète précédente ; `?week=AAAA-MM-JJ` pour rejouer) |
+
+Toutes sont idempotentes et protégées de la même façon (`cronGuard`, `src/server/delivery-http.ts`) :
+`Authorization: Bearer $CRON_SECRET` comparé **à temps constant** ; `401` si le jeton est absent ou faux, `503`
+(`cron_not_configured`) si `CRON_SECRET` est vide — accepté sans secret uniquement en développement local
+(`NODE_ENV=development`). Vercel envoie lui-même l'en-tête quand la variable `CRON_SECRET` est définie sur le projet.
+
+Le cron à la minute exige l'offre **Pro**. Sur l'offre Hobby (une exécution par jour et par cron), remplacer
+`/api/cron/deliveries` par `"0 3 * * *"` et faire appeler les URL par un planificateur externe (Cloudflare Workers
+Cron Triggers, cron-job.org, CronJob Kubernetes en Docker…) :
 
 ```bash
-curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<domaine>/api/cron/deliveries
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<domaine>/api/cron/deliveries        # chaque minute
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<domaine>/api/checkout/expire         # chaque heure
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<domaine>/api/cron/loyalty            # chaque nuit
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<domaine>/api/cron/weekly-reports     # lundi matin
 ```
 
-Les crons Vercel ne tournent que sur le déploiement de **production**.
+Les crons Vercel ne tournent que sur le déploiement de **production**. En développement, une boucle intégrée relance
+déjà les livraisons ; les autres routes s'appellent à la main (sans en-tête si `CRON_SECRET` est vide).
 
 ### Limites serverless à connaître
 

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { EnvValidationError, parseEnv } from './env';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { env, EnvValidationError, parseEnv, readEnv, validateEnv } from './env';
 
 /** Configuration de production complète et valide (valeurs factices). */
 const PROD = {
@@ -133,5 +133,45 @@ describe('parseEnv — production', () => {
       expect(msg).not.toContain(secret);
       expect(msg).not.toContain('tooshort');
     }
+  });
+});
+
+describe('validateEnv — démarrage (instrumentation.ts)', () => {
+  it('stricte au démarrage, sautée pendant next build', () => {
+    expect(() => validateEnv({ NODE_ENV: 'production' })).toThrow(EnvValidationError);
+    expect(validateEnv({ NODE_ENV: 'production', NEXT_PHASE: 'phase-production-build' }).isProduction).toBe(true);
+    expect(validateEnv(PROD).paymentsMode).toBe('live');
+  });
+
+  it('applique au secret de session les règles de Better Auth (BETTER_AUTH_SECRET prioritaire)', () => {
+    expect(parseEnv({ ...PROD, AUTH_SECRET: '', BETTER_AUTH_SECRET: 'b'.repeat(40) }).isProduction).toBe(true);
+    expect(issuesOf({ ...PROD, AUTH_SECRET: '', BETTER_AUTH_SECRET: 'court' })).toHaveProperty('BETTER_AUTH_SECRET');
+    expect(issuesOf({ ...PROD, AUTH_SECRET: 'wolleen-dev-secret-ne-pas-utiliser-en-production-0123456789' }).AUTH_SECRET).toMatch(/exemple/);
+  });
+});
+
+describe('env — lecture à l’exécution', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('readEnv ne lève jamais : règles de production ignorées, format invalide = non définie', () => {
+    const e = readEnv({ NODE_ENV: 'production', STRIPE_SECRET_KEY: 'pk_test_oops', PLATFORM_FEE_BPS: '250' });
+    expect(e.isProduction).toBe(true);
+    expect(e.STRIPE_SECRET_KEY).toBeUndefined();
+    expect(e.paymentsMode).toBe('simulation');
+    expect(e.PLATFORM_FEE_BPS).toBe(250);
+  });
+
+  it('`env` suit process.env (vi.stubEnv) et expose les valeurs typées', () => {
+    vi.stubEnv('PLATFORM_FEE_BPS', '700');
+    vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_abc');
+    expect(env.PLATFORM_FEE_BPS).toBe(700);
+    expect(env.paymentsMode).toBe('test');
+    vi.stubEnv('PLATFORM_FEE_BPS', '');
+    vi.stubEnv('STRIPE_SECRET_KEY', '');
+    expect(env.PLATFORM_FEE_BPS).toBe(500);
+    expect(env.paymentsMode).toBe('simulation');
+    expect({ ...env }.PLATFORM_FEE_BPS).toBe(500);
   });
 });

@@ -2,8 +2,11 @@ import 'server-only';
 import type Stripe from 'stripe';
 import { DEFAULT_PLATFORM_FEE_BPS, feeCents, newId, type Currency, type OrderStatus } from '@wolleen/core';
 import { and, count, db, eq, games, gt, inArray, isNull, items, lt, orders, stripeEvents, studios } from '@wolleen/db';
+import { env } from '@/env';
 import * as delivery from '@/server/delivery';
 import { getGameLink } from '@/server/links';
+import { awardPointsForOrder, revokePointsForOrder } from '@/server/loyalty';
+import { sendPurchaseReceipt, WITHDRAWAL_WAIVER_LABEL } from '@/server/notifications';
 import {
   acceptsTestModeEvents,
   automaticTaxEnabled,
@@ -20,7 +23,9 @@ import {
 /*
  * Paiement (tâche « payments ») — point critique.
  * Flux : POST /api/checkout → createCheckout() → Stripe Checkout (ou /checkout/mock en simulation)
- *        → webhook checkout.session.completed (ou bouton Payer de la simulation) → markOrderPaid() → enqueueDelivery().
+ *        → webhook checkout.session.completed (ou bouton Payer de la simulation) → markOrderPaid() / payMockOrder()
+ *        → reçu (sendPurchaseReceipt) → enqueueDelivery() → points Wolleen (awardPointsForOrder).
+ * Remboursement / litige : markOrderRefunded() → reprise des points (revokePointsForOrder) → enqueueRefund().
  *
  * Garanties de sécurité (docs/security/review-checklist.md, section 7) :
  * - prix, devise, produit, jeu et joueur lus en base, jamais depuis le client (CHK-PAY-01) ;
@@ -37,9 +42,13 @@ import {
 /** Plafond de la commission (points de base) : au-delà, la valeur est considérée comme une erreur de configuration. */
 export const MAX_PLATFORM_FEE_BPS = 3000;
 
-/** Commission Wolleen en points de base : PLATFORM_FEE_BPS (entier 0–3000) sinon DEFAULT_PLATFORM_FEE_BPS. */
-export function platformFeeBps(raw: string | undefined = process.env.PLATFORM_FEE_BPS): number {
-  const s = raw?.trim();
+/**
+ * Commission Wolleen en points de base : PLATFORM_FEE_BPS (entier 0–3000, validé par src/env.ts) sinon
+ * DEFAULT_PLATFORM_FEE_BPS. `raw` : valeur brute à interpréter (tests, outillage).
+ */
+export function platformFeeBps(raw?: string): number {
+  if (raw === undefined) return env.PLATFORM_FEE_BPS;
+  const s = raw.trim();
   if (!s) return DEFAULT_PLATFORM_FEE_BPS;
   const n = Number(s);
   if (!/^\d+$/.test(s) || !Number.isInteger(n) || n < 0 || n > MAX_PLATFORM_FEE_BPS) {
@@ -102,12 +111,12 @@ async function countOpenPendingOrders(userId: string, now = new Date()): Promise
 export const DEFAULT_TERMS_VERSION = 'cgv-2026-11-09-draft';
 
 export function currentTermsVersion(): string {
-  const v = process.env.WOLLEEN_CGV_VERSION?.trim();
+  const v = env.WOLLEEN_CGV_VERSION;
   return v ? v.slice(0, 64) : DEFAULT_TERMS_VERSION;
 }
 
-/** Libellé exact de la case à cocher (affiché avant le bouton « Payer X € »). */
-export const WITHDRAWAL_WAIVER_LABEL = 'Je demande la livraison immédiate et renonce à mon droit de rétractation';
+/** Libellé exact de la case à cocher (affiché avant le bouton « Payer X € ») — défini avec le reçu qui le cite. */
+export { WITHDRAWAL_WAIVER_LABEL };
 
 /**
  * Tronque une IP pour la preuve de consentement (minimisation RGPD) : /24 en IPv4 (1.2.3.0), /48 en IPv6
@@ -451,12 +460,25 @@ export interface MarkOrderPaidResult {
 }
 
 /**
+ * Suites d'une commande payée, dans l'ordre : reçu + preuve de consentement (e-mail, avant la livraison pour que le
+ * joueur le reçoive en premier), livraison, points Wolleen. Chaque étape est idempotente (une fois par commande) :
+ * rappeler cette fonction rattrape une étape interrompue. Le reçu et les points ne lèvent jamais ; une erreur de
+ * livraison remonte (le webhook Stripe sera rejoué).
+ */
+async function afterOrderPaid(orderId: string): Promise<string> {
+  await sendPurchaseReceipt(orderId); // ne lève jamais, idempotent (notifications_sent)
+  const deliveryId = await delivery.enqueueDelivery(orderId);
+  await awardPointsForOrder(orderId).catch((e) => console.error('[loyalty] Attribution des points impossible', orderId, e));
+  return deliveryId;
+}
+
+/**
  * Marque la commande payée — IDEMPOTENT et sûr en concurrence : la transition pending→paid (paidAt) n'a lieu
  * qu'une fois (UPDATE … WHERE status IN ('pending','failed')). Un paiement confirmé par Stripe après un échec
  * technique ou une expiration (failed) est honoré : l'argent a été encaissé, le joueur doit recevoir son achat.
  * Une commande remboursée/contestée n'est jamais relivrée.
- * enqueueDelivery() est appelé à chaque fois que la commande est payée (lui-même idempotent : une livraison par
- * commande), ce qui rattrape une livraison non créée si un appel précédent a échoué juste après la transition.
+ * Les suites (reçu, enqueueDelivery, points) sont rejouées à chaque fois que la commande est payée (chacune
+ * idempotente), ce qui rattrape une étape non faite si un appel précédent a échoué juste après la transition.
  * Réservé aux confirmations Stripe vérifiées : la simulation passe par payMockOrder (pending uniquement).
  */
 export async function markOrderPaid(orderId: string, opts: { paymentIntentId?: string | null } = {}): Promise<MarkOrderPaidResult> {
@@ -468,7 +490,7 @@ export async function markOrderPaid(orderId: string, opts: { paymentIntentId?: s
     .returning({ id: orders.id });
 
   if (updated) {
-    const deliveryId = await delivery.enqueueDelivery(orderId);
+    const deliveryId = await afterOrderPaid(orderId);
     return { orderId, transitioned: true, status: 'paid', deliveryId };
   }
 
@@ -481,7 +503,7 @@ export async function markOrderPaid(orderId: string, opts: { paymentIntentId?: s
   if (pi) {
     await db.update(orders).set({ stripePaymentIntentId: pi }).where(and(eq(orders.id, orderId), isNull(orders.stripePaymentIntentId)));
   }
-  const deliveryId = await delivery.enqueueDelivery(orderId);
+  const deliveryId = await afterOrderPaid(orderId);
   return { orderId, transitioned: false, status: 'paid', deliveryId };
 }
 
@@ -499,29 +521,6 @@ export async function markOrderFailed(orderId: string): Promise<boolean> {
 // Remboursements et litiges
 // ---------------------------------------------------------------------------------------------
 
-const ENQUEUE_REFUND_EXPORT = 'enqueueRefund';
-
-/**
- * Appelle `enqueueRefund(orderId)` de src/server/delivery.ts (révocation `purchase.refunded` côté jeu) s'il existe.
- * TODO(delivery) : la tâche « delivery » ajoute enqueueRefund ; tant qu'il est absent, la commande passe quand même
- * à `refunded` (plus de livraison possible) et un avertissement est journalisé — aucune révocation n'est envoyée au jeu.
- * Lecture dynamique de l'export pour compiler avec ou sans cette fonction.
- */
-async function enqueueRefundIfAvailable(orderId: string): Promise<boolean> {
-  let fn: unknown;
-  try {
-    fn = Reflect.get(delivery, ENQUEUE_REFUND_EXPORT);
-  } catch {
-    fn = undefined;
-  }
-  if (typeof fn !== 'function') {
-    console.warn(`[payments] TODO enqueueRefund absent de src/server/delivery.ts : révocation non envoyée au jeu pour ${orderId}.`);
-    return false;
-  }
-  await (fn as (id: string) => Promise<unknown>)(orderId);
-  return true;
-}
-
 export interface MarkOrderRefundedResult {
   orderId: string;
   transitioned: boolean;
@@ -530,8 +529,18 @@ export interface MarkOrderRefundedResult {
 }
 
 /**
- * Commande remboursée ou contestée → `refunded` (idempotent). Si elle était payée (livraison possible),
- * enqueueRefund(orderId) est appelé pour révoquer l'achat dans le jeu. Une commande encore pending/failed passe
+ * Suites d'un remboursement d'une commande payée : reprise des points Wolleen (ne lève jamais) puis révocation
+ * `purchase.refunded` côté jeu (enqueueRefund, delivery.ts). Les deux sont idempotentes. Renvoie true si un
+ * événement de révocation existe pour la commande.
+ */
+async function afterOrderRefunded(orderId: string): Promise<boolean> {
+  await revokePointsForOrder(orderId, { note: 'remboursement' }).catch((e) => console.error('[loyalty] Reprise des points impossible', orderId, e));
+  return (await delivery.enqueueRefund(orderId)) !== null;
+}
+
+/**
+ * Commande remboursée ou contestée → `refunded` (idempotent). Si elle était payée (livraison possible), les points
+ * sont repris et enqueueRefund(orderId) révoque l'achat dans le jeu. Une commande encore pending/failed passe
  * aussi à `refunded` : un événement de paiement arrivé après ne la livrera pas.
  */
 export async function markOrderRefunded(orderId: string): Promise<MarkOrderRefundedResult> {
@@ -542,7 +551,7 @@ export async function markOrderRefunded(orderId: string): Promise<MarkOrderRefun
     .where(and(eq(orders.id, orderId), eq(orders.status, 'paid')))
     .returning({ id: orders.id });
   if (wasPaid) {
-    const refundQueued = await enqueueRefundIfAvailable(orderId);
+    const refundQueued = await afterOrderRefunded(orderId);
     return { orderId, transitioned: true, previousStatus: 'paid', refundQueued };
   }
   const [notPaid] = await db
@@ -604,7 +613,7 @@ export async function payMockOrder(userId: string, orderId: string): Promise<Mar
     .where(and(eq(orders.id, orderId), eq(orders.userId, userId), eq(orders.status, 'pending'), gt(orders.createdAt, cutoff)))
     .returning({ id: orders.id });
   if (updated) {
-    const deliveryId = await delivery.enqueueDelivery(orderId);
+    const deliveryId = await afterOrderPaid(orderId);
     return { orderId, transitioned: true, status: 'paid', deliveryId };
   }
   const [order] = await db.select({ status: orders.status }).from(orders).where(and(eq(orders.id, orderId), eq(orders.userId, userId)));

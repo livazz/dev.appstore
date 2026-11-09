@@ -3,10 +3,10 @@
   "framework": "nextjs",
   "regions": ["fra1"],
   "crons": [
-    {
-      "path": "/api/cron/deliveries",
-      "schedule": "* * * * *"
-    }
+    { "path": "/api/cron/deliveries", "schedule": "* * * * *" },
+    { "path": "/api/checkout/expire", "schedule": "17 * * * *" },
+    { "path": "/api/cron/loyalty", "schedule": "40 3 * * *" },
+    { "path": "/api/cron/weekly-reports", "schedule": "0 6 * * 1" }
   ],
   "headers": [
     {

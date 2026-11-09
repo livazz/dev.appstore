@@ -3,6 +3,7 @@ import { DEFAULT_ITEM_STYLE, hashApiKey, type ItemStyle } from '@wolleen/core';
 import { hashPassword } from 'better-auth/crypto';
 import { account, and, db, eq, games, isNull, items, studios, studioMembers, user } from './index';
 import * as A from './demo-assets';
+import { seedLoyalty } from './seed-loyalty';
 
 /** Clés de développement connues — utilisées par apps/demo-game. Jamais en production. */
 export const DEMO_KEYS = {
@@ -93,6 +94,10 @@ async function main() {
   for (const r of rows) await db.insert(items).values(r).onConflictDoNothing();
   console.log(`Seed OK : 1 studio, ${gameRows.length} jeux, ${rows.length} articles — comptes de démo : ${Object.values(DEMO_USERS).map((u) => u.email).join(', ')} / ${DEMO_PASSWORD}`);
   await seedDemoSales();
+  // Points Wolleen : récompenses de démo + points des commandes payées du joueur de démo (idempotent).
+  const loyalty = await seedLoyalty(DEMO_USERS.player.id);
+  console.log(`Seed Points Wolleen : ${loyalty.rewards} récompenses, ${loyalty.awards} attributions ajoutées (${loyalty.points} points au total)`);
+  // Seed admin (packages/db/src/seed-admin.ts) : à brancher ici quand le module existera.
 }
 
 /*
