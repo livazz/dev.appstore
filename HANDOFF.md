@@ -68,7 +68,7 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
    - `visual-qa` : comparaison avec les maquettes PDF, refonte du pied du panneau d'article (bouton « Annuler » violet maladroit).
 2. **Revue de sécurité complète** par un regard neuf après la vague 6 (base : `docs/security/threat-model.md`,
    `docs/security/review-checklist.md`), puis corrections.
-3. Pousser sur GitHub (dépôt souhaité : `dev.appstore`).
+3. **En premier** : créer le dépôt GitHub `dev.appstore` (privé) et pousser l'historique complet (voir CLAUDE.md, étape 0).
 
 ## Décisions en attente (fondateur)
 

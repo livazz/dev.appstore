@@ -6,6 +6,10 @@ comme fait dans HANDOFF.md est fusionné et testé.
 
 ## Première action dans une nouvelle discussion
 
+0. **Créer le dépôt GitHub `dev.appstore`** (privé) et y pousser tout l'historique, si ce n'est pas déjà fait
+   (`git remote -v` vide) : `gh repo create dev.appstore --private --source . --remote origin --push`
+   (si `gh` n'est pas connecté : `gh auth login`, ou demander à l'utilisateur de créer le dépôt puis
+   `git remote add origin … && git push -u origin main`). Ensuite, pousser régulièrement.
 1. Si `node_modules` est absent : `npm install`, puis `npm run db:push && npm run db:seed`.
 2. Vérifie que tout est vert : `npm run typecheck && npm test`.
 3. Fais un point court à l'utilisateur (état, prochaines étapes) puis enchaîne sur « Ce qui reste à faire »
