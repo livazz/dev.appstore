@@ -99,9 +99,9 @@ export default async function AdminOrder({ params }: { params: Promise<{ id: str
             ) : (
               <p className="text-sm text-ink-2">Aucune livraison (la commande n’est pas payée).</p>
             )}
-            {retryable && can(admin.role, 'orders.retry_delivery') ? (
+            {delivery && can(admin.role, 'orders.retry_delivery') ? (
               <div className="mt-4 border-t border-line pt-4">
-                <RetryDeliveryForm orderId={order.id} />
+                <RetryDeliveryForm orderId={order.id} retryable={retryable} />
               </div>
             ) : null}
           </Card>

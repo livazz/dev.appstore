@@ -1,9 +1,7 @@
 'use client';
 
-import { useActionState, useId } from 'react';
+import { useId } from 'react';
 import type { AdminActionState } from './action-state';
-
-type Action = (prev: AdminActionState, form: FormData) => Promise<AdminActionState>;
 
 const TONES = {
   primary: 'bg-primary text-white hover:opacity-90',
@@ -12,11 +10,13 @@ const TONES = {
 } as const;
 
 /**
- * Formulaire d'action d'administration (Server Action + useActionState) : champs cachés, contenu libre,
- * bouton désactivé pendant l'envoi, résultat annoncé aux lecteurs d'écran.
+ * Formulaire d'action d'administration. L'état (`useActionState`) appartient au composant parent, qui reste monté :
+ * après succès, le statut de la cible change et le formulaire peut être remplacé par un autre, sans perdre le résultat
+ * (affiché par `ActionResult`). Bouton désactivé pendant l'envoi, confirmation facultative.
  */
 export function ActionForm({
-  action,
+  formAction,
+  pending,
   hidden,
   submitLabel,
   pendingLabel,
@@ -25,7 +25,8 @@ export function ActionForm({
   children,
   className = '',
 }: {
-  action: Action;
+  formAction: (form: FormData) => void;
+  pending: boolean;
   hidden: Record<string, string>;
   submitLabel: string;
   pendingLabel: string;
@@ -35,13 +36,10 @@ export function ActionForm({
   children?: React.ReactNode;
   className?: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, null);
-  const resultId = useId();
   return (
     <form
       action={formAction}
       className={`flex flex-col gap-3 ${className}`}
-      aria-describedby={state ? resultId : undefined}
       onSubmit={(e) => {
         if (confirm && !window.confirm(confirm)) e.preventDefault();
       }}
@@ -60,10 +58,16 @@ export function ActionForm({
           {pending ? pendingLabel : submitLabel}
         </button>
       </div>
-      <p id={resultId} role={state && !state.ok ? 'alert' : 'status'} className={`text-sm ${state ? (state.ok ? 'text-ok' : 'text-danger') : 'sr-only'}`}>
-        {state?.message ?? ''}
-      </p>
     </form>
+  );
+}
+
+/** Résultat d'une action, annoncé aux lecteurs d'écran (zone toujours présente pour que l'annonce soit lue). */
+export function ActionResult({ state }: { state: AdminActionState }) {
+  return (
+    <p role={state && !state.ok ? 'alert' : 'status'} className={`text-sm ${state ? (state.ok ? 'rounded-lg bg-ok/10 p-2 text-ok' : 'rounded-lg bg-danger/10 p-2 text-danger') : 'sr-only'}`}>
+      {state?.message ?? ''}
+    </p>
   );
 }
 

@@ -10,6 +10,7 @@ import {
   nextGameStatus,
   parsePage,
   parsePeriod,
+  periodStart,
   rolesFor,
   suspendGameSchema,
 } from './admin-logic';
@@ -55,6 +56,7 @@ describe('utilitaires', () => {
     expect(parsePeriod(undefined)).toBe(30);
     const now = new Date('2026-11-09T10:00:00Z');
     expect(dayKeys(3, now)).toEqual(['2026-11-07', '2026-11-08', '2026-11-09']);
+    expect(periodStart(3, now).toISOString()).toBe('2026-11-07T00:00:00.000Z');
     expect(fillDailySeries(3, [{ day: '2026-11-08', cents: 500 }], now).map((p) => p.cents)).toEqual([0, 500, 0]);
     expect(effectiveTakeRateBps(10_000, 500)).toBe(500);
     expect(effectiveTakeRateBps(0, 0)).toBe(0);

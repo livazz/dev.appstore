@@ -300,6 +300,7 @@ describe('lectures', () => {
     expect((await admin.searchOrdersForAdmin('P-3')).map((o) => o.id)).toEqual(['ord_old']);
     expect((await admin.searchOrdersForAdmin('JOUEUR@exemple')).length).toBe(4);
     expect(await admin.searchOrdersForAdmin('%')).toEqual([]);
+    expect((await admin.searchOrdersForAdmin('', { deliveryStatus: 'acknowledged' })).map((o) => o.id)).toEqual(['ord_ok']);
   });
 
   it('fiche jeu sans secret, fiche commande avec livraison et journal', async () => {
@@ -310,6 +311,21 @@ describe('lectures', () => {
     expect(o?.delivery?.id).toBe('dlv_fail');
     expect(o?.audit.map((a) => a.action)).toContain('order.retry_delivery');
     expect(o?.audit[0]?.adminEmail).toBe(U.support.email);
+  });
+
+  it('listes des jeux et des studios (filtres, compteurs)', async () => {
+    const games = await admin.listGamesForAdmin({ status: 'live', q: 'jeu' });
+    expect(games.rows.every((g) => g.status === 'live')).toBe(true);
+    expect(games.counts.live).toBeGreaterThan(0);
+    const all = await admin.listGamesForAdmin({});
+    expect(all.rows.find((g) => g.id === 'gam_a')).toMatchObject({ items: 1, studioName: 'Studio Test' });
+    const studios = await admin.listStudiosForAdmin('');
+    expect(studios.find((s) => s.id === 'std_t')).toMatchObject({ members: 2, games: 2 });
+    expect(await admin.listStudiosForAdmin('introuvable')).toEqual([]);
+    const detail = await admin.getStudioForAdmin('std_t');
+    expect(detail?.members.map((m) => m.email).sort()).toEqual([U.dev.email, U.owner.email].sort());
+    const users = await admin.searchUsersForAdmin('devappstore');
+    expect(users.find((u) => u.id === U.disabledAdmin.id)?.disabledAt).toBeInstanceOf(Date);
   });
 
   it('journal filtrable par action', async () => {

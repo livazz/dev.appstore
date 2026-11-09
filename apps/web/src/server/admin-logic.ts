@@ -129,9 +129,13 @@ export function parsePeriod(value: unknown): DashboardPeriod {
 
 const DAY_MS = 86_400_000;
 
-/** Début de la fenêtre glissante (`days` × 24 h avant `now`). */
+/**
+ * Début de la période : minuit UTC du jour situé `days - 1` jours avant `now` (la période couvre `days` jours
+ * calendaires, aujourd'hui compris — exactement les jours de `dayKeys`, donc la série journalière somme au total).
+ */
 export function periodStart(days: number, now: Date = new Date()): Date {
-  return new Date(now.getTime() - days * DAY_MS);
+  const d = new Date(now.getTime() - (days - 1) * DAY_MS);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
 /** Clés de jour (UTC, AAAA-MM-JJ) de la fenêtre, de la plus ancienne à aujourd'hui. */

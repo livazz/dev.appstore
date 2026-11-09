@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { auditActionLabel, auditTargetHref } from '@/server/admin-logic';
-import { Mono, Time } from './ui';
+import type { DeliveryStatus, GameStatus } from '@wolleen/core';
+import { SUSPENSION_GROUNDS, auditActionLabel, auditTargetHref, type SuspensionGround } from '@/server/admin-logic';
+import { DELIVERY_STATUS, GAME_STATUS, Mono, Time } from './ui';
 
 export interface AuditRow {
   id: string;
@@ -30,8 +31,11 @@ const DETAIL_LABELS: Record<string, string> = {
   platformRole: 'Rôle plateforme',
 };
 
-function detailValue(v: unknown) {
+function detailValue(key: string, v: unknown) {
   if (v === null || v === undefined) return '—';
+  if (key === 'ground' && typeof v === 'string') return SUSPENSION_GROUNDS[v as SuspensionGround] ?? v;
+  if ((key === 'from' || key === 'to') && typeof v === 'string') return GAME_STATUS[v as GameStatus]?.label ?? v;
+  if (key === 'previousStatus' && typeof v === 'string') return DELIVERY_STATUS[v as DeliveryStatus]?.label ?? v;
   return typeof v === 'object' ? JSON.stringify(v) : String(v);
 }
 
@@ -73,7 +77,7 @@ export function AuditList({ rows, compact = false }: { rows: AuditRow[]; compact
                 {details.map(([k, v]) => (
                   <div key={k} className="contents">
                     <dt className="text-ink-3">{DETAIL_LABELS[k] ?? k}</dt>
-                    <dd className="min-w-0 whitespace-pre-line break-words">{k.endsWith('Id') ? <Mono>{detailValue(v)}</Mono> : detailValue(v)}</dd>
+                    <dd className="min-w-0 whitespace-pre-line break-words">{k.endsWith('Id') ? <Mono>{detailValue(k, v)}</Mono> : detailValue(k, v)}</dd>
                   </div>
                 ))}
               </dl>

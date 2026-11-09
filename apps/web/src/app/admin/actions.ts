@@ -49,6 +49,32 @@ export async function reactivateGameAction(_prev: AdminActionState, form: FormDa
   }, [`/admin/games/${id}`, '/admin/games', '/admin']);
 }
 
+/** Point d'entrée unique du panneau de modération (champ `intent`), pour que le résultat survive au changement de statut. */
+export async function moderateGameAction(prev: AdminActionState, form: FormData): Promise<AdminActionState> {
+  switch (field(form, 'intent')) {
+    case 'approve':
+      return approveGameAction(prev, form);
+    case 'suspend':
+      return suspendGameAction(prev, form);
+    case 'reactivate':
+      return reactivateGameAction(prev, form);
+    default:
+      return { ok: false, message: 'Action inconnue.', at: Date.now() };
+  }
+}
+
+/** Désactivation / réactivation d'un compte (champ `intent`). */
+export async function userStatusAction(prev: AdminActionState, form: FormData): Promise<AdminActionState> {
+  switch (field(form, 'intent')) {
+    case 'disable':
+      return disableUserAction(prev, form);
+    case 'enable':
+      return enableUserAction(prev, form);
+    default:
+      return { ok: false, message: 'Action inconnue.', at: Date.now() };
+  }
+}
+
 const DELIVERY_RESULT: Record<string, string> = {
   pending: 'en attente (nouvelle tentative planifiée ou récupération par le SDK)',
   delivered: 'livrée',
@@ -60,7 +86,7 @@ export async function retryDeliveryAction(_prev: AdminActionState, form: FormDat
   const id = field(form, 'orderId');
   return run(async () => {
     const r = await retryOrderDelivery(id);
-    return `Livraison relancée : ${DELIVERY_RESULT[r.status] ?? r.status}${r.lastError ? ` — ${r.lastError}` : ''}.`;
+    return `Livraison relancée : ${DELIVERY_RESULT[r.status] ?? r.status}${r.status === 'failed' && r.lastError ? ` — ${r.lastError}` : ''}.`;
   }, [`/admin/orders/${id}`]);
 }
 

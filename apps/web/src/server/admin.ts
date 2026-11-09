@@ -460,7 +460,7 @@ export async function listGamesForAdmin(filters: { status?: GameStatus | null; q
     const like = `%${escapeLike(filters.q)}%`;
     conds.push(or(eq(games.id, filters.q), ilike(games.name, like), ilike(games.slug, like), ilike(studios.name, like)));
   }
-  const itemCount = db.$with('item_count').as(db.select({ gameId: items.gameId, n: count().as('n') }).from(items).where(eq(items.active, true)).groupBy(items.gameId));
+  const itemCount = db.$with('item_count').as(db.select({ gameId: items.gameId, itemsN: count().as('items_n') }).from(items).where(eq(items.active, true)).groupBy(items.gameId));
   const [rows, statusRows] = await Promise.all([
     db
       .with(itemCount)
@@ -474,7 +474,7 @@ export async function listGamesForAdmin(filters: { status?: GameStatus | null; q
         updatedAt: games.updatedAt,
         studioId: studios.id,
         studioName: studios.name,
-        items: sql<number>`coalesce(${itemCount.n}, 0)`.mapWith(Number),
+        items: sql<number>`coalesce(${itemCount.itemsN}, 0)`.mapWith(Number),
       })
       .from(games)
       .innerJoin(studios, eq(studios.id, games.studioId))
@@ -538,8 +538,8 @@ export async function getGameForAdmin(gameId: string, now: Date = new Date()) {
 /* Studios ---------------------------------------------------------------------------------------- */
 
 export async function listStudiosForAdmin(q?: string) {
-  const memberCount = db.$with('member_count').as(db.select({ studioId: studioMembers.studioId, n: count().as('n') }).from(studioMembers).groupBy(studioMembers.studioId));
-  const gameCount = db.$with('game_count').as(db.select({ studioId: games.studioId, n: count().as('n') }).from(games).groupBy(games.studioId));
+  const memberCount = db.$with('member_count').as(db.select({ studioId: studioMembers.studioId, membersN: count().as('members_n') }).from(studioMembers).groupBy(studioMembers.studioId));
+  const gameCount = db.$with('game_count').as(db.select({ studioId: games.studioId, gamesN: count().as('games_n') }).from(games).groupBy(games.studioId));
   const like = q ? `%${escapeLike(q)}%` : null;
   return db
     .with(memberCount, gameCount)
@@ -550,8 +550,8 @@ export async function listStudiosForAdmin(q?: string) {
       stripeAccountId: studios.stripeAccountId,
       chargesEnabled: studios.stripeChargesEnabled,
       createdAt: studios.createdAt,
-      members: sql<number>`coalesce(${memberCount.n}, 0)`.mapWith(Number),
-      games: sql<number>`coalesce(${gameCount.n}, 0)`.mapWith(Number),
+      members: sql<number>`coalesce(${memberCount.membersN}, 0)`.mapWith(Number),
+      games: sql<number>`coalesce(${gameCount.gamesN}, 0)`.mapWith(Number),
     })
     .from(studios)
     .leftJoin(memberCount, eq(memberCount.studioId, studios.id))
@@ -585,14 +585,20 @@ export async function getStudioForAdmin(studioId: string, now: Date = new Date()
 
 /* Commandes -------------------------------------------------------------------------------------- */
 
-/** Recherche par id de commande, e-mail de l'acheteur (partiel) ou player_id ; sans saisie : les plus récentes. */
-export async function searchOrdersForAdmin(q: string, limit = PAGE_SIZE) {
-  let where;
+/**
+ * Recherche par id de commande, e-mail de l'acheteur (partiel) ou player_id ; sans saisie : les plus récentes.
+ * `deliveryStatus` restreint aux commandes dont la livraison a ce statut (ex. « failed » depuis le tableau de bord).
+ */
+export async function searchOrdersForAdmin(q: string, opts: { deliveryStatus?: DeliveryStatus | null; limit?: number } = {}) {
+  const filters = [];
   if (q) {
     const conds = [eq(orders.id, q), eq(orders.playerId, q), eq(orders.stripePaymentIntentId, q)];
     if (q.length >= 3) conds.push(ilike(user.email, `%${escapeLike(q)}%`));
-    where = or(...conds);
+    filters.push(or(...conds));
   }
+  if (opts.deliveryStatus) filters.push(eq(deliveries.status, opts.deliveryStatus));
+  const where = filters.length ? and(...filters) : undefined;
+  const limit = opts.limit ?? PAGE_SIZE;
   return db
     .select({
       id: orders.id,

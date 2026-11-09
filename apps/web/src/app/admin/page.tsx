@@ -7,15 +7,15 @@ import { DailyBars } from '@/components/admin/DailyBars';
 
 export const dynamic = 'force-dynamic';
 
-function Kpi({ label, value, hint, href, tone }: { label: string; value: string; hint?: React.ReactNode; href?: string; tone?: 'danger' | 'warn' }) {
+function Kpi({ label, value, hint, href, tone, wide }: { label: string; value: string; hint?: React.ReactNode; href?: string; tone?: 'danger' | 'warn'; wide?: boolean }) {
   const body = (
     <>
       <span className="text-sm text-ink-2">{label}</span>
-      <span className={`text-2xl font-bold tabular-nums ${tone === 'danger' ? 'text-danger' : tone === 'warn' ? 'text-warn' : 'text-ink'}`}>{value}</span>
+      <span className={`break-words text-xl font-bold tabular-nums sm:text-2xl ${tone === 'danger' ? 'text-danger' : tone === 'warn' ? 'text-warn' : 'text-ink'}`}>{value}</span>
       {hint ? <span className="text-xs text-ink-2">{hint}</span> : null}
     </>
   );
-  const cls = 'flex min-w-0 flex-col gap-1 rounded-2xl bg-surface p-4 shadow-sm ring-1 ring-black/5';
+  const cls = `flex min-w-0 flex-col gap-1 rounded-2xl bg-surface p-4 shadow-sm ring-1 ring-black/5 ${wide ? 'col-span-2 lg:col-span-1' : ''}`;
   return href ? (
     <Link href={href} className={`${cls} transition hover:ring-primary`}>
       {body}
@@ -50,8 +50,9 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Kpi
+          wide
           label="Volume d’affaires (GMV)"
           value={formatMoney(main?.gmvCents ?? 0, main?.currency ?? 'EUR')}
           hint={others.length ? `+ ${others.map((o) => formatMoney(o.gmvCents, o.currency)).join(' · ')}` : `Commandes payées, ${period} derniers jours`}
@@ -66,6 +67,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
           label="Livraisons en échec"
           value={nf.format(d.failedDeliveries)}
           tone={d.failedDeliveries ? 'danger' : undefined}
+          href="/admin/orders?delivery=failed"
           hint={`${nf.format(d.openFailedDeliveries)} en échec au total`}
         />
         <Kpi
@@ -103,7 +105,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
         </Card>
       </div>
       <p className="mt-4 text-xs text-ink-3">
-        Fenêtre glissante de {period} × 24 h. GMV et commission : commandes au statut « payée » (hors remboursements). Livraisons en échec : créées sur la période,
+        Période : {period} derniers jours calendaires (UTC), aujourd’hui compris. GMV et commission : commandes au statut « payée » (hors remboursements). Livraisons en échec : créées sur la période,
         planning de relance épuisé.
       </p>
     </>

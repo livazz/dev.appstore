@@ -1,20 +1,27 @@
 'use client';
 
+import { useActionState } from 'react';
 import type { GameStatus } from '@wolleen/core';
-import { approveGameAction, reactivateGameAction, suspendGameAction } from '@/app/admin/actions';
+import { moderateGameAction } from '@/app/admin/actions';
 import { REASON_MIN, SUSPENSION_GROUNDS } from '@/server/admin-logic';
-import { ActionForm, SelectField, TextAreaField } from './ActionForm';
+import { ActionForm, ActionResult, SelectField, TextAreaField } from './ActionForm';
 
-/** Actions de modération d'un jeu, selon son statut. */
+/**
+ * Actions de modération d'un jeu, selon son statut. L'état de l'action appartient au panneau (qui reste monté) :
+ * après succès, le statut change et le formulaire utilisé est remplacé par celui du nouveau statut, le résultat reste.
+ */
 export function ModerationPanel({ gameId, status, canModerate }: { gameId: string; status: GameStatus; canModerate: boolean }) {
+  const [state, formAction, pending] = useActionState(moderateGameAction, null);
   if (!canModerate) return <p className="text-sm text-ink-2">Votre rôle permet de consulter ce jeu, pas de le modérer.</p>;
-  const hidden = { gameId };
+  const common = { formAction, pending };
   return (
     <div className="flex flex-col gap-6">
+      <ActionResult state={state} />
+
       {status === 'review' ? (
         <div>
           <h3 className="mb-2 text-sm font-semibold">Approuver la revue</h3>
-          <ActionForm action={approveGameAction} hidden={hidden} submitLabel="Approuver et mettre en ligne" pendingLabel="Approbation…">
+          <ActionForm key="approve" {...common} hidden={{ gameId, intent: 'approve' }} submitLabel="Approuver et mettre en ligne" pendingLabel="Approbation…">
             <TextAreaField name="note" label="Note au studio" />
           </ActionForm>
         </div>
@@ -24,8 +31,9 @@ export function ModerationPanel({ gameId, status, canModerate }: { gameId: strin
         <div>
           <h3 className="mb-2 text-sm font-semibold">Réactiver</h3>
           <ActionForm
-            action={reactivateGameAction}
-            hidden={hidden}
+            key="reactivate"
+            {...common}
+            hidden={{ gameId, intent: 'reactivate' }}
             submitLabel="Réactiver le jeu"
             pendingLabel="Réactivation…"
             confirm="Réactiver ce jeu ? Sa boutique redevient visible et les achats sont rouverts."
@@ -41,8 +49,9 @@ export function ModerationPanel({ gameId, status, canModerate }: { gameId: strin
             contestation : soyez précis et factuel.
           </p>
           <ActionForm
-            action={suspendGameAction}
-            hidden={hidden}
+            key="suspend"
+            {...common}
+            hidden={{ gameId, intent: 'suspend' }}
             tone="danger"
             submitLabel="Suspendre le jeu"
             pendingLabel="Suspension…"

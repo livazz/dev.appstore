@@ -35,7 +35,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider sm:px-6">
           <span className="size-2 rounded-full bg-brand" aria-hidden />
           Administration
-          <span className="ml-auto truncate font-normal normal-case tracking-normal text-white/70">Espace interne — toutes les actions sont journalisées</span>
+          <span className="ml-auto hidden truncate font-normal normal-case tracking-normal text-white/70 sm:inline">Espace interne — toutes les actions sont journalisées</span>
+          <span className="ml-auto font-normal normal-case tracking-normal text-white/70 sm:hidden">Actions journalisées</span>
         </div>
       </div>
       <header className="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
@@ -50,7 +51,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <span className="hidden min-w-0 truncate text-sm text-ink-2 sm:inline">{admin.user.email}</span>
           <span className="shrink-0 rounded-full bg-brand/30 px-2 py-0.5 text-xs font-semibold text-ink">{ADMIN_ROLE_LABELS[admin.role]}</span>
           <Link href="/" className="shrink-0 rounded-[var(--radius)] px-2 py-1.5 text-sm font-medium text-ink-2 hover:bg-black/5 hover:text-ink">
-            Retour au site
+            <span className="sm:hidden">Site</span>
+            <span className="hidden sm:inline">Retour au site</span>
           </Link>
         </div>
         <div className="mx-auto max-w-7xl px-2 sm:px-4">
