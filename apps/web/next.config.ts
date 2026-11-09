@@ -5,9 +5,19 @@ import { securityHeaders } from './src/lib/security-headers';
 const nodeCryptoStub = fileURLToPath(new URL('./src/lib/node-crypto-stub.ts', import.meta.url));
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@wolleen/core', '@wolleen/db'],
+  // Image Docker (docs/deploy.md, Dockerfile) : serveur autonome dans .next/standalone/apps/web/server.js.
+  // Sans effet sur `next dev` ni sur Vercel.
+  output: 'standalone',
+  // Monorepo : trace les dépendances depuis la racine du dépôt (packages/*, node_modules hoistés).
+  outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
+  // Paquets du monorepo publiés en TypeScript source.
+  transpilePackages: ['@wolleen/core', '@wolleen/db', '@wolleen/emails', '@wolleen/importers', '@wolleen/ai-style'],
   serverExternalPackages: ['@electric-sql/pglite'],
   images: { unoptimized: true },
+  // IA de style (AiStyleButton → generateStyleFromScreenshot) : le navigateur réduit la capture vers 900 Ko, mais
+  // une image non décodable côté client part telle quelle. On aligne la limite des Server Actions (1 Mo par défaut)
+  // sur celle du serveur (AI_STYLE_MAX_UPLOAD_BYTES = 8 Mio) + l'enveloppe multipart.
+  experimental: { serverActions: { bodySizeLimit: '9mb' } },
   poweredByHeader: false,
   // Revue de sécurité (CHK-HDR-01) : CSP, frame-ancestors 'none', Referrer-Policy, Permissions-Policy, HSTS (prod).
   async headers() {

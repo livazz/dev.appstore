@@ -21,7 +21,7 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
           <Link
             href="/"
             aria-label="Wolleen — accueil"
-            className="grid size-10 flex-none place-items-center rounded-[10px] bg-brand text-xl font-black text-ink shadow-[inset_0_-2px_0_rgba(0,0,0,.12)]"
+            className="grid size-11 flex-none place-items-center rounded-[10px] bg-brand text-xl font-black text-ink shadow-[inset_0_-2px_0_rgba(0,0,0,.12)]"
           >
             W
           </Link>

@@ -20,6 +20,7 @@ import { pickAndUploadImage } from '@/lib/upload';
 import { Modal } from './Modal';
 import { ColorField, Slider, Toggle } from './Controls';
 import { IconPlus } from './icons';
+import { AiStyleButton } from './ai/AiStyleButton';
 
 type Draft = Omit<EditorItem, 'id'> & { id: string | null };
 
@@ -346,6 +347,23 @@ export function ItemModal({
             </div>
           </div>
           <div className="grid flex-1 grid-cols-[repeat(auto-fill,minmax(250px,1fr))] content-start items-center justify-items-center gap-6 rounded-xl bg-bg p-6">
+            <div className="col-span-full w-full">
+              <AiStyleButton
+                gameId={gameId}
+                currency={currency}
+                preview={draft}
+                onApply={(r) =>
+                  setDraft((d) => ({
+                    ...d,
+                    layout: r.layout,
+                    style: r.style,
+                    // Le titre et le sous-titre saisis par le studio priment sur ceux lus par l'IA.
+                    title: d.title.trim() ? d.title : (r.title ?? d.title),
+                    subtitle: d.subtitle.trim() ? d.subtitle : (r.subtitle ?? d.subtitle),
+                  }))
+                }
+              />
+            </div>
             {([1, 2, 3, 4, 5, 6] as LayoutId[]).map((l) => (
               <ItemCard
                 key={l}

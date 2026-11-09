@@ -9,7 +9,9 @@
   --ink-3: #8e8e93;
   --line: #d9d9de;
   --brand: #ffd43b;
-  --primary: #4aa8f0;
+  /* Bleu des maquettes (#4aa8f0) assombri pour l'accessibilité : texte blanc à 5,8:1 (4,8:1 au survol
+     « hover:opacity-90 »), liens text-primary à 5,3:1 sur --bg. WCAG 1.4.3 exige ≥ 4,5:1. */
+  --primary: #1766b5;
   --primary-ink: #ffffff;
   --cancel: #a43cf0;
   --ok: #1e9e4a;

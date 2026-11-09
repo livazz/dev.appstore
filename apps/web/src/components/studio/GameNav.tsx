@@ -117,7 +117,7 @@ export function GameActions({ gameId, slug, name, status }: { gameId: string; sl
   );
 }
 
-/** Onglets Boutique | Ventes et tendances | Intégration. */
+/** Onglets Boutique | Ventes et tendances | Intégration | Importer. */
 export function GameTabs({ gameId }: { gameId: string }) {
   const pathname = usePathname();
   const base = `/studio/games/${gameId}`;
@@ -125,6 +125,7 @@ export function GameTabs({ gameId }: { gameId: string }) {
     { href: base, label: 'Boutique', active: pathname === base },
     { href: `${base}/sales`, label: 'Ventes et tendances', active: pathname.startsWith(`${base}/sales`) },
     { href: `${base}/integration`, label: 'Intégration', active: pathname.startsWith(`${base}/integration`) },
+    { href: `${base}/import`, label: 'Importer', active: pathname.startsWith(`${base}/import`) },
   ];
   return (
     <nav aria-label="Sections du jeu" className="mb-6 flex gap-6 overflow-x-auto border-b border-line">

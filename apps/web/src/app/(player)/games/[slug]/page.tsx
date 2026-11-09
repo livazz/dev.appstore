@@ -2,11 +2,12 @@ import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { GameStore } from '@/components/catalog/GameStore';
+import { initialStoreItem, type StoreSearchParams } from '@/components/catalog/store-query';
 import { getLiveGameBySlug, maxDiscountPct } from '@/server/catalog';
 
 export const dynamic = 'force-dynamic';
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ item?: string | string[] }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<StoreSearchParams> };
 
 /** Une seule requête par rendu (partagée entre generateMetadata et la page). */
 const loadGame = cache((slug: string) => getLiveGameBySlug(slug));
@@ -42,11 +43,12 @@ export default async function GamePage({ params, searchParams }: Props) {
   const game = await loadGame(slug);
   if (!game) notFound();
   const { items, ...rest } = game;
-  const itemId = Array.isArray(sp.item) ? sp.item[0] : sp.item;
+  // ?item= (lien partagé) ou ?buy= (retour de /games/[slug]/link) : rouvre le détail de l'article.
+  const initial = initialStoreItem(sp);
 
   return (
     <div className="mx-auto max-w-6xl py-0 sm:px-6 sm:py-6">
-      <GameStore game={rest} items={items} initialItemId={itemId ?? null} />
+      <GameStore game={rest} items={items} initialItemId={initial.itemId} initialBuy={initial.buy} />
       {game.description && (
         <section className="mx-4 mt-6 rounded-[var(--radius)] bg-surface p-5 sm:mx-0" aria-labelledby="about-title">
           <h2 id="about-title" className="font-bold">

@@ -20,12 +20,15 @@ export default async function AccountPage() {
         {user.name} · {user.email}
       </p>
 
-      <nav aria-label="Sections du compte" className="mt-6 flex gap-6 border-b border-line text-sm">
+      <nav aria-label="Sections du compte" className="mt-6 flex flex-wrap gap-x-6 border-b border-line text-sm">
         <span aria-current="page" className="-mb-px border-b-2 border-ink pb-2 font-semibold text-ink">
           Mes jeux liés
         </span>
         <Link href="/account/purchases" className="pb-2 text-ink-2 transition hover:text-ink">
           Historique des achats
+        </Link>
+        <Link href="/account/points" className="pb-2 text-ink-2 transition hover:text-ink">
+          Points Wolleen
         </Link>
       </nav>
 
