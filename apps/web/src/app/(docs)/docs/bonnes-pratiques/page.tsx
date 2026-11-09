@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import { CodeBlock } from '@/components/docs/CodeBlock';
-import { A, C, Callout, DocPage, H2, P, Table, UL, docMetadata } from '@/components/docs/prose';
+import { A, C, Callout, DocPage, H2, P, Table, UL } from '@/components/docs/prose';
+import { docPageMetadata } from '@/lib/seo';
 
-export const metadata = docMetadata('bonnes-pratiques');
+export const metadata = docPageMetadata('bonnes-pratiques');
 
 const IDEMPOTENT_SQL = `-- Une ligne par livraison créditée : la contrainte d'unicité empêche le double crédit.
 CREATE TABLE credited_deliveries (

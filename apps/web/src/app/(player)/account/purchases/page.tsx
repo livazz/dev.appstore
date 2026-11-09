@@ -7,7 +7,7 @@ import { formatDateTime, playerDeliveryLabel, TONE_CLASSES } from '@/lib/analyti
 import { confirmWithdrawal } from './actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Mes achats — Dev AppStore' };
+export const metadata = { title: 'Mes achats', robots: { index: false } };
 
 const PAGE_SIZE = 25;
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

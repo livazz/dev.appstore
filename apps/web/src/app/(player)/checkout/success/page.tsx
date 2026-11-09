@@ -8,7 +8,7 @@ import { requireUser } from '@/server/session';
 import { isStripeEnabled } from '@/server/stripe';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Votre achat — Dev AppStore', robots: { index: false } };
+export const metadata: Metadata = { title: 'Votre achat', robots: { index: false } };
 
 type Phase = 'confirming' | 'delivering' | 'delivered' | 'credited' | 'delivery_failed' | 'payment_failed' | 'refunded';
 type StepState = 'done' | 'current' | 'todo' | 'error';

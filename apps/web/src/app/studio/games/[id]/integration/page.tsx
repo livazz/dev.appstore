@@ -20,7 +20,7 @@ import {
 import { LinkSettings } from '@/components/studio/LinkSettings';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Intégration — Dev AppStore Studio' };
+export const metadata: Metadata = { title: 'Intégration' };
 
 const STATUS: Record<DeliveryStatus, { label: string; className: string }> = {
   pending: { label: 'En attente', className: 'bg-warn/10 text-warn' },

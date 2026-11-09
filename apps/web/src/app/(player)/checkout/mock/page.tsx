@@ -10,7 +10,7 @@ import { isSimulationAllowed } from '@/server/stripe';
 import { payMockOrderAction } from './actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Paiement (démo) — Dev AppStore', robots: { index: false } };
+export const metadata: Metadata = { title: 'Paiement (démo)', robots: { index: false } };
 
 const ERRORS: Record<string, string> = {
   simulation_forbidden: 'Le mode démo est désactivé sur ce serveur.',

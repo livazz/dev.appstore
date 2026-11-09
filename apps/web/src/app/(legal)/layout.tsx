@@ -6,8 +6,6 @@ import { LegalNav } from '@/components/legal/LegalNav';
 import { LEGAL_STATUS } from '@/lib/legal-versions';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_URL || 'http://localhost:3000'),
-  title: { default: 'Informations légales · Dev AppStore', template: '%s · Dev AppStore' },
   description: 'Conditions de vente, conditions studio, confidentialité, cookies, mentions légales et droit de rétractation de Dev AppStore.',
   // Projets non validés : pas d'indexation tant que le bandeau « Projet » est affiché.
   robots: LEGAL_STATUS === 'draft' ? { index: false, follow: true } : undefined,

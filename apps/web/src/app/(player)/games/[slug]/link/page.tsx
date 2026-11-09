@@ -9,7 +9,7 @@ import { CodeForm } from './CodeForm';
 import { IdConfirmForm } from './IdConfirmForm';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Lier mon compte de jeu — Dev AppStore' };
+export const metadata: Metadata = { title: 'Lier mon compte de jeu', robots: { index: false } };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' });
 

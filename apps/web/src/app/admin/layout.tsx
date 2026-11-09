@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 /** Titre uniquement pour un administrateur : la page 404 servie aux autres ne révèle rien. */
 export async function generateMetadata(): Promise<Metadata> {
   const admin = await getPlatformAdmin();
-  return admin ? { title: { default: 'Administration — Dev AppStore', template: '%s — Administration Dev AppStore' }, robots: { index: false, follow: false } } : {};
+  return admin ? { title: { default: 'Administration · Dev AppStore', template: '%s · Administration · Dev AppStore' }, robots: { index: false, follow: false } } : {};
 }
 
 const LINKS: (AdminNavLink & { permission: AdminPermission })[] = [

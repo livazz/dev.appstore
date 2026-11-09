@@ -8,7 +8,7 @@ import { requireUser } from '@/server/session';
 import { RedeemButton } from './RedeemButton';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Mes Points Dev AppStore — Dev AppStore' };
+export const metadata: Metadata = { title: 'Mes Points Dev AppStore', robots: { index: false } };
 
 const PAGE_SIZE = 20;
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import nextConfig from '../../next.config';
-import { contentSecurityPolicy, securityHeaders } from './security-headers';
+import { API_CONTENT_SECURITY_POLICY, contentSecurityPolicy, generateNonce, securityHeaders } from './security-headers';
 
 /* Revue de sécurité (CHK-HDR-01) : en-têtes globaux de next.config.ts. */
 
@@ -17,6 +17,20 @@ describe('Content-Security-Policy', () => {
     expect(directive(csp, 'form-action')).toBe("form-action 'self' https://checkout.stripe.com https://connect.stripe.com");
     expect(directive(csp, 'connect-src')).toBe("connect-src 'self'");
     expect(csp).toContain('upgrade-insecure-requests');
+  });
+
+  it('avec nonce : script-src sans unsafe-inline, nonce + strict-dynamic', () => {
+    const script = directive(contentSecurityPolicy(false, 'abc123=='), 'script-src');
+    expect(script).toBe("script-src 'self' 'nonce-abc123==' 'strict-dynamic'");
+    expect(script).not.toContain('unsafe-inline');
+    // style-src garde unsafe-inline (attributs style React) : documenté dans security-headers.ts.
+    expect(directive(contentSecurityPolicy(false, 'x'), 'style-src')).toBe("style-src 'self' 'unsafe-inline'");
+  });
+
+  it('nonce : base64 de 16 octets, différent à chaque appel', () => {
+    const a = generateNonce();
+    expect(a).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+    expect(new Set(Array.from({ length: 50 }, generateNonce)).size).toBe(50);
   });
 
   it('compatible avec les visuels de démo en data: (et sans http: en clair)', () => {
@@ -52,12 +66,13 @@ describe('next.config.ts headers()', () => {
     expect(has(true)).toBe(false);
   });
 
-  it('la CSP globale exclut /api/uploads/* (qui garde sa CSP sandbox)', () => {
+  it('CSP minimale sur /api/* sauf /api/uploads/* (qui garde sa CSP sandbox) ; les pages relèvent du middleware', () => {
     const rule = securityHeaders({ dev: false }).find((r) => r.headers.some((h) => h.key === 'Content-Security-Policy'))!;
+    expect(rule.headers[0]!.value).toBe(API_CONTENT_SECURITY_POLICY);
     const re = new RegExp(`^${rule.source.replace('/:path', '/')}$`);
-    expect(re.test('/')).toBe(true);
-    expect(re.test('/games/crystal-clash')).toBe(true);
-    expect(re.test('/studio/games/gam_crystal')).toBe(true);
+    expect(re.test('/api/v1/deliveries')).toBe(true);
+    expect(re.test('/api/auth/sign-in/email')).toBe(true);
     expect(re.test('/api/uploads/item/usr_x/a.webp')).toBe(false);
+    expect(re.test('/')).toBe(false);
   });
 });

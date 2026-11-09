@@ -1,8 +1,9 @@
 import { CodeBlock } from '@/components/docs/CodeBlock';
 import { CodeTabs } from '@/components/docs/CodeTabs';
-import { A, C, Callout, DocPage, H2, H3, P, Table, UL, docMetadata } from '@/components/docs/prose';
+import { A, C, Callout, DocPage, H2, H3, P, Table, UL } from '@/components/docs/prose';
+import { docPageMetadata } from '@/lib/seo';
 
-export const metadata = docMetadata('sdk');
+export const metadata = docPageMetadata('sdk');
 
 /* Contenu repris des README de packages/sdk-js et sdks/{unity,godot,unreal}. */
 

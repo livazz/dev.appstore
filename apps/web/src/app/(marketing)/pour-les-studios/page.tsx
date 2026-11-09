@@ -5,16 +5,19 @@ import { EditorPreview } from '@/components/marketing/EditorPreview';
 import { Faq, type FaqEntry } from '@/components/marketing/Faq';
 import { SavingsCalculator } from '@/components/marketing/SavingsCalculator';
 import { bpsToPercentLabel, keptPercentLabel } from '@/components/marketing/savings';
+import { publicPageMetadata } from '@/lib/seo';
 
 const KEPT_DEVAPPSTORE = keptPercentLabel(DEFAULT_PLATFORM_FEE_BPS);
 /** « 70 à 85 % » : ce que gardent les studios via les stores, du taux standard (30 %) au taux réduit (15 %). */
 const KEPT_STORES = `${keptPercentLabel(STORE_FEE_BPS).replace(/\s*%$/, '')} à ${keptPercentLabel(REDUCED_STORE_FEE_BPS)}`;
 const STORE_RANGE = `${bpsToPercentLabel(REDUCED_STORE_FEE_BPS).replace(/\s*%$/, '')} à ${bpsToPercentLabel(STORE_FEE_BPS)}`;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: 'Dev AppStore pour les studios — gardez ~95 % de vos ventes in-app',
+  absoluteTitle: true,
   description: `Vendez vos objets in-app sur le web : gardez environ ${KEPT_DEVAPPSTORE} du revenu au lieu de ${KEPT_STORES} via les stores, livraison automatique dans le jeu par webhook signé ou SDK.`,
-};
+  path: '/pour-les-studios',
+});
 
 const SIGNUP_HREF = '/studio/signup';
 /** Vente d'exemple du comparatif (centimes). */

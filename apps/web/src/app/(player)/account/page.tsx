@@ -5,7 +5,7 @@ import { requireUser } from '@/server/session';
 import { UnlinkButton } from './UnlinkButton';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Mon compte — Dev AppStore' };
+export const metadata: Metadata = { title: 'Mon compte', robots: { index: false } };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' });
 

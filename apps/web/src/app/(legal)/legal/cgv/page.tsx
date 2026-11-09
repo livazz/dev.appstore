@@ -5,7 +5,7 @@ import { LegalDocument, type LegalSection } from '@/components/legal/LegalDocume
 import { getLegalDocument } from '@/lib/legal-versions';
 
 const doc = getLegalDocument('cgv');
-export const metadata: Metadata = { title: doc.title, description: doc.description };
+export const metadata: Metadata = { title: doc.title, description: doc.description, alternates: { canonical: doc.href } };
 
 const sections: LegalSection[] = [
   {
