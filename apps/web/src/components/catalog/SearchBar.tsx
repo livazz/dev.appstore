@@ -9,13 +9,13 @@ export function SearchBar() {
   return <SearchForm key={params.toString()} q={params.get('q') ?? ''} cat={params.get('cat') ?? ''} />;
 }
 
-/** Formulaire GET vers /search (fonctionne sans JavaScript). */
+/** Formulaire GET vers /search (fonctionne sans JavaScript). 46 px avec la bordure : champ et menu ≥ 44 px. */
 export function SearchForm({ q = '', cat = '' }: { q?: string; cat?: string }) {
   return (
     <form
       action="/search"
       role="search"
-      className="flex h-11 w-full min-w-0 items-center rounded-full border border-line bg-bg pl-3 transition-colors focus-within:border-primary focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/40"
+      className="flex h-[46px] w-full min-w-0 items-center rounded-full border border-line bg-bg pl-3 transition-colors focus-within:border-primary focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/40"
     >
       <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[18px] flex-none text-ink-2" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
         <circle cx="11" cy="11" r="7" />
