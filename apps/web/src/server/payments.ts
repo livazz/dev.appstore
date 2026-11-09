@@ -72,7 +72,6 @@ export class CheckoutError extends Error {
   }
 }
 
-type ItemRow = typeof items.$inferSelect;
 type GameRow = typeof games.$inferSelect;
 type StudioRow = typeof studios.$inferSelect;
 type OrderRow = typeof orders.$inferSelect;
