@@ -1,5 +1,13 @@
 /* Helpers purs (client + serveur) pour les ventes et l'historique d'achats. */
-import type { DeliveryStatus, OrderStatus } from '@wolleen/core';
+import type { Currency, DeliveryStatus, OrderStatus } from '@wolleen/core';
+
+/**
+ * Identique à formatMoney de @wolleen/core, mais utilisable dans un composant client
+ * (l'index de core embarque node:crypto).
+ */
+export function formatCents(cents: number, currency: Currency = 'EUR') {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(cents / 100);
+}
 
 export const SALES_PERIODS = [7, 30, 90] as const;
 export type SalesPeriod = (typeof SALES_PERIODS)[number];

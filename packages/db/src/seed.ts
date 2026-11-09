@@ -119,13 +119,15 @@ async function seedDemoSales() {
       for (let k = 0; k < n; k++) {
         const item = pick(choices);
         const quantity = item.type === 'consumable' && rand() < 0.12 ? 2 : 1;
-        const paidAt = new Date(dayStart + Math.floor((0.25 + rand() * 0.74) * 86_400_000));
+        // Aujourd'hui : achats répartis jusqu'à maintenant (dont quelques livraisons encore en cours).
+        const span = Math.min(86_400_000, now - dayStart);
+        let paidAt = new Date(dayStart + Math.floor((back === 0 ? 0.3 + rand() * 0.7 : 0.25 + rand() * 0.74) * span));
+        if (back === 0 && k === 0) paidAt = new Date(now - 10 * 60_000); // une livraison en cours
         const r = rand();
-        if (paidAt.getTime() > now) continue;
         const id = `ord_demo_${g.gameId.slice(4)}_${String(back).padStart(2, '0')}_${k}`;
         const amountCents = item.priceCents * quantity;
         const ageH = (now - paidAt.getTime()) / 3_600_000;
-        const status = ageH < 0.2 ? 'pending' : r < 0.015 ? 'failed' : ageH < 3 || r < 0.06 ? 'delivered' : 'acknowledged';
+        const status = ageH < 1 ? 'pending' : r < 0.015 ? 'failed' : ageH < 4 || r < 0.06 ? 'delivered' : 'acknowledged';
         const deliveredAt = status === 'delivered' || status === 'acknowledged' ? new Date(paidAt.getTime() + 2_000) : null;
         orderRows.push({
           id, userId: DEMO_USERS.player.id, gameId: g.gameId, itemId: item.id, productId: item.productId, itemTitle: item.title,
