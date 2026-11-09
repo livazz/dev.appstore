@@ -3,12 +3,16 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { SIGNATURE_HEADER, formatMoney, type DeliveryStatus, type PurchaseEvent } from '@wolleen/core';
 import { db, eq, games } from '@wolleen/db';
-import { listRecentDeliveries } from '@/server/delivery';
+import { PLAYER_TOKEN_HEADER, ensurePublishableKey } from '@/server/api-key';
+import { listDeliveryLog } from '@/server/delivery';
+import { playerTokenSummary } from '@/server/player-tokens';
 import { requireGameAccess } from '@/server/session';
 import {
   ApiKeyControl,
   CopyButton,
+  PublishableKeyControl,
   RetryDeliveryButton,
+  RevokePlayerTokensControl,
   WebhookSecretControl,
   WebhookUrlControl,
 } from '@/components/studio/integration/IntegrationControls';
@@ -60,12 +64,23 @@ export default async function IntegrationPage({ params }: { params: Promise<{ id
     if (e instanceof Error && e.message === 'FORBIDDEN') notFound();
     throw e;
   }
-  const [game] = await db.select().from(games).where(eq(games.id, id));
+  // Projection explicite : aucun secret (webhookSecret, apiKeyHash) n'est lu pour le rendu.
+  const [game] = await db
+    .select({
+      id: games.id,
+      name: games.name,
+      slug: games.slug,
+      currency: games.currency,
+      webhookUrl: games.webhookUrl,
+      apiKeyPrefix: games.apiKeyPrefix,
+    })
+    .from(games)
+    .where(eq(games.id, id));
   if (!game) notFound();
   const canEdit = role !== 'finance';
   const origin = await baseUrl();
   const storeUrl = `${origin}/games/${game.slug}`;
-  const log = await listRecentDeliveries(game.id, 50);
+  const [publishableKey, log, tokens] = await Promise.all([ensurePublishableKey(game.id), listDeliveryLog(game.id, 50), playerTokenSummary(game.id)]);
 
   const samplePayload: PurchaseEvent = {
     event: 'purchase.completed',
@@ -107,23 +122,52 @@ app.post('/wolleen/webhook', express.raw({ type: 'application/json' }), async (r
   res.sendStatus(200); // toute réponse 2xx vaut livraison
 });`;
 
-  const sdkExample = `# Sans serveur, le jeu récupère lui-même les achats du joueur (le SDK Wolleen encapsule ces appels).
-# 1. Au lancement / retour au premier plan : achats en attente
-curl -H "Authorization: Bearer $WOLLEEN_API_KEY" "${origin}/api/v1/deliveries?player_id=player_42"
+  const serverExample = `# Depuis VOTRE SERVEUR uniquement : clé secrète (wk_secret_…), accès à tous les joueurs du jeu.
+# Code de liaison à afficher dans le jeu (le serveur connaît l'identité du joueur connecté)
+curl -X POST -H "Authorization: Bearer $WOLLEEN_SECRET_KEY" -H "Content-Type: application/json" \\
+  -d '{"player_id":"player_42","player_name":"Ali"}' "${origin}/api/v1/link-codes"
 
-# 2. En jeu : flux temps réel (Server-Sent Events, événement "purchase", ping toutes les 15 s)
-curl -N -H "Authorization: Bearer $WOLLEEN_API_KEY" "${origin}/api/v1/deliveries/stream?player_id=player_42"
+# Achats en attente d'un joueur, puis accusé de réception après crédit (idempotent)
+curl -H "Authorization: Bearer $WOLLEEN_SECRET_KEY" "${origin}/api/v1/deliveries?player_id=player_42"
+curl -X POST -H "Authorization: Bearer $WOLLEEN_SECRET_KEY" "${origin}/api/v1/deliveries/dlv_…/ack"`;
 
-# 3. Après avoir crédité le joueur : accusé de réception (idempotent)
-curl -X POST -H "Authorization: Bearer $WOLLEEN_API_KEY" "${origin}/api/v1/deliveries/dlv_…/ack"`;
+  const sdkExample = `# Jeu SANS serveur (le SDK Wolleen encapsule ces appels) : clé publique ${publishableKey ?? 'wk_pub_…'}
+# 1. Liaison (une fois par appareil) : code à afficher + identifiant de la demande
+curl -X POST -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" -H "Content-Type: application/json" \\
+  -d '{"player_id":"player_42"}' "${origin}/api/v1/link-codes"
+#    → { "code": "K7QF-M2XA", "expires_at": "…", "link_request_id": "lnc_…" }
+
+# 2. Le joueur saisit le code sur ${storeUrl}/link ; le jeu interroge la demande (toutes les 3 s)
+curl -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" "${origin}/api/v1/link-requests/lnc_…"
+#    → { "status": "linked", "player_token": "wk_pt_…" }  (délivré une seule fois : à conserver sur l'appareil)
+
+# 3. Achats du joueur (liste, flux temps réel SSE, accusé de réception) avec le jeton joueur
+curl -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries"
+curl -N -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries/stream"
+curl -X POST -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries/dlv_…/ack"`;
+
+  const jsSdkExample = `import { Wolleen } from '@wolleen/sdk';
+
+const wolleen = new Wolleen({ publishableKey: '${publishableKey ?? 'wk_pub_…'}', baseUrl: '${origin}', storage: localStorage });
+
+// Paramètres → « Lier mon compte web » (une fois par appareil)
+const link = await wolleen.requestLinkCode(player.id, player.name);
+showCode(link.code);                 // le joueur le saisit sur Wolleen
+await wolleen.waitForLink(link);     // jeton joueur reçu et mémorisé (storage)
+
+// Achats (et remboursements) : chaque delivery_id une seule fois, ack après le handler
+wolleen.onPurchase(player.id, async (e) => {
+  if (e.event === 'purchase.refunded') await inventory.revoke(e.order_id);
+  else await inventory.grant(e.order_id, e.product_id, e.quantity);
+});`;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-5 py-6">
       <div>
         <h1 className="text-2xl font-semibold text-ink">Intégration</h1>
         <p className="mt-1 text-sm text-ink-2">
-          Connectez {game.name} à Wolleen : chaque achat est livré automatiquement à votre jeu, par webhook signé vers votre serveur et/ou en
-          temps réel via le SDK.
+          Connectez {game.name} à Wolleen : chaque achat est livré automatiquement à votre jeu, par webhook signé vers votre serveur (clé
+          secrète) ou en temps réel via le SDK embarqué (clé publique + jeton joueur).
         </p>
       </div>
 
@@ -137,15 +181,61 @@ curl -X POST -H "Authorization: Bearer $WOLLEEN_API_KEY" "${origin}/api/v1/deliv
       </Section>
 
       <Section
-        title="Clé API"
+        title="Clés API"
         description={
           <>
-            Authentifie votre jeu et votre serveur auprès de l&apos;API Wolleen (<code className="font-mono">Authorization: Bearer …</code>). Seul le
-            préfixe est conservé en clair.
+            Deux clés, deux usages (<code className="font-mono">Authorization: Bearer …</code>). Tout ce qui est embarqué dans le jeu peut être
+            extrait : seule la clé publique doit s&apos;y trouver.
           </>
         }
       >
-        <ApiKeyControl gameId={game.id} prefix={game.apiKeyPrefix} canEdit={canEdit} />
+        <div className="flex flex-col gap-5">
+          <div>
+            <h3 className="mb-1 text-sm font-medium text-ink">Clé publique — dans le jeu</h3>
+            <p className="mb-2 text-sm text-ink-2">
+              Pour un jeu <strong>sans serveur</strong> (SDK JavaScript, Unity, Godot, Unreal). Elle n&apos;est pas secrète : seule, elle permet
+              uniquement de demander un code de liaison. Une fois le code saisi par le joueur, le SDK reçoit un <strong>jeton joueur</strong> qui
+              lui donne accès aux achats de <strong>ce joueur</strong> (et de lui seul).
+            </p>
+            {publishableKey ? (
+              <PublishableKeyControl gameId={game.id} initialKey={publishableKey} canEdit={canEdit} />
+            ) : (
+              <p className="text-sm text-danger">Clé publique indisponible.</p>
+            )}
+          </div>
+          <div>
+            <h3 className="mb-1 text-sm font-medium text-ink">Clé secrète — sur votre serveur uniquement</h3>
+            <p className="mb-2 text-sm text-ink-2">
+              Accès à tout le jeu : achats de tous les joueurs, accusés de réception, codes de liaison, révocation des jetons. Ne
+              l&apos;embarquez <strong>jamais</strong> dans le jeu ni dans une page web. Seul son préfixe est conservé : elle n&apos;est affichée
+              qu&apos;à sa création.
+            </p>
+            <ApiKeyControl gameId={game.id} prefix={game.apiKeyPrefix} canEdit={canEdit} />
+          </div>
+          <div className="-mx-5 overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-line text-xs uppercase tracking-wide text-ink-3">
+                <tr>
+                  <th className="px-5 py-2 font-medium">Votre jeu…</th>
+                  <th className="px-2 py-2 font-medium">Clé</th>
+                  <th className="px-5 py-2 font-medium">Réception des achats</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line text-ink-2">
+                <tr>
+                  <td className="px-5 py-2.5">a un serveur (jeu en ligne, comptes joueurs)</td>
+                  <td className="px-2 py-2.5 font-mono text-xs">wk_secret_…</td>
+                  <td className="px-5 py-2.5">Webhook signé vers votre serveur (recommandé) ; codes de liaison demandés par votre serveur.</td>
+                </tr>
+                <tr>
+                  <td className="px-5 py-2.5">n&apos;a pas de serveur (hors ligne, HTML5, prototype)</td>
+                  <td className="px-2 py-2.5 font-mono text-xs">wk_pub_…</td>
+                  <td className="px-5 py-2.5">SDK dans le jeu : liaison par code → jeton joueur → flux temps réel et accusés de réception.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </Section>
 
       <Section
@@ -169,11 +259,40 @@ curl -X POST -H "Authorization: Bearer $WOLLEEN_API_KEY" "${origin}/api/v1/deliv
         </div>
       </Section>
 
+      <Section
+        title="Jetons joueur (SDK sans serveur)"
+        description={
+          <>
+            Chaque appareil lié par le SDK avec la clé publique reçoit un jeton (<code className="font-mono">{PLAYER_TOKEN_HEADER}</code>), lié au
+            joueur et au compte Wolleen qui a saisi le code. Révoquez-les si un appareil est perdu ou un compte compromis : le jeu devra
+            refaire la liaison.
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-ink-2">
+          {tokens.active === 0 ? 'Aucun appareil lié pour l’instant.' : `${tokens.active} jeton${tokens.active > 1 ? 's' : ''} actif${tokens.active > 1 ? 's' : ''}.`}
+        </p>
+        {tokens.recent.length > 0 && (
+          <ul className="mb-3 divide-y divide-line rounded-lg border border-line text-sm">
+            {tokens.recent.map((t, i) => (
+              <li key={`${t.playerId}-${i}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                <span className="font-mono text-xs">{t.playerId}</span>
+                <span className="text-xs text-ink-3">
+                  lié le {dateFmt.format(t.createdAt)}
+                  {t.lastUsedAt ? ` · vu le ${dateFmt.format(t.lastUsedAt)}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {canEdit && <RevokePlayerTokensControl gameId={game.id} />}
+      </Section>
+
       <Section title="Liaison des comptes" description="Comment vos joueurs relient leur compte Wolleen à leur compte de jeu.">
         <LinkSettings gameId={game.id} />
       </Section>
 
-      <Section title="Journal des livraisons" description="Les 50 dernières livraisons de ce jeu.">
+      <Section title="Journal des livraisons" description="Les 50 derniers événements de ce jeu (achats et remboursements).">
         {log.length === 0 ? (
           <p className="text-sm text-ink-3">Aucune livraison pour l&apos;instant. Elles apparaîtront ici dès le premier achat.</p>
         ) : (
@@ -201,6 +320,9 @@ curl -X POST -H "Authorization: Bearer $WOLLEEN_API_KEY" "${origin}/api/v1/deliv
                       </td>
                       <td className="px-2 py-2.5 font-mono text-xs">{d.playerId}</td>
                       <td className="px-2 py-2.5">
+                        {d.kind === 'refund' && (
+                          <span className="mr-1.5 inline-block rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">Remboursement</span>
+                        )}
                         <span className="font-mono text-xs">{d.payload.product_id}</span>
                         <span className="text-ink-3"> × {d.payload.quantity}</span>
                       </td>
@@ -236,13 +358,26 @@ curl -X POST -H "Authorization: Bearer $WOLLEEN_API_KEY" "${origin}/api/v1/deliv
           <div>
             <h3 className="mb-2 text-sm font-medium text-ink">Payload de l&apos;événement</h3>
             <CodeBlock>{JSON.stringify(samplePayload, null, 2)}</CodeBlock>
+            <p className="mt-2 text-sm text-ink-2">
+              Remboursement : même format avec <code className="font-mono">&quot;event&quot;: &quot;purchase.refunded&quot;</code>, le même{' '}
+              <code className="font-mono">order_id</code> que l&apos;achat et un <code className="font-mono">delivery_id</code> propre. Retirez
+              l&apos;objet si vous aviez crédité cet <code className="font-mono">order_id</code>, sinon ignorez-le ; accusez réception dans les deux cas.
+            </p>
           </div>
           <div>
             <h3 className="mb-2 text-sm font-medium text-ink">Vérifier la signature (Node.js)</h3>
             <CodeBlock>{nodeExample}</CodeBlock>
           </div>
           <div>
-            <h3 className="mb-2 text-sm font-medium text-ink">Recevoir les achats dans le jeu (API utilisée par le SDK)</h3>
+            <h3 className="mb-2 text-sm font-medium text-ink">API serveur (clé secrète)</h3>
+            <CodeBlock>{serverExample}</CodeBlock>
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-ink">Jeu sans serveur : SDK JavaScript (clé publique + jeton joueur)</h3>
+            <CodeBlock>{jsSdkExample}</CodeBlock>
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-ink">Jeu sans serveur : API utilisée par les SDK</h3>
             <CodeBlock>{sdkExample}</CodeBlock>
           </div>
         </div>
