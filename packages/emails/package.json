@@ -1,0 +1,25 @@
+{
+  "name": "@wolleen/emails",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Modèles d'e-mails transactionnels Wolleen (fonctions TS → { subject, html, text }) et interface d'envoi (console / Resend).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./mailer": "./src/mailer/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "preview": "tsx src/preview.ts"
+  },
+  "dependencies": {
+    "@wolleen/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
