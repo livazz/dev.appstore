@@ -4,3 +4,4 @@ export * from './commerce';
 export * from './notifications';
 export * from './ai';
 export * from './imports';
+export * from './loyalty';
