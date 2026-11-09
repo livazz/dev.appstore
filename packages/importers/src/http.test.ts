@@ -72,7 +72,7 @@ describe('C-01 : requestJson durci', () => {
   });
 
   it('le message d’erreur ne contient jamais le corps brut d’une réponse non JSON', async () => {
-    const e = await requestJson('google_play', internalUrl, {}, { retries: 0 }).catch((x) => x);
+    const e = await requestJson<never>('google_play', internalUrl, {}, { retries: 0 }).catch((x: unknown) => x as Error);
     expect(e).toBeInstanceOf(StoreApiError);
     expect(e.message).toContain('HTTP 403');
     expect(e.message).not.toContain('SECRET');
@@ -80,14 +80,14 @@ describe('C-01 : requestJson durci', () => {
 
   it('réponse 2xx non JSON : message générique, sans extrait', async () => {
     const fetch = fakeFetch({ '/x': () => new Response('SECRET_INTERNE', { status: 200 }) });
-    const e = await requestJson('google_play', 'https://androidpublisher.googleapis.com/x', {}, { fetch }).catch((x) => x);
+    const e = await requestJson<never>('google_play', 'https://androidpublisher.googleapis.com/x', {}, { fetch }).catch((x: unknown) => x as Error);
     expect(e).toBeInstanceOf(StoreTransportError);
     expect(e.message).not.toContain('SECRET');
   });
 
   it('garde le libellé structuré des erreurs JSON des stores', async () => {
     const fetch = fakeFetch({ '/x': () => json({ errors: [{ title: 'Unauthorized', detail: 'Bad token' }] }, 401) });
-    const e = await requestJson('app_store_connect', 'https://api.appstoreconnect.apple.com/x', {}, { fetch }).catch((x) => x);
+    const e = await requestJson<never>('app_store_connect', 'https://api.appstoreconnect.apple.com/x', {}, { fetch }).catch((x: unknown) => x as Error);
     expect(e.message).toBe('app_store_connect : HTTP 401 sur https://api.appstoreconnect.apple.com/x — Unauthorized : Bad token');
   });
 
