@@ -12,6 +12,24 @@ Méthode : lecture ciblée, plus deux **tests d'exploitation jetables** (vitest 
 leur code est reproduit ci-dessous. Aucun serveur n'a été lancé : les vérifications « curl » de la checklist sont faites
 par lecture du code et notées comme telles.
 
+## Statut des corrections (10 novembre 2026, branche `claude/secu-auth-85e374`)
+
+| # | Statut | Correctif | Test de non-régression |
+|---|---|---|---|
+| A-01 | **Corrigé** (`8f528dc`) | `enableUser` : seul un superadmin réactive un administrateur ; personne ne réactive son propre compte. | `admin.test.ts` « A-01 : le support ne réactive pas un administrateur… » |
+| A-02 | **Corrigé** (`8f528dc`) | `setGameStatus` écrit seulement si le statut est encore `draft`/`live` (sinon `StudioError`). | `studio-logic.test.ts` « A-02 : une suspension posée pendant une publication… » |
+| A-03 | Non corrigé | Décision produit en attente du fondateur (circuit de revue avant publication). Reste exploitable avec A-04. | — |
+| A-04 | Non corrigé | Décision en attente (vérification d'e-mail, réinitialisation, 2FA). | — |
+| A-05 | **Corrigé en partie** (`995fa20`) | La route HTTP `/api/auth/sign-in/email` applique les mêmes plafonds que le formulaire (hooks Better Auth `before`/`after`, limiteur partagé `signInRetryAfter` / `recordSignInFailure`). **Reste** : extraction de l'IP depuis `X-Forwarded-For` (confiée à la session API) et limiteur encore en mémoire par instance. | `auth-hardening.test.ts` « A-05 / A-09 » |
+| A-06 | **Corrigé en partie** (`995fa20`) | Seed refusé sur une base non locale sauf `DEVAPPSTORE_ALLOW_SEED=1` (`packages/db/src/guards.ts`) ; aucune session pour un compte `@devappstore.test` en production (`auth.ts`, hook `session.create.before`). **Reste** : refus des clés `_demo_` dans `authenticateGame` (API v1, autre session). | `guards.test.ts` « A-06 » ; `auth-hardening.test.ts` « A-06 » |
+| A-07 | **Atténué** (`995fa20`) | Message et code neutres (`SIGN_UP_FAILED`), plus d'erreur sur le champ e-mail ni de `USER_ALREADY_EXISTS` sur la route HTTP (le statut 422 de Better Auth est conservé). L'échec reste observable tant qu'A-04 n'existe pas. | `auth-hardening.test.ts` « A-07 » ; `auth.test.ts` mis à jour |
+| A-08 | Non corrigé ici | Confié à la session API. | — |
+| A-09 | **Corrigé** (`995fa20`) | Blocage dur par couple e-mail + IP (8 échecs / 15 min) ; plafond par e-mail seul relevé à 50. | `auth-hardening.test.ts` « formulaire : 8 échecs depuis une IP… » |
+| A-10 | **Corrigé** (`d4c0c26`) | `SKIP_ENV_VALIDATION` ignorée en production et avec un `NODE_ENV` inconnu. Avec : C-11 (`NODE_ENV` inconnu refusé au démarrage et lu comme production) et C-02 (`MAIL_TRANSPORT=console` refusé en production, `RESEND_API_KEY` obligatoire). | `env.test.ts` « revue de sécurité : NODE_ENV, SKIP_ENV_VALIDATION… » |
+| A-11 | **Corrigé (périmètre réduit)** (`1b6cb2d`) | `requireRecentLogin` : back-office si session < 12 h, versements si session < 30 min, sinon `/login?reauth=1`. **Reste** : révélation et rotation des secrets d'intégration (hors périmètre demandé), sessions admin plus courtes. | `admin.test.ts` « A-11 » ; `studio-tenancy-sensitive.test.ts` « A-11 » |
+| A-12 | **Corrigé** (`1b6cb2d`) | Tests d'accès croisé (vrai `requireGameAccess`) pour l'intégration, l'import et les versements ; l'IA de style était déjà couverte (`ai-style-action.test.ts`). | `studio-tenancy-sensitive.test.ts` |
+| A-13 | **Corrigé** (`995fa20`) | Hooks `databaseHooks.user.create/update.before` : nom coupé à 80 caractères (vide → 400), image https seulement. | `auth-hardening.test.ts` « A-13 » |
+
 ## Synthèse
 
 Aucun IDOR entre studios n'a été trouvé : chaque Server Action et route du studio appelle `requireGameAccess(gameId, rôles)`
