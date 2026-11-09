@@ -55,6 +55,12 @@ export const orders = pgTable(
     stripePaymentIntentId: text('stripe_payment_intent_id'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
+    // Ajout tâche « payments » (sécurité / conformité) — preuve de la demande de livraison immédiate et de la
+    // renonciation au droit de rétractation (art. L221-28 13° C. conso), recueillie avant le paiement.
+    withdrawalWaiverAt: timestamp('withdrawal_waiver_at'),
+    termsVersion: text('terms_version'),
+    consentIp: text('consent_ip'), // IP tronquée (/24 en IPv4, /48 en IPv6)
+    refundedAt: timestamp('refunded_at'),
   },
   (t) => [index('orders_game_idx').on(t.gameId, t.createdAt), index('orders_user_idx').on(t.userId)],
 );
@@ -110,3 +116,18 @@ export const linkAttempts = pgTable(
   },
   (t) => [index('link_attempts_user_idx').on(t.userId, t.kind, t.createdAt)],
 );
+
+/*
+ * Ajout tâche « payments » (sécurité) — événements Stripe déjà reçus, pour l'idempotence par `event.id`
+ * (Stripe peut livrer plusieurs fois le même événement). `processedAt` est rempli une fois le traitement réussi ;
+ * `alert` garde la trace d'une anomalie (montant/devise incohérents, remboursement partiel…) à vérifier.
+ */
+export const stripeEvents = pgTable('stripe_events', {
+  id: text('id').primaryKey(), // evt_…
+  type: text('type').notNull(),
+  orderId: text('order_id'),
+  detail: text('detail'),
+  alert: text('alert'),
+  receivedAt: timestamp('received_at').notNull().defaultNow(),
+  processedAt: timestamp('processed_at'),
+});
