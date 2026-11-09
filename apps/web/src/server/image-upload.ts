@@ -71,9 +71,36 @@ export async function storeUpload(
   return storage.put(`${kind}/${uploaderSegment(userId)}/${randomUUID()}.webp`, out, 'image/webp');
 }
 
-/** URL publique d'un upload Wolleen (/api/uploads/<kind>/<utilisateur>/<id>.webp) → segment de l'uploadeur, ou null. */
-export function uploaderOfUrl(url: string): string | null {
-  const m = /^\/api\/uploads\/(?:icon|banner|item)\/([A-Za-z0-9_-]{1,64})\/[A-Za-z0-9-]{1,64}\.webp$/.exec(url);
+const UPLOAD_KEY_RE = /^(?:icon|banner|item)\/([A-Za-z0-9_-]{1,64})\/[A-Za-z0-9-]{1,64}\.webp$/;
+
+/**
+ * Base publique du stockage S3/R2 (`S3_PUBLIC_URL`, sans « / » final), ou null si absente / invalide.
+ * Seules les bases http(s) sans identifiants, requête ni fragment sont retenues.
+ */
+export function s3PublicBase(raw: string | undefined = process.env.S3_PUBLIC_URL): string | null {
+  const v = raw?.trim().replace(/\/+$/, '');
+  if (!v) return null;
+  try {
+    const u = new URL(v);
+    if ((u.protocol !== 'https:' && u.protocol !== 'http:') || u.username || u.password || u.search || u.hash) return null;
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * URL publique d'un upload produit par NOTRE stockage → segment de l'uploadeur, ou null (CHK-UPL-07) :
+ * - disque local : `/api/uploads/<kind>/<utilisateur>/<id>.webp` ;
+ * - S3/R2 : `<S3_PUBLIC_URL>/<kind>/<utilisateur>/<id>.webp` (même forme de clé, cf. storeUpload / S3Storage.publicUrlFor).
+ * Toute autre URL (https tierce, autre chemin du site, autre préfixe sur le même hôte) est refusée.
+ */
+export function uploaderOfUrl(url: string, publicBase: string | null = s3PublicBase()): string | null {
+  if (typeof url !== 'string' || url.length > 1024) return null;
+  let key: string | null = null;
+  if (url.startsWith('/api/uploads/')) key = url.slice('/api/uploads/'.length);
+  else if (publicBase && url.startsWith(`${publicBase}/`)) key = url.slice(publicBase.length + 1);
+  const m = key ? UPLOAD_KEY_RE.exec(key) : null;
   return m ? m[1]! : null;
 }
 

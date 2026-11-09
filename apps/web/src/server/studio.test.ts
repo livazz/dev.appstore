@@ -93,7 +93,7 @@ beforeEach(() => {
 describe('Server Actions du studio', () => {
   it('createGame renvoie la clé API une seule fois et crée le jeu dans le studio de l’utilisateur', async () => {
     const r = ok(await actions.createGame({ name: 'Pixel Farm', category: 'Simulation', currency: 'EUR' }));
-    expect(r.apiKey).toMatch(/^wk_live_/);
+    expect(r.apiKey).toMatch(/^wk_secret_/);
     const [g] = await h.db.select().from(games).where(eq(games.id, r.id));
     expect(g?.studioId).toBe('std_a');
     expect(g?.apiKeyHash).not.toContain(r.apiKey);
