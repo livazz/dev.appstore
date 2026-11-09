@@ -1,0 +1,21 @@
+{
+  "name": "@wolleen/ai-style",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Génère le style d'une carte article web (layout + ItemStyle) à partir d'une capture d'écran du jeu, via l'API Claude (vision + sortie structurée).",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@wolleen/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
