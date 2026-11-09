@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 import { fileURLToPath } from 'node:url';
 import { securityHeaders } from './src/lib/security-headers';
+import { SERVER_ACTION_BODY_LIMIT } from './src/lib/ai-style-types';
 
 const nodeCryptoStub = fileURLToPath(new URL('./src/lib/node-crypto-stub.ts', import.meta.url));
 
@@ -14,10 +15,9 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@devappstore/core', '@devappstore/db', '@devappstore/emails', '@devappstore/importers', '@devappstore/ai-style'],
   serverExternalPackages: ['@electric-sql/pglite'],
   images: { unoptimized: true },
-  // IA de style (AiStyleButton → generateStyleFromScreenshot) : le navigateur réduit la capture vers 900 Ko, mais
-  // une image non décodable côté client part telle quelle. On aligne la limite des Server Actions (1 Mo par défaut)
-  // sur celle du serveur (AI_STYLE_MAX_UPLOAD_BYTES = 8 Mio) + l'enveloppe multipart.
-  experimental: { serverActions: { bodySizeLimit: '9mb' } },
+  // Limite des corps de Server Actions : 1 Mo (défaut Next.js), pour TOUTES les actions (revue 2026-11, C-09).
+  // L'IA de style (AiStyleButton) réduit la capture vers 900 Ko dans le navigateur et refuse d'envoyer au-delà.
+  experimental: { serverActions: { bodySizeLimit: SERVER_ACTION_BODY_LIMIT } },
   poweredByHeader: false,
   // Revue de sécurité (CHK-HDR-01) : CSP, frame-ancestors 'none', Referrer-Policy, Permissions-Policy, HSTS (prod).
   async headers() {

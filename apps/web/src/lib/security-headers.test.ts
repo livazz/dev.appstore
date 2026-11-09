@@ -58,6 +58,15 @@ describe('Content-Security-Policy', () => {
   });
 });
 
+describe('next.config.ts — Server Actions (revue 2026-11, C-09)', () => {
+  it('corps des Server Actions limité à 1 Mo (et non 9 Mo pour toutes les actions)', async () => {
+    const { fitsServerActionBody } = await import('./ai-style-types');
+    expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe('1mb');
+    expect(fitsServerActionBody(900 * 1024)).toBe(true);
+    expect(fitsServerActionBody(1024 * 1024)).toBe(false);
+  });
+});
+
 describe('next.config.ts headers()', () => {
   it('applique les en-têtes globaux à toutes les routes', async () => {
     const rules = await nextConfig.headers!();

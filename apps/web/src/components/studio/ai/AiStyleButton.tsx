@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, useTransition, type DragEvent } fro
 import type { Currency } from '@devappstore/core/client';
 import { ItemCard, type CardItem } from '@/components/store/ItemCard';
 import { generateStyleFromScreenshot } from '@/server/ai-style-action';
-import { AI_STYLE_ACCEPTED_TYPES, AI_STYLE_MAX_UPLOAD_BYTES, type AiStyleResult } from '@/lib/ai-style-types';
+import { AI_STYLE_ACCEPTED_TYPES, AI_STYLE_MAX_UPLOAD_BYTES, fitsServerActionBody, type AiStyleResult } from '@/lib/ai-style-types';
 import { shrinkForUpload } from './shrink-image';
 
 /*
@@ -81,6 +81,13 @@ export function AiStyleButton({
     setPhase('loading');
     try {
       const blob = await shrinkForUpload(file);
+      if (!fitsServerActionBody(blob.size)) {
+        // Image non réductible dans ce navigateur : le serveur refuserait le corps (limite de 1 Mo des Server Actions).
+        if (req !== requestRef.current) return;
+        setError("Image trop lourde (1 Mo maximum après réduction) : recadrez la capture sur l'article ou exportez-la en JPEG.");
+        setPhase('idle');
+        return;
+      }
       const fd = new FormData();
       fd.set('image', blob, file.name);
       const r = await generateStyleFromScreenshot(gameId, fd);
