@@ -1,0 +1,23 @@
+{
+  "name": "@wolleen/sdk",
+  "version": "0.1.0",
+  "description": "SDK JavaScript/TypeScript Wolleen : livraisons d'achats en temps réel, accusés de réception et codes de liaison.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts"
+  },
+  "files": ["src", "dist", "README.md"],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@wolleen/core": "*",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
