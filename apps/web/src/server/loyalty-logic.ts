@@ -14,6 +14,14 @@ export interface LoyaltyConfig {
   expiryNoticeDays: number;
 }
 
+/**
+ * Les bons de réduction ne sont pas encore appliqués au checkout (createCheckout les ignore, le webhook refuse toute
+ * remise) : tant que ce drapeau est faux, les récompenses `discount` ne sont ni proposées ni rachetables, pour ne
+ * pas débiter des points contre un bon inutilisable (revue 2026-11, C-6). À passer à true dans la même PR que le
+ * branchement du bon au checkout (montant et commission remisés, contrôle du webhook adapté).
+ */
+export const DISCOUNT_VOUCHERS_ENABLED = false;
+
 export const DEFAULT_LOYALTY_CONFIG: LoyaltyConfig = {
   feeCentsPerPoint: 10,
   pointsTtlDays: 365,
@@ -116,7 +124,14 @@ export interface Lot {
 }
 
 export interface LedgerState {
+  /**
+   * Solde disponible = points restants des lots non expirés − dette. Peut être NÉGATIF : une reprise (remboursement,
+   * rétractation, litige) n'est jamais bornée par le solde (revue 2026-11, C-2) ; les points gagnés ensuite
+   * remboursent d'abord la dette, et aucun rachat n'est possible tant que le solde est insuffisant.
+   */
   balance: number;
+  /** Points repris qui n'ont pas pu être prélevés sur des lots (dépensés avant le remboursement). */
+  debt: number;
   lots: Lot[];
   /** Débits qui n'ont pas pu être couverts (ne doit pas arriver : les écritures sont bornées sous verrou). */
   uncovered: number;
@@ -132,6 +147,7 @@ const byExpiry = (a: Lot, b: Lot) => a.expiresAt.getTime() - b.expiresAt.getTime
 export function replayLedger(entries: readonly LedgerEntry[], now: Date): LedgerState {
   const lots: Lot[] = [];
   let uncovered = 0;
+  let debt = 0;
 
   const expireUpTo = (t: Date) => {
     for (const lot of lots) {
@@ -160,11 +176,14 @@ export function replayLedger(entries: readonly LedgerEntry[], now: Date): Ledger
     }
     if (e.delta > 0) {
       if (!e.expiresAt) continue; // garde-fou (contrainte CHECK en base)
+      // Les nouveaux points remboursent d'abord la dette.
+      const repaid = Math.min(debt, e.delta);
+      debt -= repaid;
       lots.push({
         entryId: e.id,
         orderId: e.orderId,
         initial: e.delta,
-        remaining: e.delta,
+        remaining: e.delta - repaid,
         expired: 0,
         expiresAt: e.expiresAt,
         createdAt: e.createdAt,
@@ -182,12 +201,14 @@ export function replayLedger(entries: readonly LedgerEntry[], now: Date): Ledger
       lot.remaining -= take;
       toConsume -= take;
     }
-    uncovered += toConsume;
+    // Reprise non couverte (points déjà dépensés) → dette ; tout autre débit non couvert est une anomalie.
+    if (e.reason === 'order_revoke') debt += toConsume;
+    else uncovered += toConsume;
   }
   expireUpTo(now);
 
-  const balance = lots.reduce((s, l) => s + l.remaining, 0);
-  return { balance, lots, uncovered };
+  const balance = lots.reduce((s, l) => s + l.remaining, 0) - debt;
+  return { balance, debt, lots, uncovered };
 }
 
 /** Lots encore valides qui expirent dans la fenêtre d'avertissement, regroupés par jour d'expiration. */
@@ -201,10 +222,11 @@ export function expiringSoon(state: LedgerState, now: Date, cfg: LoyaltyConfig =
 
 /**
  * Nombre de points à reprendre lors du remboursement d'une commande : les points attribués pour cette commande,
- * moins ceux déjà expirés de ce lot, bornés par le solde disponible (jamais de solde négatif).
+ * moins ceux déjà expirés de ce lot. NON borné par le solde (revue 2026-11, C-2) : si le joueur a déjà dépensé ces
+ * points, la reprise crée une dette (solde négatif) plutôt que de lui laisser la récompense obtenue avec.
  */
 export function pointsToRevoke(state: LedgerState, orderId: string): number {
   const lot = state.lots.find((l) => l.orderId === orderId);
   if (!lot) return 0;
-  return Math.max(0, Math.min(lot.initial - lot.expired, state.balance));
+  return Math.max(0, lot.initial - lot.expired);
 }

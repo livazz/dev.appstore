@@ -40,6 +40,8 @@ vi.mock('@/server/delivery', () => delivery);
 // Faux client Stripe (aucun appel réseau).
 const fakeStripe = vi.hoisted(() => ({
   checkout: { sessions: { create: vi.fn(), retrieve: vi.fn() } },
+  refunds: { create: vi.fn(async (p: { payment_intent: string }, _opts?: Record<string, unknown>) => ({ id: `re_${p.payment_intent}` })) },
+  paymentIntents: { retrieve: vi.fn(async (id: string) => ({ id, transfer_data: null })) },
 }));
 vi.mock('@/server/stripe', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./stripe')>()),
@@ -62,6 +64,8 @@ beforeEach(async () => {
   delivery.enqueueDelivery.mockClear();
   delivery.enqueueRefund.mockClear();
   fakeStripe.checkout.sessions.create.mockReset();
+  fakeStripe.refunds.create.mockClear();
+  fakeStripe.paymentIntents.retrieve.mockClear();
   await clearPendingOrders();
 });
 
@@ -320,7 +324,10 @@ describe('événements Stripe', () => {
     expect((await applyCheckoutSession(session(o, { amount_subtotal: 1, amount_total: 1 }))).handled).toBe(false);
     expect((await applyCheckoutSession(session(o, { currency: 'usd' }))).handled).toBe(false);
     expect((await applyCheckoutSession(session(o, { id: 'cs_autre' }))).handled).toBe(false);
-    expect((await getOrder(o.id))?.status).toBe('pending');
+    // Jamais payée ni livrée ; le paiement encaissé au mauvais montant est remboursé une fois (C-4).
+    expect((await getOrder(o.id))?.status).toBe('refunded');
+    expect(delivery.enqueueDelivery).not.toHaveBeenCalled();
+    expect(fakeStripe.refunds.create).toHaveBeenCalledTimes(1);
   });
 
   it('paiement différé : attend async_payment_succeeded', async () => {
@@ -509,7 +516,7 @@ describe('sécurité — session Checkout (CHK-PAY-08)', () => {
     expect(disc.handled).toBe(false);
     expect(disc.alert).toMatch(/incohérents/);
     expect((await applyCheckoutSession(session('cs_sec_disc', o.id, { amount_subtotal: 799, amount_total: 900 }))).handled).toBe(false);
-    expect((await getOrder(o.id))?.status).toBe('pending');
+    expect((await getOrder(o.id))?.status).not.toBe('paid');
     expect(delivery.enqueueDelivery).not.toHaveBeenCalled();
   });
 });
@@ -620,5 +627,132 @@ describe('IP tronquée (preuve de consentement)', () => {
     expect(truncateIp('[2001:0db8:0001:0000:0000:0000:0000:0001]:443')).toBe('2001:db8:1::');
     expect(truncateIp('::1')).toBe('0:0:0::');
     for (const bad of [null, '', 'inconnu', '999.1.1.1', '1.2.3', 'abcd', '1::2::3', '<b>x</b>']) expect(truncateIp(bad)).toBeNull();
+  });
+});
+
+describe('revue de sécurité 2026-11', () => {
+  let seq = 0;
+  const session = (id: string, orderId: string, extra: Partial<Stripe.Checkout.Session> = {}) =>
+    ({
+      id,
+      object: 'checkout.session',
+      metadata: { order_id: orderId },
+      client_reference_id: orderId,
+      amount_subtotal: 799,
+      amount_total: 799,
+      currency: 'eur',
+      payment_status: 'paid',
+      payment_intent: `pi_${id}`,
+      status: 'complete',
+      ...extra,
+    }) as Stripe.Checkout.Session;
+  const event = (type: string, object: unknown, account?: string) =>
+    ({ id: `evt_r26_${++seq}`, type, livemode: true, ...(account ? { account } : {}), data: { object } }) as unknown as Stripe.Event;
+
+  it('C-3 : en charge directe, le compte encaisseur est figé sur la commande ; destination → null', async () => {
+    vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_fake');
+    await db.update(studios).set({ stripeAccountId: 'acct_fige', stripeChargesEnabled: true }).where(eq(studios.id, FX.studio));
+    try {
+      fakeStripe.checkout.sessions.create.mockResolvedValue({ id: 'cs_r26_fige', url: 'https://checkout.stripe.com/c/pay/x' });
+      vi.stubEnv('CHARGE_MODEL', 'direct');
+      const direct = await createCheckout({ user: FX.buyer, itemId: FX.item, origin: ORIGIN, consent: CONSENT });
+      expect((await getOrder(direct.orderId))?.stripeAccountId).toBe('acct_fige');
+      fakeStripe.checkout.sessions.create.mockResolvedValue({ id: 'cs_r26_dest', url: 'https://checkout.stripe.com/c/pay/y' });
+      vi.stubEnv('CHARGE_MODEL', 'destination');
+      const dest = await createCheckout({ user: FX.buyer, itemId: FX.item, origin: ORIGIN, consent: CONSENT });
+      expect((await getOrder(dest.orderId))?.stripeAccountId).toBeNull();
+    } finally {
+      await db.update(studios).set({ stripeAccountId: null, stripeChargesEnabled: false }).where(eq(studios.id, FX.studio));
+    }
+  });
+
+  it('C-3 : chargeAccountOf préfère le compte figé, sinon le compte du studio en charge directe', async () => {
+    const { chargeAccountOf } = await import('./payments');
+    expect(chargeAccountOf({ stripeAccountId: 'acct_o' }, { stripeAccountId: 'acct_s' }, 'destination')).toBe('acct_o');
+    expect(chargeAccountOf({ stripeAccountId: null }, { stripeAccountId: 'acct_s' }, 'direct')).toBe('acct_s');
+    expect(chargeAccountOf({ stripeAccountId: null }, { stripeAccountId: 'acct_s' }, 'destination')).toBeNull();
+  });
+
+  it('C-4 : Adaptive Pricing désactivé sur la session Checkout', () => {
+    const params = buildCheckoutSessionParams({
+      order: { id: 'ord_x', itemTitle: 'T', productId: 'p', playerId: 'P', amountCents: 799, platformFeeCents: 40, currency: 'EUR', gameId: 'g', itemId: 'i' },
+      game: { name: 'Jeu', slug: 'jeu' },
+      studio: { stripeAccountId: null, stripeChargesEnabled: false },
+      origin: ORIGIN,
+    });
+    expect(params.adaptive_pricing).toEqual({ enabled: false });
+  });
+
+  it('C-4 : paiement encaissé au mauvais montant → remboursé automatiquement (idempotent), jamais livré', async () => {
+    const o = await insertPendingOrder({ stripeCheckoutSessionId: 'cs_r26_amount' });
+    const s = session('cs_r26_amount', o.id, { amount_subtotal: 999, amount_total: 999 });
+    const r = await applyCheckoutSession(s);
+    expect(r.handled).toBe(false);
+    expect(r.alert).toMatch(/remboursé automatiquement/);
+    expect(fakeStripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(fakeStripe.refunds.create.mock.calls[0]![1]).toEqual({ idempotencyKey: 'devappstore_anomaly_cs_r26_amount' });
+    const after = await getOrder(o.id);
+    expect(after).toMatchObject({ status: 'refunded' });
+    expect(after?.paymentAnomaly).toMatch(/remboursé automatiquement/);
+    expect(delivery.enqueueDelivery).not.toHaveBeenCalled();
+    // Rejeu : commande déjà remboursée, aucun second remboursement.
+    await applyCheckoutSession(s);
+    expect(fakeStripe.refunds.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('C-4 : remboursement automatique impossible → action manuelle marquée, erreur (Stripe rejouera)', async () => {
+    const o = await insertPendingOrder({ stripeCheckoutSessionId: 'cs_r26_fail' });
+    fakeStripe.refunds.create.mockRejectedValueOnce(new Error('Stripe indisponible'));
+    await expect(applyCheckoutSession(session('cs_r26_fail', o.id, { currency: 'usd' }))).rejects.toThrow(/Remboursement automatique impossible/);
+    const after = await getOrder(o.id);
+    expect(after?.status).toBe('pending');
+    expect(after?.paymentAnomaly).toMatch(/action manuelle requise/);
+  });
+
+  it('C-4 : session non payée au mauvais montant → aucun remboursement', async () => {
+    const o = await insertPendingOrder({ stripeCheckoutSessionId: 'cs_r26_unpaid' });
+    await applyCheckoutSession(session('cs_r26_unpaid', o.id, { amount_total: 1, amount_subtotal: 1, payment_status: 'unpaid' }));
+    expect(fakeStripe.refunds.create).not.toHaveBeenCalled();
+    expect((await getOrder(o.id))?.status).toBe('pending');
+  });
+
+  it('C-8 : achats simultanés : jamais plus de 5 commandes pending', async () => {
+    const results = await Promise.allSettled(
+      Array.from({ length: 10 }, () => createCheckout({ user: FX.buyer, itemId: FX.item, origin: ORIGIN, consent: CONSENT })),
+    );
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(5);
+    const pending = (await ordersOf(FX.buyer.id)).filter((o) => o.status === 'pending');
+    expect(pending).toHaveLength(5);
+  });
+
+  it('C-9 : session reçue d’un autre compte connecté → ignorée (commande sans session, repli par métadonnée)', async () => {
+    const o = await insertPendingOrder({ stripeAccountId: 'acct_bon' });
+    const r = await handleStripeEvent(event('checkout.session.completed', session('cs_r26_autre', o.id), 'acct_pirate'));
+    expect(r).toMatchObject({ handled: false });
+    expect(r.alert).toMatch(/acct_pirate/);
+    expect((await getOrder(o.id))?.status).toBe('pending');
+    // Même session depuis le bon compte : payée.
+    expect((await handleStripeEvent(event('checkout.session.completed', session('cs_r26_bon', o.id), 'acct_bon'))).handled).toBe(true);
+    expect((await getOrder(o.id))?.status).toBe('paid');
+  });
+
+  it('C-9 : commande à destination (plateforme) : un événement d’un compte connecté quelconque est ignoré', async () => {
+    const o = await insertPendingOrder();
+    expect((await handleStripeEvent(event('checkout.session.completed', session('cs_r26_dest2', o.id), 'acct_pirate'))).handled).toBe(false);
+    expect((await getOrder(o.id))?.status).toBe('pending');
+  });
+
+  it('C-9 : remboursement / litige / expiration venant d’un autre compte → sans effet', async () => {
+    const o = await insertPendingOrder({ status: 'paid', paidAt: new Date(), stripePaymentIntentId: 'pi_r26_x', stripeAccountId: 'acct_bon' });
+    const charge = { id: 'ch_r26', payment_intent: 'pi_r26_x', refunded: true, amount: 799, amount_refunded: 799, metadata: { order_id: o.id } };
+    expect((await handleStripeEvent(event('charge.refunded', charge, 'acct_pirate'))).handled).toBe(false);
+    expect((await handleStripeEvent(event('charge.dispute.created', { id: 'dp_r26', payment_intent: 'pi_r26_x', reason: 'fraudulent', metadata: {} }, 'acct_pirate'))).handled).toBe(false);
+    expect((await getOrder(o.id))?.status).toBe('paid');
+    const p = await insertPendingOrder({ stripeAccountId: 'acct_bon' });
+    expect((await handleStripeEvent(event('checkout.session.expired', session('cs_r26_exp', p.id), 'acct_pirate'))).handled).toBe(false);
+    expect((await getOrder(p.id))?.status).toBe('pending');
+    // Depuis le bon compte : remboursement appliqué.
+    expect((await handleStripeEvent(event('charge.refunded', charge, 'acct_bon'))).handled).toBe(true);
+    expect((await getOrder(o.id))?.status).toBe('refunded');
   });
 });

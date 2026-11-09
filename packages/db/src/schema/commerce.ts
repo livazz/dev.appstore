@@ -81,6 +81,13 @@ export const orders = pgTable(
     termsVersion: text('terms_version'),
     consentIp: text('consent_ip'), // IP tronquée (/24 en IPv4, /48 en IPv6)
     refundedAt: timestamp('refunded_at'),
+    // Revue de sécurité 2026-11 : compte Stripe qui a encaissé le paiement (charge directe : compte Connect du
+    // studio ; null = compte plateforme). Figé au checkout : remboursements et contrôles des webhooks ne dépendent pas
+    // de l'état actuel du studio (C-3, C-9).
+    stripeAccountId: text('stripe_account_id'),
+    // Anomalie de paiement (montant/devise reçus de Stripe différents de la commande) : motif et suite donnée
+    // (remboursement automatique ou action manuelle requise) — C-4.
+    paymentAnomaly: text('payment_anomaly'),
   },
   (t) => [
     index('orders_game_idx').on(t.gameId, t.createdAt),

@@ -11,7 +11,33 @@
 - **Méthode** : lecture du code ; les constats C-1 et C-2 ont été confirmés par un test vitest jetable (PGlite), supprimé
   ensuite (extrait en annexe). Aucune vraie clé Stripe utilisée, aucun code applicatif modifié.
 
-## Synthèse
+## Statut des corrections (10 novembre 2026, branche `claude/secu-paiement-97b459`)
+
+| # | Statut | Correctif | Test de non-régression |
+|---|---|---|---|
+| C-1 | **Corrigé** | `withdrawOrder` reprend les points (`revokePointsForOrder`) quand il fait passer la commande à `refunded` | `withdrawal.test.ts` « C-1 : la rétractation reprend les points… » |
+| C-2 | **Corrigé** | Option retenue : **reprise intégrale, solde négatif possible** (dette). `pointsToRevoke` n'est plus borné par le solde ; `replayLedger` tient une `debt` remboursée en priorité par les points suivants ; `balance` = lots − dette, donc aucun rachat tant qu'elle n'est pas couverte. Plus sûr que « bloquer la dépense » : pas de délai imposé aux joueurs honnêtes et aucun cas où la récompense reste gratuite. Documenté dans `docs/product/loyalty.md` | `loyalty-logic.test.ts` « reprise non bornée… dette », `loyalty.test.ts` « points déjà dépensés : … dette » |
+| C-3 | **Corrigé** (schéma) | Nouvelle colonne `orders.stripe_account_id` (compte encaisseur figé au checkout en charge directe) ; `chargeAccountOf()` l'utilise pour le remboursement et la resynchronisation (repli : compte du studio en direct, même si ses paiements sont désactivés) ; `refundPaymentIntent()` partagé | `withdrawal.test.ts` « C-3 » (×2), `payments.test.ts` « C-3 » (×2) |
+| C-4 | **Corrigé** (schéma) | `adaptive_pricing: { enabled: false }` ; paiement encaissé au mauvais montant/devise → **remboursement automatique** (clé `devappstore_anomaly_<session>`), commande `refunded`, motif dans la nouvelle colonne `orders.payment_anomaly` ; si le remboursement échoue : `payment_anomaly` « action manuelle requise », alerte, erreur → 500 → Stripe rejoue | `payments.test.ts` « C-4 » (×4) |
+| C-5 | **Corrigé** | `MIN_CHARGE_CENTS` déplacé dans `@devappstore/core` ; `assertChargeablePrice()` à la création et à la modification d'un article (`studio-logic.ts`) — l'import App Store qui propose 0,49 en EUR/USD renvoie l'article dans `skipped` avec le motif | `studio-logic.test.ts` « C-5 » |
+| C-6 | **Corrigé** (non branché, comme demandé) | `DISCOUNT_VOUCHERS_ENABLED = false` (`loyalty-logic.ts`) : récompenses `discount` masquées et rachat refusé. **Les bons ne sont toujours pas utilisables au checkout** : à brancher dans une PR dédiée | `loyalty-vouchers-disabled.test.ts` |
+| C-7 | **Corrigé** (webhook) | La rétractation verrouille la livraison (`FOR UPDATE`) et refuse (`delivery_in_progress`, « réessayez dans un instant ») si un bail d'envoi est actif (`isDispatchLeased`, `DISPATCH_LEASE_MS` exporté de `delivery.ts`). **Reste** : course équivalente côté SDK (`takeOpenDeliveries` renvoie la charge même si `markFetchedBySdk` n'a rien marqué) — dans `delivery.ts`, laissé à la revue livraison pour éviter les conflits ; `purchase.refunded` reste le filet | `withdrawal.test.ts` « C-7 » (×2) |
+| C-8 | **Corrigé** | Compte + insertion de la commande sous `pg_advisory_xact_lock` par utilisateur | `payments.test.ts` « C-8 » (vérifié : échoue sans le verrou, 10 commandes) |
+| C-9 | **Corrigé** | `eventAccountMatches()` : `event.account` doit être le compte figé sur la commande (ou, pour une commande sans compte figé, absent ou celui du studio du jeu) pour `checkout.session.*`, `charge.refunded`, `charge.dispute.created` | `payments.test.ts` « C-9 » (×3) |
+| C-10 | **Corrigé** | `items.active` exigé au rachat et dans `listRewards` | `loyalty.test.ts` « C-10 » |
+| C-11 | Non corrigé ici | Confié à une autre session (`env.ts` hors périmètre) | — |
+
+**Vérifications** : `npm run typecheck` vert ; `npm test` vert **sauf** les 2 tests de `packages/db/src/migrations.test.ts`
+(« la dernière migration correspond au schéma » et « push … ne détecte aucun changement »), qui échouent tant que la
+migration des deux colonnes n'est pas générée — vérifié : avec la migration générée (deux `ALTER TABLE "orders" ADD
+COLUMN … text`), ils passent ; elle a été retirée de la branche comme demandé. `npm run build -w @devappstore/web` vert ; `apps/web` : 700 tests verts.
+
+**À faire à la fusion** : générer la migration Drizzle pour les deux colonnes ajoutées à `orders`
+(`stripe_account_id`, `payment_anomaly`, toutes deux `text` nullable) : `npm run db:generate -w @devappstore/db`, puis
+`npm run db:push` en local. Aucune donnée à reprendre (les commandes existantes gardent `null` ; le repli de
+`chargeAccountOf` couvre les charges directes antérieures). `CHARGE_MODEL` et la TVA sont inchangés.
+
+## Synthèse (constats initiaux)
 
 Le socle est solide : prix, devise, jeu et joueur sont lus en base, le corps du checkout est `.strict()`, le webhook
 vérifie la signature sur le corps brut avec idempotence par `event.id`, montant/devise sont contrôlés, toutes les
@@ -218,16 +244,16 @@ commande d'un autre, pas de versement vers le compte Connect d'un autre studio.
 |---|---|---|
 | Rétractation sur la commande d'un autre | **OK** | `withdrawOrder` filtre `orders.userId` sous `FOR UPDATE` (`withdrawal.ts:139-145`) ; server action liée à l'utilisateur connecté. |
 | Double remboursement (rétractation rejouée, webhook ensuite) | **OK** | Clé d'idempotence `devappstore_withdrawal_<order>` ; `charge.refunded` ultérieur sans effet. |
-| Rétractation : reprise des points | **KO** | C-1. |
+| Rétractation : reprise des points | **OK** (corrigé) | C-1. |
 | Case de renonciation, preuve stockée | **OK** | `withdrawalWaiver === true` exigé (`payments.ts:370-372`) ; horodatage, version CGV, IP tronquée /24–/48 stockés (`:424-426`). L'IP vient de `X-Forwarded-For` (déclaratif, documenté). |
 | Points : double dépense en concurrence | **OK** | Verrou consultatif par utilisateur + débit dans la même transaction (`loyalty.ts:57-59,366-451`) ; stock décrémenté conditionnellement. |
 | Points : double crédit sur rejeu de webhook | **OK** | Unicité `(order_id, reason)` + contrôle sous verrou (`loyalty.ts:108-131`). |
-| Points négatifs | **OK** (mais voir C-2) | Solde jamais négatif par construction (`pointsToRevoke`), au prix de C-2. |
+| Points négatifs | **OK** (choix C-2) | Le solde peut désormais être négatif après une reprise (dette assumée) ; aucun rachat possible tant qu'il est insuffisant ; double dépense impossible (verrou). |
 | Expiration des points et des bons | **OK** | `replayLedger` exclut les lots expirés ; cron protégé par `cronGuard`. |
 | Plafond de coût des récompenses | **OK** | `isRewardWithinBudget` appliqué à la liste et au rachat (`loyalty-logic.ts:77-82`, `loyalty.ts:369`). |
 | Arrondis en centimes | **OK** | Montants entiers partout ; `feeCents` = `Math.round` (`money.ts:9-11`) ; points = `floor` ; bon ≤ commission. |
 | Versement vers le compte Connect d'un autre studio | **OK** | Destination = `studios.stripeAccountId` du studio du jeu de l'article, lu en base au checkout. |
-| Remboursement en charge directe | **KO** | C-3. |
+| Remboursement en charge directe | **OK** (corrigé) | C-3. |
 | Litiges / remboursements Stripe (T-PAY-10) | **OK** | `charge.refunded` total et `charge.dispute.created` → `refunded` + `purchase.refunded` ; partiel → alerte. |
 
 ---

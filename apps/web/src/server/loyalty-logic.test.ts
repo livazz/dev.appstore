@@ -129,9 +129,17 @@ describe('points à reprendre au remboursement', () => {
     expect(pointsToRevoke(s, 'o1')).toBe(10);
   });
 
-  it('borne la reprise au solde disponible : jamais de solde négatif', () => {
+  it('reprise non bornée par le solde : les points dépensés deviennent une dette (C-2)', () => {
     const s = replayLedger([award('o1', 10, T0), entry({ delta: -8, reason: 'redemption' }, addDays(T0, 1))], addDays(T0, 2));
-    expect(pointsToRevoke(s, 'o1')).toBe(2);
+    expect(pointsToRevoke(s, 'o1')).toBe(10);
+    const after = replayLedger(
+      [award('o1', 10, T0), entry({ delta: -8, reason: 'redemption' }, addDays(T0, 1)), entry({ delta: -10, reason: 'order_revoke', orderId: 'o1' }, addDays(T0, 2))],
+      addDays(T0, 3),
+    );
+    expect(after).toMatchObject({ balance: -8, debt: 8, uncovered: 0 });
+    // Les points suivants remboursent la dette avant d'être disponibles.
+    const repaid = replayLedger([...[award('o1', 10, T0), entry({ delta: -8, reason: 'redemption' }, addDays(T0, 1)), entry({ delta: -10, reason: 'order_revoke', orderId: 'o1' }, addDays(T0, 2))], award('o2', 5, addDays(T0, 3))], addDays(T0, 4));
+    expect(repaid).toMatchObject({ balance: -3, debt: 3 });
   });
 
   it('ne reprend pas les points déjà expirés du lot', () => {

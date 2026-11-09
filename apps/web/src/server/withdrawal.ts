@@ -2,9 +2,10 @@ import 'server-only';
 import type Stripe from 'stripe';
 import type { DeliveryStatus, OrderStatus } from '@devappstore/core';
 import { and, db, deliveries, eq, games, gt, inArray, orders, studios } from '@devappstore/db';
-import { enqueueRefund, WITHDRAWAL_STOP_REASON } from './delivery';
+import { DISPATCH_LEASE_MS, enqueueRefund, WITHDRAWAL_STOP_REASON } from './delivery';
+import { revokePointsForOrder } from './loyalty';
 import { runInBackground, sendWithdrawalAcknowledgement } from './notifications';
-import { checkoutRequestOptions } from './payments';
+import { chargeAccountOf, refundPaymentIntent } from './payments';
 import { getStripe, isSimulationAllowed, isStripeEnabled } from './stripe';
 
 /*
@@ -40,7 +41,15 @@ export { WITHDRAWAL_STOP_REASON };
 /** Délai de remboursement annoncé au joueur (art. L221-24 : 14 jours au plus à compter de la demande). */
 export const WITHDRAWAL_REFUND_DAYS = 14;
 
-export type WithdrawalErrorCode = 'not_found' | 'not_paid' | 'free_order' | 'period_expired' | 'already_delivered' | 'refund_failed' | 'refund_unavailable';
+export type WithdrawalErrorCode =
+  | 'not_found'
+  | 'not_paid'
+  | 'free_order'
+  | 'period_expired'
+  | 'already_delivered'
+  | 'delivery_in_progress'
+  | 'refund_failed'
+  | 'refund_unavailable';
 
 export const WITHDRAWAL_ERROR_MESSAGES: Record<WithdrawalErrorCode, string> = {
   not_found: 'Commande introuvable.',
@@ -48,6 +57,7 @@ export const WITHDRAWAL_ERROR_MESSAGES: Record<WithdrawalErrorCode, string> = {
   free_order: 'Cet objet offert n’a pas été payé : rien à rembourser.',
   period_expired: 'Le délai de rétractation de 14 jours est dépassé.',
   already_delivered: 'L’achat a déjà été livré dans le jeu : la rétractation n’est plus possible (vous y avez renoncé lors du paiement).',
+  delivery_in_progress: 'L’achat est en cours d’envoi au jeu : réessayez dans un instant.',
   refund_failed: 'Le remboursement n’a pas pu être lancé. La livraison est suspendue : réessayez dans un instant ou contactez le support.',
   refund_unavailable: 'Le remboursement en ligne est indisponible pour le moment : contactez le support.',
 };
@@ -143,9 +153,17 @@ export async function withdrawOrder(userId: string, orderId: string, deps: Withd
       .where(and(eq(orders.id, orderId), eq(orders.userId, userId)))
       .for('update');
     if (!order) throw new WithdrawalError('not_found');
-    const [dlv] = await tx.select({ id: deliveries.id, status: deliveries.status, lastError: deliveries.lastError }).from(deliveries).where(eq(deliveries.orderId, orderId));
+    // Livraison verrouillée : un envoi ne peut pas prendre son bail entre le contrôle et l'arrêt.
+    const [dlv] = await tx
+      .select({ id: deliveries.id, status: deliveries.status, lastError: deliveries.lastError, nextAttemptAt: deliveries.nextAttemptAt })
+      .from(deliveries)
+      .where(eq(deliveries.orderId, orderId))
+      .for('update');
     const blocker = withdrawalBlocker({ ...order, deliveryStatus: dlv?.status ?? null, deliveryLastError: dlv?.lastError ?? null }, now);
     if (blocker) throw new WithdrawalError(blocker);
+    // Envoi webhook en vol (bail posé par dispatch, ou relance imminente) : le jeu pourrait créditer l'achat pendant
+    // qu'on le rembourse. On refuse pour quelques secondes (revue 2026-11, C-7).
+    if (dlv!.status === 'pending' && isDispatchLeased(dlv!.nextAttemptAt, new Date())) throw new WithdrawalError('delivery_in_progress');
     if (!(dlv!.status === 'failed' && dlv!.lastError === WITHDRAWAL_STOP_REASON)) {
       // pending (en attente / en relance) ou failed (relances épuisées) → arrêt définitif, conditionnel : une livraison
       // passée à delivered entre-temps (webhook 2xx, récupération par le SDK) fait échouer la rétractation.
@@ -157,11 +175,11 @@ export async function withdrawOrder(userId: string, orderId: string, deps: Withd
       if (!stopped) throw new WithdrawalError('already_delivered');
     }
     const [studio] = await tx
-      .select({ stripeAccountId: studios.stripeAccountId, stripeChargesEnabled: studios.stripeChargesEnabled })
+      .select({ stripeAccountId: studios.stripeAccountId })
       .from(games)
       .innerJoin(studios, eq(studios.id, games.studioId))
       .where(eq(games.id, order.gameId));
-    return { order, studio: studio ?? { stripeAccountId: null, stripeChargesEnabled: false } };
+    return { order, studio: studio ?? { stripeAccountId: null } };
   });
 
   // 2. Remboursement intégral.
@@ -182,10 +200,18 @@ export async function withdrawOrder(userId: string, orderId: string, deps: Withd
   }
 
   // 3. Commande remboursée puis événement `purchase.refunded` (même canal que l'achat).
-  await db
+  const [refunded] = await db
     .update(orders)
     .set({ status: 'refunded', refundedAt: now })
-    .where(and(eq(orders.id, orderId), eq(orders.status, 'paid')));
+    .where(and(eq(orders.id, orderId), eq(orders.status, 'paid')))
+    .returning({ id: orders.id });
+  if (refunded) {
+    // Reprise des points Dev AppStore de la commande (revue 2026-11, C-1) : sans elle, acheter puis se rétracter
+    // laissait les points. Idempotent ; ne remet jamais en cause la rétractation.
+    await revokePointsForOrder(orderId, { note: 'rétractation' }).catch((e) =>
+      console.error('[withdrawal] reprise des points impossible', orderId, e instanceof Error ? e.message : 'erreur inconnue'),
+    );
+  }
   let refundDeliveryId: string | null = null;
   try {
     refundDeliveryId = await enqueueRefund(orderId);
@@ -203,35 +229,32 @@ export async function withdrawOrder(userId: string, orderId: string, deps: Withd
 }
 
 /**
- * Remboursement Stripe intégral, idempotent par commande. Charge directe : sur le compte du studio, commission
- * remboursée ; charge à destination : transfert au studio annulé et commission remboursée.
+ * Bail d'envoi actif (ou relance due dans la fenêtre du bail) : `dispatch` pose nextAttemptAt = maintenant + bail avant
+ * le POST au serveur du studio. Une livraison garée (SDK, nextAttemptAt null) ou en attente d'une relance lointaine
+ * n'est pas concernée.
  */
-async function refundOnStripe(
-  stripe: StripeLike,
-  order: typeof orders.$inferSelect,
-  studio: { stripeAccountId: string | null; stripeChargesEnabled: boolean },
-): Promise<string> {
-  const { stripeAccount } = checkoutRequestOptions(order.id, studio);
-  const accountOpts: Stripe.RequestOptions = stripeAccount ? { stripeAccount } : {};
+export function isDispatchLeased(nextAttemptAt: Date | null, now: Date): boolean {
+  if (!nextAttemptAt) return false;
+  const t = nextAttemptAt.getTime();
+  return t > now.getTime() && t <= now.getTime() + DISPATCH_LEASE_MS + 1_000;
+}
+
+/**
+ * Remboursement Stripe intégral, idempotent par commande, sur le compte qui a encaissé le paiement (figé sur la
+ * commande : un studio dont les paiements ont été désactivés depuis reste remboursable — C-3).
+ */
+async function refundOnStripe(stripe: StripeLike, order: typeof orders.$inferSelect, studio: { stripeAccountId: string | null }): Promise<string> {
+  const account = chargeAccountOf(order, studio);
   let paymentIntent = order.stripePaymentIntentId;
   if (!paymentIntent && order.stripeCheckoutSessionId) {
-    const session = await stripe.checkout.sessions.retrieve(order.stripeCheckoutSessionId, {}, accountOpts);
+    const session = await stripe.checkout.sessions.retrieve(order.stripeCheckoutSessionId, {}, account ? { stripeAccount: account } : {});
     paymentIntent = refId(session.payment_intent);
   }
   if (!paymentIntent) throw new Error(`paiement Stripe introuvable pour ${order.id}`);
-  const params: Stripe.RefundCreateParams = {
-    payment_intent: paymentIntent,
+  return refundPaymentIntent(stripe, paymentIntent, {
+    account,
     reason: 'requested_by_customer',
     metadata: { order_id: order.id, devappstore_reason: 'withdrawal' },
-  };
-  if (stripeAccount) params.refund_application_fee = true;
-  else {
-    const pi = await stripe.paymentIntents.retrieve(paymentIntent, {}, accountOpts);
-    if (pi.transfer_data?.destination) {
-      params.reverse_transfer = true;
-      params.refund_application_fee = true;
-    }
-  }
-  const refund = await stripe.refunds.create(params, { ...accountOpts, idempotencyKey: `devappstore_withdrawal_${order.id}` });
-  return refund.id;
+    idempotencyKey: `devappstore_withdrawal_${order.id}`,
+  });
 }

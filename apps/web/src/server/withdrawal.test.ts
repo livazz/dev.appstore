@@ -292,3 +292,76 @@ describe('withdrawOrder', () => {
     }
   });
 });
+
+describe('revue de sécurité 2026-11', () => {
+  it('C-1 : la rétractation reprend les points Dev AppStore de la commande (une seule fois)', async () => {
+    const L = await import('./loyalty');
+    const before = await L.getBalance('usr_other');
+    const { id } = await paidOrder({ user: 'usr_other' });
+    expect(await L.awardPointsForOrder(id)).toMatchObject({ status: 'awarded', points: 2 });
+    expect(await L.getBalance('usr_other')).toBe(before + 2);
+    await W.withdrawOrder('usr_other', id, { ...sim, acknowledge: false });
+    expect(await L.getBalance('usr_other')).toBe(before);
+    const revokes = await db
+      .select()
+      .from(D.loyaltyEntries)
+      .where(D.and(D.eq(D.loyaltyEntries.orderId, id), D.eq(D.loyaltyEntries.reason, 'order_revoke')));
+    expect(revokes).toHaveLength(1);
+    // Le charge.refunded qui suit (commande déjà refunded) ne reprend rien de plus.
+    const P = await import('./payments');
+    expect((await P.markOrderRefunded(id)).transitioned).toBe(false);
+    expect(await L.getBalance('usr_other')).toBe(before);
+  });
+
+  it('C-3 : charge directe, paiements du studio désactivés depuis : remboursement sur le compte figé sur la commande', async () => {
+    const { id } = await paidOrder();
+    await db.update(D.orders).set({ stripeAccountId: 'acct_encaisseur' }).where(D.eq(D.orders.id, id));
+    await db.update(D.studios).set({ stripeChargesEnabled: false }).where(D.eq(D.studios.id, 'std_w'));
+    const f = fakeStripe();
+    try {
+      await W.withdrawOrder('usr_buyer', id, { now: NOW, stripe: f.stripe, acknowledge: false });
+    } finally {
+      await db.update(D.studios).set({ stripeChargesEnabled: true }).where(D.eq(D.studios.id, 'std_w'));
+    }
+    expect(f.calls[0]!.params).toMatchObject({ payment_intent: `pi_${id}`, refund_application_fee: true });
+    expect(f.calls[0]!.options).toEqual({ stripeAccount: 'acct_encaisseur', idempotencyKey: `devappstore_withdrawal_${id}` });
+    expect((await orderRow(id)).status).toBe('refunded');
+  });
+
+  it('C-3 : commande ancienne sans compte figé, CHARGE_MODEL=direct : compte du studio même si ses paiements sont désactivés', async () => {
+    const { id } = await paidOrder();
+    await db.update(D.studios).set({ stripeChargesEnabled: false }).where(D.eq(D.studios.id, 'std_w'));
+    vi.stubEnv('CHARGE_MODEL', 'direct');
+    const f = fakeStripe();
+    try {
+      await W.withdrawOrder('usr_buyer', id, { now: NOW, stripe: f.stripe, acknowledge: false });
+    } finally {
+      vi.unstubAllEnvs();
+      await db.update(D.studios).set({ stripeChargesEnabled: true }).where(D.eq(D.studios.id, 'std_w'));
+    }
+    expect(f.calls[0]!.options).toMatchObject({ stripeAccount: 'acct_studio' });
+  });
+
+  it('C-7 : envoi webhook en vol (bail actif) → rétractation refusée sans rien modifier, possible ensuite', async () => {
+    const { id, deliveryId } = await paidOrder();
+    await db
+      .update(D.deliveries)
+      .set({ nextAttemptAt: new Date(Date.now() + 20_000) })
+      .where(D.eq(D.deliveries.id, deliveryId));
+    await expect(W.withdrawOrder('usr_buyer', id, { ...sim, now: new Date(), acknowledge: false })).rejects.toMatchObject({ code: 'delivery_in_progress' });
+    expect((await deliveryRow(id)).status).toBe('pending');
+    expect((await orderRow(id)).status).toBe('paid');
+    // Relance lointaine (pas de bail) : rétractation possible.
+    await db.update(D.deliveries).set({ nextAttemptAt: new Date(Date.now() + 3600_000) }).where(D.eq(D.deliveries.id, deliveryId));
+    await W.withdrawOrder('usr_buyer', id, { ...sim, now: new Date(), acknowledge: false });
+    expect((await orderRow(id)).status).toBe('refunded');
+  });
+
+  it('C-7 : isDispatchLeased reconnaît seulement un bail en cours', () => {
+    const now = new Date();
+    expect(W.isDispatchLeased(null, now)).toBe(false);
+    expect(W.isDispatchLeased(new Date(now.getTime() - 1), now)).toBe(false);
+    expect(W.isDispatchLeased(new Date(now.getTime() + 25_000), now)).toBe(true);
+    expect(W.isDispatchLeased(new Date(now.getTime() + 10 * 60_000), now)).toBe(false);
+  });
+});

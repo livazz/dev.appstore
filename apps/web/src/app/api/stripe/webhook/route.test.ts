@@ -168,17 +168,20 @@ describe('POST /api/stripe/webhook', () => {
   });
 
   // CHK-PAY-08 : montant comparé à la commande avant markOrderPaid.
-  it('événement signé avec un montant différent → commande non payée, alerte enregistrée, aucune livraison', async () => {
+  // Revue 2026-11, C-4 : un paiement encaissé au mauvais montant est remboursé automatiquement (payments.test.ts) ;
+  // ici aucun client Stripe n'est configuré : remboursement impossible → action manuelle marquée et 500 (Stripe rejoue).
+  it('événement signé avec un montant différent → commande non payée, aucune livraison, anomalie marquée, rejeu demandé', async () => {
     const o = await insertPendingOrder({ stripeCheckoutSessionId: 'cs_wrong_amount' });
     const payload = completedEvent(o.id, 'cs_wrong_amount', { id: 'evt_wrong_amount', amount: 1 });
     const signature = Stripe.webhooks.generateTestHeaderString({ payload, secret: SECRET });
     const res = await POST(webhookRequest(payload, signature));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ received: true, handled: false });
-    expect((await getOrder(o.id))?.status).toBe('pending');
+    expect(res.status).toBe(500);
+    const order = await getOrder(o.id);
+    expect(order?.status).toBe('pending');
+    expect(order?.paymentAnomaly).toMatch(/incohérents.*action manuelle requise/);
     expect(delivery.enqueueDelivery).not.toHaveBeenCalled();
     const [row] = await db.select().from(stripeEvents).where(eq(stripeEvents.id, 'evt_wrong_amount'));
-    expect(row?.alert).toMatch(/incohérents/);
+    expect(row?.processedAt).toBeNull();
   });
 
   it('production : événement du mode test ignoré, sauf DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1', async () => {
