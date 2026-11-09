@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { SearchBar, SearchForm } from '@/components/catalog/SearchBar';
+import { UserMenu } from '@/components/auth/UserMenu';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL || 'http://localhost:3000'),
@@ -32,11 +33,7 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
             </div>
           </div>
           <div className="order-2 ml-auto flex flex-none items-center sm:order-3 sm:ml-0">
-            {/* Emplacement compte : la tâche « auth » livre src/components/auth/UserMenu.tsx, qui remplacera ce lien.
-                <UserMenu /> */}
-            <Link href="/login" className="rounded-full px-3 py-2 text-sm font-semibold text-primary hover:bg-bg">
-              Connexion
-            </Link>
+            <UserMenu />
           </div>
         </div>
       </header>

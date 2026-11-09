@@ -12,8 +12,7 @@ import {
   WebhookSecretControl,
   WebhookUrlControl,
 } from '@/components/studio/integration/IntegrationControls';
-// TODO(linking) : brancher le composant de l'agent « linking » quand il existera :
-// import { LinkSettings } from '@/components/studio/LinkSettings';
+import { LinkSettings } from '@/components/studio/LinkSettings';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Intégration — Wolleen Studio' };
@@ -171,8 +170,7 @@ curl -X POST -H "Authorization: Bearer $WOLLEEN_API_KEY" "${origin}/api/v1/deliv
       </Section>
 
       <Section title="Liaison des comptes" description="Comment vos joueurs relient leur compte Wolleen à leur compte de jeu.">
-        {/* TODO(linking) : remplacer par <LinkSettings gameId={game.id} /> (src/components/studio/LinkSettings.tsx, agent « linking »). */}
-        <p className="text-sm text-ink-3">Réglages de liaison bientôt disponibles ici.</p>
+        <LinkSettings gameId={game.id} />
       </Section>
 
       <Section title="Journal des livraisons" description="Les 50 dernières livraisons de ce jeu.">
