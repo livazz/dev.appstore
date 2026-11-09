@@ -1,0 +1,26 @@
+# Dépendances et sorties : reconstruites dans l'image
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.tsbuildinfo
+test-results
+playwright-report
+
+# Données locales (PGlite, uploads) et secrets : ne jamais les copier dans une image
+.data
+.env
+.env.*
+!.env.example
+
+# Hors périmètre de l'image web
+.git
+.github
+.claude
+prototype
+sdks
+docs
+.DS_Store
+Dockerfile
+docker-compose*.yml
+.dockerignore

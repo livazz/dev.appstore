@@ -1,0 +1,87 @@
+# Environnement de DÉVELOPPEMENT complet : Postgres 16 + Wolleen (next dev) + jeu de démo Nova Games.
+#
+#   docker compose up --build        → http://localhost:3000 (Wolleen) et http://localhost:4100 (jeu de démo)
+#   docker compose down -v           → arrêt + suppression de la base
+#
+# Mode simulation des paiements par défaut (pas de clé Stripe). Pour tester Stripe en mode test, créez un
+# fichier .env à la racine (STRIPE_SECRET_KEY=sk_test_…, STRIPE_WEBHOOK_SECRET=whsec_…) : il est lu s'il existe.
+# Les sources sont copiées dans l'image (pas de montage) : relancez `docker compose up --build` après modification,
+# ou utilisez `npm run dev` sur l'hôte avec DATABASE_URL=postgres://wolleen:wolleen@localhost:5432/wolleen.
+#
+# NE PAS utiliser en production (secrets de démo, clés wk_test_demo_*, next dev).
+
+name: wolleen
+
+x-dev-image: &dev-image
+  build:
+    context: .
+    target: dev
+  image: wolleen-dev:latest
+
+x-dev-env: &dev-env
+  NODE_ENV: development
+  DATABASE_URL: postgres://wolleen:wolleen@db:5432/wolleen
+  AUTH_SECRET: dev-only-secret-not-for-production-0000000000
+  APP_URL: http://localhost:3000
+  PLATFORM_FEE_BPS: "500"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wolleen
+      POSTGRES_PASSWORD: wolleen
+      POSTGRES_DB: wolleen
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wolleen -d wolleen"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Job ponctuel : schéma (drizzle-kit push) + données de démo (idempotent).
+  setup:
+    <<: *dev-image
+    environment: *dev-env
+    command: ["sh", "-c", "npm run db:push && npm run db:seed"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    <<: *dev-image
+    environment: *dev-env
+    env_file:
+      - path: .env
+        required: false
+    command: ["npm", "run", "dev"]
+    ports:
+      - "3000:3000"
+      # Port du jeu de démo : il partage l'espace réseau de « web » (voir demo-game).
+      - "4100:4100"
+    volumes:
+      # Uploads locaux (WOLLEEN_STORAGE=local) conservés entre deux redémarrages.
+      - uploads:/app/.data
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+
+  # Le seed déclare les URL webhook / lookup en http://localhost:4100 : en partageant la pile réseau
+  # de « web », le jeu de démo est joignable par Wolleen sur localhost:4100 et voit Wolleen sur localhost:3000.
+  demo-game:
+    <<: *dev-image
+    network_mode: "service:web"
+    environment:
+      PORT: "4100"
+      WOLLEEN_URL: http://localhost:3000
+    command: ["npm", "run", "demo"]
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  uploads:
