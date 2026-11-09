@@ -34,6 +34,7 @@ export class PaiementSimule {
 
   /** La page de confirmation passe d'elle-même (sans rechargement manuel) à « Livré dans le jeu ». */
   async attendreLivre(timeout = 30_000) {
-    await expect(this.page.getByRole('heading', { level: 1, name: /livré/i })).toBeVisible({ timeout });
+    // « Livré dans le jeu », ou directement « C’est dans votre inventaire ! » si le jeu a déjà acquitté.
+    await expect(this.page.getByRole('heading', { level: 1, name: /livré|inventaire/i })).toBeVisible({ timeout });
   }
 }

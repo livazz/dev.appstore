@@ -85,20 +85,19 @@ export function Slider({
   unit?: string;
 }) {
   const id = useId();
-  const pct = ((value - min) / (max - min)) * 100;
   return (
-    <div className="flex flex-col gap-1 py-1 text-sm">
-      <label htmlFor={id} className="font-medium">
-        {label}
-      </label>
-      <div className="relative pt-6">
-        <span
-          className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-md bg-ink px-1.5 py-0.5 text-[11px] font-semibold text-white tabular-nums"
-          style={{ left: `calc(${pct}% + ${(50 - pct) * 0.16}px)` }}
-        >
+    <div className="flex flex-col py-0.5 text-sm">
+      {/* Libellé et valeur sur une ligne, curseur dessous (maquette : « Height ——o— 250 »). */}
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={id} className="font-medium">
+          {label}
+        </label>
+        <output htmlFor={id} className="rounded-md bg-ink px-1.5 py-0.5 text-[11px] leading-none font-semibold text-white tabular-nums">
           {value}
           {unit}
-        </span>
+        </output>
+      </div>
+      <div>
         <input
           id={id}
           type="range"
@@ -106,7 +105,7 @@ export function Slider({
           max={max}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="h-11 w-full cursor-pointer accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="h-9 w-full cursor-pointer accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         />
       </div>
     </div>

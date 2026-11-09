@@ -34,7 +34,7 @@ function InlineEdit({
 }) {
   const [editing, setEditing] = useState(false);
   const [v, setV] = useState(value);
-  const text = big ? 'text-2xl font-bold sm:text-3xl' : 'text-sm text-ink-2';
+  const text = big ? 'text-2xl font-bold sm:text-3xl' : 'text-sm font-medium text-ink/80';
   if (editing)
     return (
       <input
@@ -64,7 +64,7 @@ function InlineEdit({
   return (
     <button
       type="button"
-      className={`${text} group inline-flex min-h-11 max-w-full items-center gap-2 rounded-md px-2 py-0.5 text-left hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary`}
+      className={`${text} group inline-flex min-h-9 max-w-full items-center gap-2 rounded-md px-2 py-0.5 text-left hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary`}
       onClick={() => {
         setV(value);
         setEditing(true);

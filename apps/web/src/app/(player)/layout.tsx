@@ -40,18 +40,18 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
       </header>
       <main className="flex-1">{children}</main>
       <footer className="border-t border-line bg-surface">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-ink-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>© Dev AppStore — achats in-app sur le web, livrés automatiquement dans votre jeu.</p>
-          <nav aria-label="Liens de pied de page" className="flex flex-wrap gap-x-4">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-ink-3 sm:px-6">
+          <nav aria-label="Liens de pied de page" className="flex flex-wrap items-center gap-x-5">
+            <Link href="/pour-les-studios" className="inline-flex min-h-11 items-center font-medium text-ink-2 hover:text-ink">
+              Vous êtes un studio ?
+            </Link>
             {LEGAL_DOCUMENTS.map((d) => (
               <Link key={d.slug} href={d.href} className="inline-flex min-h-11 items-center hover:text-ink">
                 {d.shortTitle}
               </Link>
             ))}
-            <Link href="/pour-les-studios" className="inline-flex min-h-11 items-center hover:text-ink">
-              Vous êtes un studio ?
-            </Link>
           </nav>
+          <p className="text-xs">© Dev AppStore — achats in-app sur le web, livrés automatiquement dans votre jeu.</p>
         </div>
       </footer>
     </div>

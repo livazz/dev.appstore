@@ -62,7 +62,7 @@ export default async function PointsPage({ searchParams }: { searchParams: Promi
         {user.name} · {user.email}
       </p>
 
-      <nav aria-label="Sections du compte" className="mt-6 flex flex-wrap gap-x-6 border-b border-line text-sm">
+      <nav aria-label="Sections du compte" className="mt-6 flex gap-x-5 overflow-x-auto border-b border-line text-sm whitespace-nowrap [scrollbar-width:none] sm:gap-x-6">
         <Link href="/account" className="pb-2 text-ink-2 transition hover:text-ink">
           Mes jeux liés
         </Link>
