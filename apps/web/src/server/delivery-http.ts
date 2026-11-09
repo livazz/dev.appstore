@@ -1,5 +1,6 @@
 import 'server-only';
 import { timingSafeEqual } from 'node:crypto';
+import { env } from '@/env';
 import { PLAYER_TOKEN_HEADER, apiError, type ApiAuth } from './api-key';
 import type { PlayerScope } from './delivery';
 
@@ -66,12 +67,28 @@ export function resolvePlayerScope(
 }
 
 /**
- * Protège le cron : exige `Authorization: Bearer <CRON_SECRET>` (comparaison à temps constant).
- * Sans CRON_SECRET : accepté seulement hors production (développement local), refusé en production.
+ * Protège les tâches planifiées : exige `Authorization: Bearer <CRON_SECRET>` (comparaison à temps constant).
+ * Sans CRON_SECRET : accepté seulement en développement local (NODE_ENV=development), refusé partout ailleurs.
  */
-export function isCronAuthorized(req: Request, secret = process.env.CRON_SECRET, nodeEnv = process.env.NODE_ENV): boolean {
-  if (!secret) return nodeEnv !== 'production';
+export function isCronAuthorized(req: Request, secret: string | undefined = env.CRON_SECRET, nodeEnv: string = env.NODE_ENV): boolean {
+  if (!secret) return nodeEnv === 'development';
   const got = Buffer.from(req.headers.get('authorization') ?? '');
   const want = Buffer.from(`Bearer ${secret}`);
   return got.length === want.length && timingSafeEqual(got, want);
+}
+
+/**
+ * Garde commune des routes cron (`/api/cron/*`, `/api/checkout/expire`) : null si l'appel est autorisé, sinon la
+ * réponse d'erreur — 503 `cron_not_configured` si CRON_SECRET manque (hors développement), 401 si le jeton est faux.
+ * Vercel Cron envoie lui-même `Authorization: Bearer $CRON_SECRET`.
+ */
+export function cronGuard(req: Request, secret: string | undefined = env.CRON_SECRET, nodeEnv: string = env.NODE_ENV): Response | null {
+  const noStore = { 'Cache-Control': 'no-store' };
+  if (!secret && nodeEnv !== 'development') {
+    return Response.json({ error: { code: 'cron_not_configured', message: 'CRON_SECRET non défini.' } }, { status: 503, headers: noStore });
+  }
+  if (!isCronAuthorized(req, secret, nodeEnv)) {
+    return Response.json({ error: { code: 'unauthorized', message: 'CRON_SECRET manquant ou invalide.' } }, { status: 401, headers: noStore });
+  }
+  return null;
 }
