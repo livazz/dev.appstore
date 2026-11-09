@@ -6,7 +6,7 @@ import { WithdrawalForm } from '@/components/legal/WithdrawalForm';
 import { getLegalDocument } from '@/lib/legal-versions';
 
 const doc = getLegalDocument('retractation');
-export const metadata: Metadata = { title: doc.title, description: doc.description };
+export const metadata: Metadata = { title: doc.title, description: doc.description, alternates: { canonical: doc.href } };
 
 const sections: LegalSection[] = [
   {

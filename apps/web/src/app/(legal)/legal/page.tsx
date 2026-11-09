@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LEGAL_DOCUMENTS, formatLegalDate } from '@/lib/legal-versions';
 
-export const metadata: Metadata = { title: 'Informations légales' };
+export const metadata: Metadata = { title: 'Informations légales', alternates: { canonical: '/legal' } };
 
 const AUDIENCE = { joueurs: 'Joueurs', studios: 'Studios', tous: 'Tous' } as const;
 

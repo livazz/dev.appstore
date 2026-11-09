@@ -8,7 +8,7 @@ import { safeNext, withNext } from '@/lib/auth/next-url';
 import { enabledSocialProviders } from '@/server/auth';
 import { getCurrentUser } from '@/server/session';
 
-export const metadata: Metadata = { title: 'Connexion — Dev AppStore' };
+export const metadata: Metadata = { title: 'Connexion', alternates: { canonical: '/login' } };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
   const sp = await searchParams;

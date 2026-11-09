@@ -8,7 +8,7 @@ import { safeNext, withNext } from '@/lib/auth/next-url';
 import { enabledSocialProviders } from '@/server/auth';
 import { getCurrentUser } from '@/server/session';
 
-export const metadata: Metadata = { title: 'Créer un compte — Dev AppStore' };
+export const metadata: Metadata = { title: 'Créer un compte', alternates: { canonical: '/signup' } };
 
 export default async function SignupPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const sp = await searchParams;

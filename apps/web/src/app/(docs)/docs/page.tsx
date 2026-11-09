@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { A, C, DocPage, H2, P, docMetadata } from '@/components/docs/prose';
+import { A, C, DocPage, H2, P } from '@/components/docs/prose';
+import { docPageMetadata } from '@/lib/seo';
 import { DOC_PAGES, docHref } from '@/lib/docs/nav';
 
-export const metadata = docMetadata('');
+export const metadata = docPageMetadata('');
 
 const FLOW = [
   { n: '1', title: 'Le joueur trouve votre jeu', text: 'Sur le catalogue Dev AppStore, il ouvre la boutique web que vous avez composée.' },

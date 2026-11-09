@@ -1,10 +1,11 @@
 import { CodeBlock } from '@/components/docs/CodeBlock';
 import { CodeTabs } from '@/components/docs/CodeTabs';
-import { A, C, Callout, DocPage, H2, H3, P, Step, Steps, UL, docMetadata } from '@/components/docs/prose';
+import { A, C, Callout, DocPage, H2, H3, P, Step, Steps, UL } from '@/components/docs/prose';
+import { docPageMetadata } from '@/lib/seo';
 import { SHELL_ENV } from '@/lib/docs/examples';
 import { DOCS_FACTS } from '@/lib/docs/facts';
 
-export const metadata = docMetadata('demarrage-rapide');
+export const metadata = docPageMetadata('demarrage-rapide');
 
 const LINK_TABS = [
   {

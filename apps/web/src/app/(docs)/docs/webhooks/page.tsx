@@ -1,6 +1,7 @@
 import { CodeBlock } from '@/components/docs/CodeBlock';
 import { CodeTabs } from '@/components/docs/CodeTabs';
-import { A, C, Callout, DocPage, H2, H3, OL, P, Table, UL, docMetadata } from '@/components/docs/prose';
+import { A, C, Callout, DocPage, H2, H3, OL, P, Table, UL } from '@/components/docs/prose';
+import { docPageMetadata } from '@/lib/seo';
 import {
   EXAMPLE_BODY,
   EXAMPLE_PURCHASE,
@@ -17,7 +18,7 @@ import {
 } from '@/lib/docs/examples';
 import { DOCS_FACTS, RETRY_SCHEDULE_TEXT } from '@/lib/docs/facts';
 
-export const metadata = docMetadata('webhooks');
+export const metadata = docPageMetadata('webhooks');
 
 const PURCHASE_EVENT_TS = `interface PurchaseEvent {
   event: 'purchase.completed' | 'purchase.refunded';

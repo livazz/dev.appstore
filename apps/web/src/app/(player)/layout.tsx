@@ -1,17 +1,8 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { SearchBar, SearchForm } from '@/components/catalog/SearchBar';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { LEGAL_DOCUMENTS } from '@/lib/legal-versions';
-
-export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_URL || 'http://localhost:3000'),
-  title: { default: 'Dev AppStore — vos achats in-app moins cher, sur le web', template: '%s · Dev AppStore' },
-  description:
-    'Trouvez votre jeu, liez votre compte et achetez vos objets in-app moins cher qu’en jeu. Livraison automatique dans le jeu.',
-  openGraph: { siteName: 'Dev AppStore', type: 'website', locale: 'fr_FR' },
-};
 
 /** En-tête du site joueur (maquettes) : logo D, recherche + catégories, zone compte. */
 export default function PlayerLayout({ children }: { children: React.ReactNode }) {

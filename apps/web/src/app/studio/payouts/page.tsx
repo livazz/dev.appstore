@@ -9,7 +9,7 @@ import { chargeModel, isProduction, isStripeEnabled } from '@/server/stripe';
 import { openDashboardAction, startOnboardingAction } from './actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Paiements et versements — Dev AppStore' };
+export const metadata: Metadata = { title: 'Paiements et versements' };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' });
 const dateTimeFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' });

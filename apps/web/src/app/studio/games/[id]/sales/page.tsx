@@ -17,7 +17,7 @@ import { RevenueChart } from '@/components/analytics/RevenueChart';
 import { bpsToPercentLabel, netViaStoresCents, parseStoreFeeBps } from '@/components/marketing/savings';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Ventes et tendances — Dev AppStore' };
+export const metadata = { title: 'Ventes et tendances' };
 
 export default async function SalesPage({
   params,

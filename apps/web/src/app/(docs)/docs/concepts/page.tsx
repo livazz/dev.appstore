@@ -1,9 +1,10 @@
 import { CodeBlock } from '@/components/docs/CodeBlock';
-import { A, C, Callout, DocPage, H2, H3, P, Table, UL, docMetadata } from '@/components/docs/prose';
+import { A, C, Callout, DocPage, H2, H3, P, Table, UL } from '@/components/docs/prose';
+import { docPageMetadata } from '@/lib/seo';
 import { EXAMPLE_REFUND, json } from '@/lib/docs/examples';
 import { DOCS_FACTS, RETRY_SCHEDULE_TEXT } from '@/lib/docs/facts';
 
-export const metadata = docMetadata('concepts');
+export const metadata = docPageMetadata('concepts');
 
 const STATUS_DIAGRAM = `             webhook 2xx, ou SDK a récupéré
   pending ───────────────────────────────▶ delivered

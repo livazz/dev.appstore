@@ -7,7 +7,7 @@ import { CredentialsPanel } from './CredentialsPanel';
 import { CatalogImporter } from './CatalogImporter';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Importer depuis les stores — Dev AppStore Studio' };
+export const metadata: Metadata = { title: 'Importer depuis les stores' };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Paris' });
 const SOURCE_LABEL = { app_store: 'App Store', google_play: 'Google Play' } as const;

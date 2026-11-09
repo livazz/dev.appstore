@@ -1,10 +1,11 @@
 import { CodeBlock } from '@/components/docs/CodeBlock';
 import { CodeTabs } from '@/components/docs/CodeTabs';
-import { A, C, Callout, DocPage, H2, P, Table, UL, docMetadata } from '@/components/docs/prose';
+import { A, C, Callout, DocPage, H2, P, Table, UL } from '@/components/docs/prose';
+import { docPageMetadata } from '@/lib/seo';
 import { EXAMPLE_LOOKUP_PLAYER_ID, EXAMPLE_LOOKUP_RESPONSE, EXAMPLE_LOOKUP_V1, EXAMPLE_SECRET, EXAMPLE_TIMESTAMP, json } from '@/lib/docs/examples';
 import { DOCS_FACTS } from '@/lib/docs/facts';
 
-export const metadata = docMetadata('player-lookup');
+export const metadata = docPageMetadata('player-lookup');
 
 const RESPONSE_TS = `interface PlayerLookupResponse {
   player_id: string;     // identifiant canonique du joueur (un entier positif est accepté et converti)

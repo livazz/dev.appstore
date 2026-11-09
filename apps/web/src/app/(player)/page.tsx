@@ -3,8 +3,11 @@ import { Suspense } from 'react';
 import { CatalogSkeleton } from '@/components/catalog/Skeletons';
 import { GameCard } from '@/components/catalog/GameCard';
 import { getHomeCatalog } from '@/server/catalog';
+import { openGraph } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata = { alternates: { canonical: '/' }, openGraph: openGraph({ url: '/' }) };
 
 /** Le bandeau s'affiche tout de suite ; le catalogue (requêtes DB) arrive en streaming derrière un squelette. */
 export default function HomePage() {

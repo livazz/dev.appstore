@@ -2,7 +2,10 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { UserMenu } from '@/components/auth/UserMenu';
 
-export const metadata: Metadata = { title: 'Espace studio — Dev AppStore' };
+export const metadata: Metadata = {
+  title: { default: 'Espace studio · Dev AppStore', template: '%s · Espace studio · Dev AppStore' },
+  robots: { index: false, follow: false },
+};
 export const dynamic = 'force-dynamic';
 
 /**

@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { CodeBlock } from '@/components/docs/CodeBlock';
 import { CodeTabs } from '@/components/docs/CodeTabs';
-import { A, C, Callout, DocPage, Endpoint, H2, H3, P, Table, UL, docMetadata } from '@/components/docs/prose';
+import { A, C, Callout, DocPage, Endpoint, H2, H3, P, Table, UL } from '@/components/docs/prose';
+import { docPageMetadata } from '@/lib/seo';
 import { EXAMPLE_PURCHASE, SHELL_ENV, json } from '@/lib/docs/examples';
 import { DOCS_FACTS } from '@/lib/docs/facts';
 
-export const metadata = docMetadata('api');
+export const metadata = docPageMetadata('api');
 
 const ERR_401 = [<C key="s">401</C>, <C key="c">unauthorized</C>, 'En-tête Authorization absent, mal formé, ou clé inconnue (ex. régénérée).'];
 

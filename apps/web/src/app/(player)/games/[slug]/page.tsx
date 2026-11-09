@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { GameStore } from '@/components/catalog/GameStore';
 import { initialStoreItem, type StoreSearchParams } from '@/components/catalog/store-query';
 import { getLiveGameBySlug, maxDiscountPct } from '@/server/catalog';
+import { openGraph } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,12 +29,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${game.name} — boutique`,
     description: description.slice(0, 300),
     alternates: { canonical: `/games/${game.slug}` },
-    openGraph: {
+    openGraph: openGraph({
       title: `${game.name} — boutique Dev AppStore`,
       description: description.slice(0, 300),
       url: `/games/${game.slug}`,
-      images: image ? [{ url: image }] : undefined,
-    },
+      ...(image ? { images: [{ url: image }] } : {}),
+    }),
     twitter: { card: image ? 'summary_large_image' : 'summary', title: game.name, description: description.slice(0, 200) },
   };
 }
