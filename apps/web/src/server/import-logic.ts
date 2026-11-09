@@ -218,6 +218,11 @@ export function priceForWeb(storePriceCents: number, discountBps: number): { sug
   if (suggestedCents > MAX_TIER) {
     return { suggestedCents, webPriceCents: MAX_TIER, note: 'Au-delà du palier le plus élevé (99,99) : ramené à 99,99.' };
   }
+  // Les paliers bas sont espacés (0,49 → 0,99) : l'arrondi au palier inférieur peut doubler la remise demandée.
+  const effectiveBps = Math.round((1 - suggestedCents / storePriceCents) * 10_000);
+  if (effectiveBps - discountBps > 1000) {
+    return { suggestedCents, webPriceCents: suggestedCents, note: `Remise réelle −${Math.round(effectiveBps / 100)} % à cause des paliers : ajustez si besoin.` };
+  }
   return { suggestedCents, webPriceCents: suggestedCents };
 }
 

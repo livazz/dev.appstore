@@ -61,6 +61,10 @@ describe('fonctions pures', () => {
     expect(priceForWeb(14999, 2000)).toMatchObject({ suggestedCents: 11999, webPriceCents: 9999 });
     expect(priceForWeb(49, 2000)).toMatchObject({ suggestedCents: null, webPriceCents: 49 });
     expect(priceForWeb(14999, 2000).note).toMatch(/99,99/);
+    // 0,99 −20 % = 0,79 → palier 0,49 : la remise réelle (−51 %) est signalée.
+    expect(priceForWeb(99, 2000)).toMatchObject({ suggestedCents: 49, webPriceCents: 49 });
+    expect(priceForWeb(99, 2000).note).toMatch(/−51 %.*paliers/);
+    expect(priceForWeb(999, 2000).note).toBeUndefined();
   });
 
   it('prix barré = prix store seulement s’il est un palier supérieur', () => {

@@ -35,10 +35,10 @@ describe('secrets (AES-256-GCM + HKDF)', () => {
   });
 
   it('lit BETTER_AUTH_SECRET puis AUTH_SECRET, exige un secret en production', () => {
-    expect(rootSecret({ BETTER_AUTH_SECRET: 'b', AUTH_SECRET: 'a' } as NodeJS.ProcessEnv)).toBe('b');
-    expect(rootSecret({ AUTH_SECRET: 'a' } as NodeJS.ProcessEnv)).toBe('a');
-    expect(rootSecret({ NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toMatch(/dev/);
-    expect(() => rootSecret({ NODE_ENV: 'production' } as NodeJS.ProcessEnv)).toThrow(/requis/);
+    expect(rootSecret({ BETTER_AUTH_SECRET: 'b', AUTH_SECRET: 'a' } as unknown as NodeJS.ProcessEnv)).toBe('b');
+    expect(rootSecret({ AUTH_SECRET: 'a' } as unknown as NodeJS.ProcessEnv)).toBe('a');
+    expect(rootSecret({ NODE_ENV: 'development' } as unknown as NodeJS.ProcessEnv)).toMatch(/dev/);
+    expect(() => rootSecret({ NODE_ENV: 'production' } as unknown as NodeJS.ProcessEnv)).toThrow(/requis/);
   });
 
   it('utilise la clé dérivée du secret de l’environnement par défaut', () => {
