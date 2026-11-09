@@ -84,6 +84,9 @@
 .tags { display: flex; flex-direction: column; gap: 10px; }
 .tag {
   border: 3px solid #1d1d1f;
+  background: rgba(255, 255, 255, 0.85);
+  color: #1d1d1f;
+  min-height: 44px;
   padding: 8px 12px;
   font-weight: 800;
   text-transform: uppercase;
@@ -91,6 +94,7 @@
   font-size: 14px;
   cursor: pointer;
 }
+.tag:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .grid { flex: 1; display: flex; flex-wrap: wrap; align-items: flex-start; min-width: 0; }
 .empty { color: var(--ink-2); padding: 24px 0; }
 

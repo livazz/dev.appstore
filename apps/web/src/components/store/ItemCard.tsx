@@ -1,6 +1,9 @@
 import type { CSSProperties } from 'react';
 import { formatMoney, PERIODS, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@wolleen/core/client';
+import { cardBackground, safeImageUrl, safeItemStyle } from './style-safety';
 import s from './store.module.css';
+
+export { cardBackground } from './style-safety';
 
 /** Sous-ensemble d'un article nécessaire à l'affichage (ligne DB ou brouillon de l'éditeur). */
 export interface CardItem {
@@ -21,12 +24,6 @@ export const isHorizontal = (layout: number) => layout === 3 || layout === 6;
 
 export function cardSize(layout: number, grid: Grid) {
   return isHorizontal(layout) ? { w: Math.round(grid.width * 1.6), h: Math.round(grid.height * 0.62) } : { w: grid.width, h: grid.height };
-}
-
-export function cardBackground(st: Pick<ItemStyle, 'bgType' | 'bg1' | 'bg2'>) {
-  if (st.bgType === 'solid') return st.bg1;
-  if (st.bgType === 'linear') return `linear-gradient(180deg, ${st.bg1}, ${st.bg2})`;
-  return `radial-gradient(circle at 50% 40%, ${st.bg1} 0%, ${st.bg2} 85%)`;
 }
 
 export function textEffects(outline: boolean, shadow: boolean) {
@@ -56,10 +53,12 @@ export function ItemCard({
   selected?: boolean;
   label?: string;
 }) {
-  const st = item.style;
+  // Défense en profondeur (D-18) : couleurs / nombres revalidés au rendu, images tierces ignorées.
+  const st = safeItemStyle(item.style);
   const { w, h } = cardSize(item.layout, grid);
   const k = grid.width / 200;
   const model = item.models[0];
+  const imageUrl = safeImageUrl(model?.imageUrl);
 
   const style: CSSProperties = {
     width: w,
@@ -79,9 +78,9 @@ export function ItemCard({
   const subtitle = item.subtitle ? <div className={s.sub} style={{ color: st.subtitleColor }}>{item.subtitle}</div> : null;
   const img = (
     <div className={s.img}>
-      {model?.imageUrl ? (
+      {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={model.imageUrl} alt={model.label || item.title} draggable={false} />
+        <img src={imageUrl} alt={model?.label || item.title} draggable={false} />
       ) : (
         <div className={s.imgPh} aria-hidden="true" />
       )}
