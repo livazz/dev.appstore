@@ -61,6 +61,94 @@ async function main() {
   ];
   for (const r of rows) await db.insert(items).values(r).onConflictDoNothing();
   console.log(`Seed OK : 1 studio, ${gameRows.length} jeux, ${rows.length} articles`);
+  await seedDemoSales();
+}
+
+/*
+ * Tâche « analytics » : ~90 jours de commandes payées + livraisons pour gam_crystal et gam_farm,
+ * achetées par usr_demo_player (player_id #2PP8QL9). Générateur pseudo-aléatoire déterministe ;
+ * identifiants fixes + onConflictDoNothing → relancer le seed ne crée pas de doublon.
+ */
+async function seedDemoSales() {
+  const { DEFAULT_PLATFORM_FEE_BPS, feeCents } = await import('@wolleen/core');
+  const { deliveries, gameLinks, orders } = await import('./index');
+  const PLAYER_ID = '#2PP8QL9';
+  const DAYS = 90;
+
+  // mulberry32
+  let state = 0x57011ee9;
+  const rand = () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let x = Math.imul(state ^ (state >>> 15), 1 | state);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  const pick = <T,>(list: { v: T; w: number }[]) => {
+    let r = rand() * list.reduce((s, e) => s + e.w, 0);
+    for (const e of list) if ((r -= e.w) < 0) return e.v;
+    return list[list.length - 1].v;
+  };
+
+  for (const gameId of ['gam_crystal', 'gam_farm']) {
+    await db
+      .insert(gameLinks)
+      .values({ id: `lnk_demo_${gameId.slice(4)}`, userId: DEMO_USERS.player.id, gameId, playerId: PLAYER_ID, playerName: 'Joueur Démo', method: 'code', verified: 1 })
+      .onConflictDoNothing();
+  }
+
+  const catalog = await db.select().from(items);
+  const plan = [
+    { gameId: 'gam_crystal', perDay: 4, weights: { gems_1200: 5, gems_6500: 1.2, gold_10000: 4, pass_royal_monthly: 1.5, starter_pack: 0.6 } as Record<string, number> },
+    { gameId: 'gam_farm', perDay: 2, weights: { seeds_50: 5, coins_10000: 3 } as Record<string, number> },
+  ];
+
+  const now = Date.now();
+  const today = new Date(now);
+  today.setUTCHours(0, 0, 0, 0);
+  const orderRows: (typeof orders.$inferInsert)[] = [];
+  const deliveryRows: (typeof deliveries.$inferInsert)[] = [];
+
+  for (const g of plan) {
+    const choices = catalog.filter((i) => i.gameId === g.gameId && g.weights[i.productId]).map((i) => ({ v: i, w: g.weights[i.productId] }));
+    for (let back = DAYS - 1; back >= 0; back--) {
+      const dayStart = today.getTime() - back * 86_400_000;
+      const weekday = new Date(dayStart).getUTCDay();
+      const trend = 0.7 + 0.6 * ((DAYS - back) / DAYS); // croissance progressive
+      const weekend = weekday === 0 || weekday === 6 ? 1.5 : 1;
+      const n = Math.floor(g.perDay * trend * weekend * (0.4 + rand() * 1.2));
+      for (let k = 0; k < n; k++) {
+        const item = pick(choices);
+        const quantity = item.type === 'consumable' && rand() < 0.12 ? 2 : 1;
+        const paidAt = new Date(dayStart + Math.floor((0.25 + rand() * 0.74) * 86_400_000));
+        const r = rand();
+        if (paidAt.getTime() > now) continue;
+        const id = `ord_demo_${g.gameId.slice(4)}_${String(back).padStart(2, '0')}_${k}`;
+        const amountCents = item.priceCents * quantity;
+        const ageH = (now - paidAt.getTime()) / 3_600_000;
+        const status = ageH < 0.2 ? 'pending' : r < 0.015 ? 'failed' : ageH < 3 || r < 0.06 ? 'delivered' : 'acknowledged';
+        const deliveredAt = status === 'delivered' || status === 'acknowledged' ? new Date(paidAt.getTime() + 2_000) : null;
+        orderRows.push({
+          id, userId: DEMO_USERS.player.id, gameId: g.gameId, itemId: item.id, productId: item.productId, itemTitle: item.title,
+          playerId: PLAYER_ID, quantity, amountCents, platformFeeCents: feeCents(amountCents, DEFAULT_PLATFORM_FEE_BPS),
+          currency: 'EUR', status: 'paid', createdAt: new Date(paidAt.getTime() - 45_000), paidAt,
+        });
+        deliveryRows.push({
+          id: `dlv_demo_${id.slice(9)}`, orderId: id, gameId: g.gameId, playerId: PLAYER_ID, status,
+          attempts: status === 'failed' ? 8 : 1, lastError: status === 'failed' ? 'HTTP 500 du serveur du jeu' : null,
+          deliveredAt, acknowledgedAt: status === 'acknowledged' ? new Date(paidAt.getTime() + 5_000) : null,
+          createdAt: paidAt,
+          payload: {
+            event: 'purchase.completed', delivery_id: `dlv_demo_${id.slice(9)}`, order_id: id, game_id: g.gameId, player_id: PLAYER_ID,
+            product_id: item.productId, item_type: item.type, quantity, amount_cents: amountCents, currency: 'EUR', created_at: paidAt.toISOString(),
+          },
+        });
+      }
+    }
+  }
+
+  for (let i = 0; i < orderRows.length; i += 200) await db.insert(orders).values(orderRows.slice(i, i + 200)).onConflictDoNothing();
+  for (let i = 0; i < deliveryRows.length; i += 200) await db.insert(deliveries).values(deliveryRows.slice(i, i + 200)).onConflictDoNothing();
+  console.log(`Seed ventes de démo : ${orderRows.length} commandes payées (gam_crystal, gam_farm) pour ${PLAYER_ID}`);
 }
 
 main().then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
