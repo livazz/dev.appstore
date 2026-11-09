@@ -101,3 +101,6 @@
   .head { flex-direction: column; align-items: flex-start; }
   .grid { justify-content: center; }
 }
+
+/* Outils d'édition superposés à une carte (éditeur studio, prop itemTools). */
+.toolWrap { position: relative; display: flex; flex: none; max-width: 100%; }

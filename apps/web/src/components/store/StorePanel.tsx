@@ -26,6 +26,7 @@ export function StorePanel({
   side,
   addTile,
   onItemClick,
+  itemTools,
   emptyText = 'Aucun article pour le moment.',
 }: {
   theme: GameTheme;
@@ -37,6 +38,8 @@ export function StorePanel({
   side?: ReactNode;
   addTile?: ReactNode;
   onItemClick?: (item: PanelItem) => void;
+  /** Optionnel (éditeur studio) : outils superposés à chaque carte, ex. monter / descendre. */
+  itemTools?: (item: PanelItem, index: number) => ReactNode;
   emptyText?: string;
 }) {
   const [tag, setTag] = useState<string | null>(null);
@@ -85,9 +88,16 @@ export function StorePanel({
           )}
         </aside>
         <div className={s.grid} style={{ gap: theme.grid.margin }}>
-          {visible.map((item) => (
-            <ItemCard key={item.id} item={item} grid={theme.grid} currency={currency} onClick={onItemClick ? () => onItemClick(item) : undefined} />
-          ))}
+          {visible.map((item) => {
+            const card = <ItemCard key={item.id} item={item} grid={theme.grid} currency={currency} onClick={onItemClick ? () => onItemClick(item) : undefined} />;
+            if (!itemTools) return card;
+            return (
+              <div key={item.id} className={s.toolWrap}>
+                {card}
+                {itemTools(item, items.indexOf(item))}
+              </div>
+            );
+          })}
           {addTile}
           {!visible.length && !addTile && <p className={s.empty}>{emptyText}</p>}
         </div>
