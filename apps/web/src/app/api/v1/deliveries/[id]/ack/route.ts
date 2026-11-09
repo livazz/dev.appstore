@@ -1,6 +1,6 @@
-import { authenticateApi } from '@/server/api-key';
+import { guardApi } from '@/server/api-rate-limit';
 import { acknowledgeDelivery } from '@/server/delivery';
-import { corsError, corsPreflight, resolvePlayerScope, unauthorized, withCors } from '@/server/delivery-http';
+import { corsError, corsPreflight, resolvePlayerScope, withCors } from '@/server/delivery-http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,8 +12,9 @@ const notFound = () => corsError(404, 'delivery_not_found', 'Livraison introuvab
  * (ni, avec la clé publique, au joueur du jeton et à son compte Wolleen).
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await authenticateApi(req);
-  if (!auth) return unauthorized();
+  const guard = await guardApi(req, 'ack');
+  if (!guard.ok) return guard.res;
+  const auth = guard.auth;
   const target = resolvePlayerScope(auth, req, { requirePlayerId: false });
   if (!target.ok) return target.res;
   const { id } = await params;

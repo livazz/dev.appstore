@@ -1,5 +1,5 @@
-import { authenticateApi } from '@/server/api-key';
-import { corsError, corsPreflight, unauthorized, withCors } from '@/server/delivery-http';
+import { guardApi } from '@/server/api-rate-limit';
+import { corsError, corsPreflight, withCors } from '@/server/delivery-http';
 import { createLinkCode, linkCodeRequestSchema } from '@/server/linking';
 import { recordLinkRequest } from '@/server/player-tokens';
 
@@ -15,8 +15,9 @@ export const dynamic = 'force-dynamic';
  * obtenu ne donne accès qu'aux achats du compte Wolleen qui a saisi le code (cf. server/player-tokens.ts).
  */
 export async function POST(req: Request) {
-  const auth = await authenticateApi(req);
-  if (!auth) return unauthorized();
+  const guard = await guardApi(req, 'link-codes');
+  if (!guard.ok) return guard.res;
+  const auth = guard.auth;
 
   let body: unknown;
   try {

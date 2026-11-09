@@ -1,7 +1,7 @@
 import type { PurchaseEvent } from '@wolleen/core';
-import { authenticateApi } from '@/server/api-key';
+import { STREAM_LIMITS, acquireStreamSlot, guardApi } from '@/server/api-rate-limit';
 import { ensureDevRetryLoop, markFetchedBySdk, takeOpenDeliveries } from '@/server/delivery';
-import { CORS_HEADERS, corsPreflight, resolvePlayerScope, unauthorized } from '@/server/delivery-http';
+import { CORS_HEADERS, corsPreflight, resolvePlayerScope } from '@/server/delivery-http';
 import { subscribe } from '@/server/events';
 
 export const runtime = 'nodejs';
@@ -16,19 +16,25 @@ const HEARTBEAT_MS = 15_000;
  * Envoie d'abord l'arriéré (pending + delivered non acquittées), puis chaque nouvel événement en direct
  * (`event: purchase`, `id: <delivery_id>`, `data: <PurchaseEvent>` — achat ou remboursement), et `: ping` toutes les 15 s.
  * La clé n'est jamais acceptée dans l'URL (EventSource natif : utiliser le SDK, qui lit le flux via fetch).
+ * Limites : débit par IP et par clé (guardApi), flux simultanés par joueur et par clé (429 `too_many_streams`),
+ * durée maximale STREAM_LIMITS.maxDurationMs (le flux est fermé, le client se reconnecte et rattrape l'arriéré).
  */
 export async function GET(req: Request) {
   ensureDevRetryLoop();
-  const auth = await authenticateApi(req);
-  if (!auth) return unauthorized();
+  const guard = await guardApi(req, 'stream');
+  if (!guard.ok) return guard.res;
+  const auth = guard.auth;
   const target = resolvePlayerScope(auth, req, { requirePlayerId: true });
   if (!target.ok) return target.res;
   const playerId = target.playerId!;
   const buyer = target.scope?.userId;
   const game = auth.game;
 
+  const slot = acquireStreamSlot(auth, playerId);
+  if (!slot.ok) return slot.res;
   const encoder = new TextEncoder();
-  let cleanup = () => {};
+  // Libère la place même si le flux se termine avant que `start` ait posé le nettoyage complet.
+  let cleanup = slot.release;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -61,10 +67,13 @@ export async function GET(req: Request) {
         markFetchedBySdk(game, [e.delivery_id]).catch(() => {});
       });
       const heartbeat = setInterval(() => send(': ping\n\n'), HEARTBEAT_MS);
+      const maxDuration = setTimeout(() => cleanup(), STREAM_LIMITS.maxDurationMs);
       cleanup = () => {
         if (closed) return;
         closed = true;
         clearInterval(heartbeat);
+        clearTimeout(maxDuration);
+        slot.release();
         unsubscribe();
         try {
           controller.close();

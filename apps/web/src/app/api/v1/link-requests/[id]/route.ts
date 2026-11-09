@@ -1,5 +1,5 @@
-import { authenticateApi } from '@/server/api-key';
-import { corsError, corsPreflight, unauthorized, withCors } from '@/server/delivery-http';
+import { guardApi } from '@/server/api-rate-limit';
+import { corsError, corsPreflight, withCors } from '@/server/delivery-http';
 import { getLinkRequest } from '@/server/player-tokens';
 
 export const runtime = 'nodejs';
@@ -13,8 +13,9 @@ export const dynamic = 'force-dynamic';
  * à conserver par le jeu (stockage local) et à envoyer dans `Wolleen-Player-Token`. Clé secrète : statut seulement.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await authenticateApi(req);
-  if (!auth) return unauthorized();
+  const guard = await guardApi(req, 'link-requests');
+  if (!guard.ok) return guard.res;
+  const auth = guard.auth;
   const { id } = await params;
   const r = await getLinkRequest(auth, id);
   if (!r) return corsError(404, 'link_request_not_found', 'Demande de liaison introuvable pour ce jeu.');
