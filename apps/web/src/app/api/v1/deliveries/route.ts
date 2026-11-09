@@ -1,6 +1,6 @@
-import { authenticateApi } from '@/server/api-key';
+import { guardApi } from '@/server/api-rate-limit';
 import { ensureDevRetryLoop, takeOpenDeliveries } from '@/server/delivery';
-import { corsPreflight, resolvePlayerScope, unauthorized, withCors } from '@/server/delivery-http';
+import { corsPreflight, resolvePlayerScope, withCors } from '@/server/delivery-http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,8 +12,9 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request) {
   ensureDevRetryLoop();
-  const auth = await authenticateApi(req);
-  if (!auth) return unauthorized();
+  const guard = await guardApi(req, 'deliveries');
+  if (!guard.ok) return guard.res;
+  const auth = guard.auth;
   const target = resolvePlayerScope(auth, req, { requirePlayerId: true });
   if (!target.ok) return target.res;
   const data = await takeOpenDeliveries(auth.game, target.playerId!, 100, { userId: target.scope?.userId });

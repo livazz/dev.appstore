@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, hashApiKey } from '@wolleen/core';
 import { createTestDb } from '@wolleen/db/testing';
 import { eq, games, items, orders, studioMembers, studios, user, type DB } from '@wolleen/db';
@@ -15,8 +15,10 @@ import {
   updateGameInfo,
   updateItemFor,
   listStudioGames,
+  imageUrlSchema,
   type ItemInput,
 } from './studio-logic';
+import { s3PublicBase, uploaderOfUrl } from './image-upload';
 
 let t: DB;
 
@@ -66,7 +68,11 @@ describe('createGameFor', () => {
     expect(a.game.currency).toBe('USD');
     expect(a.game.theme).toEqual(DEFAULT_THEME);
     expect(a.game.webhookSecret).toMatch(/^whsec_/);
-    expect(a.apiKey).toMatch(/^wk_live_/);
+    expect(a.apiKey).toMatch(/^wk_secret_/);
+    // Clé publique générée dès la création (SDK client sans serveur), distincte d'un jeu à l'autre.
+    expect(a.game.publishableKey).toMatch(/^wk_pub_/);
+    expect(b.game.publishableKey).toMatch(/^wk_pub_/);
+    expect(a.game.publishableKey).not.toBe(b.game.publishableKey);
     // La clé en clair n'est pas stockée.
     expect(a.game.apiKeyHash).toBe(hashApiKey(a.apiKey));
     expect(JSON.stringify(a.game)).not.toContain(a.apiKey);
@@ -232,5 +238,53 @@ describe('statut et suppression du jeu', () => {
     await deleteGameById(t, g.id);
     expect(await t.select().from(games).where(eq(games.id, g.id))).toHaveLength(0);
     expect(await t.select().from(items).where(eq(items.id, it1.id))).toHaveLength(0);
+  });
+});
+
+describe('CHK-UPL-07 : imageUrlSchema n’accepte que les URL de notre stockage', () => {
+  const KEY = 'icon/usr_dev/0b5e3c1a-1111-4222-8333-444455556666.webp';
+  const ok = (u: string) => imageUrlSchema.safeParse(u).success;
+  const prev = process.env.S3_PUBLIC_URL;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.S3_PUBLIC_URL;
+    else process.env.S3_PUBLIC_URL = prev;
+  });
+
+  it('stockage local : /api/uploads/<kind>/<utilisateur>/<id>.webp ; data:image de démo', () => {
+    delete process.env.S3_PUBLIC_URL;
+    expect(ok(`/api/uploads/${KEY}`)).toBe(true);
+    expect(ok('data:image/svg+xml;utf8,%3Csvg%3E')).toBe(true);
+    expect(ok(`/api/uploads/../auth/x.webp`)).toBe(false);
+    expect(ok(`/api/uploads/icon/usr_dev/x.png`)).toBe(false);
+    expect(ok(`/api/auth/sign-out`)).toBe(false);
+  });
+
+  it('refuse toute URL https tierce, même avec un chemin de clé valide', () => {
+    delete process.env.S3_PUBLIC_URL;
+    expect(ok(`https://pistage.tld/${KEY}`)).toBe(false);
+    expect(ok(`https://cdn.example.com/${KEY}`)).toBe(false);
+    expect(ok(`//cdn.example.com/${KEY}`)).toBe(false);
+    expect(ok('javascript:alert(1)')).toBe(false);
+  });
+
+  it('S3/R2 : accepte <S3_PUBLIC_URL>/<clé> et rien d’autre sur cet hôte ou un hôte voisin', () => {
+    process.env.S3_PUBLIC_URL = 'https://cdn.example.com/assets/';
+    expect(ok(`https://cdn.example.com/assets/${KEY}`)).toBe(true);
+    expect(uploaderOfUrl(`https://cdn.example.com/assets/${KEY}`)).toBe('usr_dev');
+    expect(ok(`https://cdn.example.com/${KEY}`)).toBe(false);
+    expect(ok(`https://cdn.example.com/assets/../${KEY}`)).toBe(false);
+    expect(ok(`https://cdn.example.com.evil.tld/assets/${KEY}`)).toBe(false);
+    expect(ok(`https://cdn.example.com/assetsx/${KEY}`)).toBe(false);
+    expect(ok(`https://cdn.example.com/assets/${KEY}?x=1`)).toBe(false);
+    expect(ok(`https://pistage.tld/${KEY}`)).toBe(false);
+    // L'upload local reste accepté (images déjà enregistrées avant la bascule S3).
+    expect(ok(`/api/uploads/${KEY}`)).toBe(true);
+  });
+
+  it('ignore une S3_PUBLIC_URL invalide (pas de base « javascript: » ni avec identifiants)', () => {
+    expect(s3PublicBase('javascript:alert(1)')).toBeNull();
+    expect(s3PublicBase('https://u:p@cdn.example.com')).toBeNull();
+    expect(s3PublicBase('  ')).toBeNull();
+    expect(s3PublicBase('https://cdn.example.com//')).toBe('https://cdn.example.com');
   });
 });

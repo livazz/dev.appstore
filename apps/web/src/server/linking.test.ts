@@ -524,3 +524,50 @@ describe('revue de sécurité — liaison', () => {
     expect(await D.db.select().from(D.gameLinks).where(D.eq(D.gameLinks.id, r.link.id))).toHaveLength(1);
   });
 });
+
+describe('revue de sécurité (int/security) — liaison', () => {
+  it('désliaison : révoque les jetons joueur du couple (compte, jeu), pas ceux des autres', async () => {
+    const [owner, other] = [await newUser(), await newUser()];
+    const { code } = await issue(gameA, 'p-unlink-tok');
+    const r = await L.redeemLinkCode(owner, gameA, code, { now: at(1000) });
+    if (!r.ok) throw new Error(r.message);
+    const tok = (id: string, userId: string, gameId: string) => ({ id, gameId, playerId: 'p-unlink-tok', userId, tokenHash: `h_${id}` });
+    await D.db.insert(D.playerTokens).values([
+      tok('ptk_own_a1', owner, gameA.id),
+      tok('ptk_own_a2', owner, gameA.id),
+      tok('ptk_own_b', owner, gameB.id),
+      tok('ptk_other_a', other, gameA.id),
+    ]);
+    expect(await L.unlinkGameLink(owner, r.link.id, at(5000))).toBe(true);
+    const rows = await D.db.select({ id: D.playerTokens.id, revokedAt: D.playerTokens.revokedAt }).from(D.playerTokens);
+    const revoked = Object.fromEntries(rows.map((t) => [t.id, t.revokedAt]));
+    expect(revoked.ptk_own_a1).toEqual(at(5000));
+    expect(revoked.ptk_own_a2).toEqual(at(5000));
+    expect(revoked.ptk_own_b).toBeNull();
+    expect(revoked.ptk_other_a).toBeNull();
+  });
+
+  it('désliaison refusée (lien d’un autre) : aucun jeton révoqué', async () => {
+    const [owner, other] = [await newUser(), await newUser()];
+    const { code } = await issue(gameB, 'p-unlink-keep');
+    const r = await L.redeemLinkCode(owner, gameB, code, { now: at(1000) });
+    if (!r.ok) throw new Error(r.message);
+    await D.db.insert(D.playerTokens).values({ id: 'ptk_keep', gameId: gameB.id, playerId: 'p-unlink-keep', userId: owner, tokenHash: 'h_keep' });
+    expect(await L.unlinkGameLink(other, r.link.id)).toBe(false);
+    const [t] = await D.db.select().from(D.playerTokens).where(D.eq(D.playerTokens.id, 'ptk_keep'));
+    expect(t.revokedAt).toBeNull();
+  });
+
+  it('code demandé avec la clé publique → lien déclaratif (verified = 0) ; clé secrète → vérifié', async () => {
+    const user = await newUser();
+    const pub = await issue(gameA, 'p-src-pub');
+    await D.db.update(D.linkCodes).set({ source: 'publishable' }).where(D.eq(D.linkCodes.code, pub.code));
+    const r1 = await L.redeemLinkCode(user, gameA, pub.code, { now: at(1000) });
+    expect(r1.ok && r1.link).toMatchObject({ playerId: 'p-src-pub', method: 'code', verified: 0 });
+
+    const sec = await issue(gameB, 'p-src-sec');
+    await D.db.update(D.linkCodes).set({ source: 'secret' }).where(D.eq(D.linkCodes.code, sec.code));
+    const r2 = await L.redeemLinkCode(user, gameB, sec.code, { now: at(1000) });
+    expect(r2.ok && r2.link).toMatchObject({ playerId: 'p-src-sec', verified: 1 });
+  });
+});

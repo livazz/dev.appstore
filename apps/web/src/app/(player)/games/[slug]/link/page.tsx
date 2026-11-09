@@ -105,12 +105,10 @@ export default async function LinkPage({
 
           {methods.includes('code') && (
             <section className={`${card} mt-6`} aria-labelledby="method-code">
-              <div className="flex items-center justify-between gap-3">
-                <h2 id="method-code" className="text-base font-semibold text-ink">
-                  Avec le code affiché dans le jeu
-                </h2>
-                <VerifiedBadge verified />
-              </div>
+              {/* Pas de badge « Vérifié » ici : un code demandé par le client du jeu (clé publique) donne un lien déclaratif. */}
+              <h2 id="method-code" className="text-base font-semibold text-ink">
+                Avec le code affiché dans le jeu
+              </h2>
               <p className="mt-1 text-sm text-ink-2">
                 Dans {game.name}, ouvrez la boutique web ou les réglages du compte et choisissez « Lier à Wolleen » : un code de 8
                 caractères s&apos;affiche. Il est valable {ttlMin} minutes.

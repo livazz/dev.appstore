@@ -14,7 +14,7 @@ import {
   type LinkMethod,
   type PlayerLookupResponse,
 } from '@wolleen/core';
-import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttempts, linkCodes, lt, sql, studioMembers, type DB } from '@wolleen/db';
+import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttempts, linkCodes, lt, playerTokens, sql, studioMembers, type DB } from '@wolleen/db';
 
 /*
  * Liaison d'un compte Wolleen à un compte de jeu (tâche « linking »). Point de sécurité critique :
@@ -256,8 +256,12 @@ export async function redeemLinkCode(
     await tx.insert(linkAttempts).values({
       id: newId('lat'), userId, gameId: game.id, kind: 'code', ok: 1, playerId: consumed.playerId, playerName: consumed.playerName, usedAt: now, createdAt: now,
     });
+    // Un code demandé avec la clé PUBLIQUE (client du jeu sans serveur) peut être fabriqué par n'importe qui pour
+    // n'importe quel player_id : le lien est alors déclaratif (verified = 0). Seul un code demandé par le serveur
+    // du studio (clé secrète) atteste que le compte de jeu appartient au joueur.
+    const verified = consumed.source === 'publishable' ? 0 : 1;
     const link = await upsertGameLink(tx, {
-      userId, gameId: game.id, playerId: consumed.playerId, playerName: consumed.playerName, method: 'code', verified: 1, now,
+      userId, gameId: game.id, playerId: consumed.playerId, playerName: consumed.playerName, method: 'code', verified, now,
     });
     return { ok: true, link };
   });
@@ -638,13 +642,23 @@ export async function listUserGameLinks(userId: string) {
     .orderBy(asc(games.name));
 }
 
-/** Délier : uniquement un lien appartenant à l'utilisateur. */
-export async function unlinkGameLink(userId: string, linkId: string) {
-  const rows = await db
-    .delete(gameLinks)
-    .where(and(eq(gameLinks.id, linkId), eq(gameLinks.userId, userId)))
-    .returning({ id: gameLinks.id });
-  return rows.length > 0;
+/**
+ * Délier : uniquement un lien appartenant à l'utilisateur. Révoque dans la même transaction les jetons joueur
+ * (SDK client) encore actifs du couple (compte, jeu) : après la désliaison, l'appareil ne voit plus aucun achat.
+ */
+export async function unlinkGameLink(userId: string, linkId: string, now = new Date()) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .delete(gameLinks)
+      .where(and(eq(gameLinks.id, linkId), eq(gameLinks.userId, userId)))
+      .returning({ id: gameLinks.id, gameId: gameLinks.gameId });
+    if (!row) return false;
+    await tx
+      .update(playerTokens)
+      .set({ revokedAt: now })
+      .where(and(eq(playerTokens.userId, userId), eq(playerTokens.gameId, row.gameId), isNull(playerTokens.revokedAt)));
+    return true;
+  });
 }
 
 /* ------------------------------------------------------------------------------------------------ */

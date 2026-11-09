@@ -1,5 +1,5 @@
-import { authenticateApi } from '@/server/api-key';
-import { corsPreflight, missingPlayerId, playerTokenRequired, readPlayerId, unauthorized, withCors } from '@/server/delivery-http';
+import { guardApi } from '@/server/api-rate-limit';
+import { corsPreflight, missingPlayerId, playerTokenRequired, readPlayerId, withCors } from '@/server/delivery-http';
 import { revokePlayerToken, revokePlayerTokens } from '@/server/player-tokens';
 
 export const runtime = 'nodejs';
@@ -11,8 +11,9 @@ export const dynamic = 'force-dynamic';
  * - Clé secrète + `?player_id=` : révoque tous les jetons de ce joueur (serveur du studio) → { ok: true, revoked: n }.
  */
 export async function DELETE(req: Request) {
-  const auth = await authenticateApi(req);
-  if (!auth) return unauthorized();
+  const guard = await guardApi(req, 'player-tokens');
+  if (!guard.ok) return guard.res;
+  const auth = guard.auth;
   if (auth.kind === 'publishable') {
     if (!auth.player) return playerTokenRequired();
     const revoked = (await revokePlayerToken(auth.player.tokenId)) ? 1 : 0;

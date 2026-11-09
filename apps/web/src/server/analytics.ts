@@ -1,7 +1,7 @@
 import 'server-only';
-import { savingsVsStores, type Currency, type DeliveryStatus, type OrderStatus } from '@wolleen/core';
+import { REDUCED_STORE_FEE_BPS, STORE_FEE_OPTIONS_BPS, feeCents, type Currency, type DeliveryStatus, type OrderStatus } from '@wolleen/core';
 import type { AnyColumn } from 'drizzle-orm';
-import { and, db, deliveries, desc, eq, games, inArray, orders, sql, type DB } from '@wolleen/db';
+import { and, db, deliveries, desc, eq, games, gt, inArray, orders, sql, type DB } from '@wolleen/db';
 
 /*
  * Agrégations de ventes (espace studio) et historique d'achats (joueur). Tâche « analytics ».
@@ -60,6 +60,29 @@ function inWindow(w: SalesWindow) {
   return and(sql`${localTs(w.tz)} >= ${w.startDay}::timestamp`, sql`${saleTs} <= ${w.now.toISOString()}::timestamp`);
 }
 
+/**
+ * Une vente = commande à montant positif. Les commandes à 0 € (objets bonus de fidélité, livrés par le même canal)
+ * n'entrent ni dans le revenu, ni dans le nombre d'achats, ni dans le panier moyen, les meilleures ventes ou l'export.
+ */
+const isSale = gt(orders.amountCents, 0);
+const paidSale = and(eq(orders.status, 'paid'), isSale);
+
+/**
+ * Commission store de référence pour « Gagné en plus » : taux réduit (15 %) par défaut — le cas le plus courant
+ * (petits studios, abonnements après un an, cf. docs/legal/stores.md) et la comparaison la plus prudente ; 30 % au choix.
+ */
+export const DEFAULT_SALES_STORE_FEE_BPS: number = REDUCED_STORE_FEE_BPS;
+
+/** Taux store accepté (un des STORE_FEE_OPTIONS_BPS), sinon le taux par défaut. */
+export function resolveStoreFeeBps(bps: number | null | undefined): number {
+  return typeof bps === 'number' && (STORE_FEE_OPTIONS_BPS as readonly number[]).includes(bps) ? bps : DEFAULT_SALES_STORE_FEE_BPS;
+}
+
+/** « 15 % », « 30 % » (libellé du taux affiché à côté de l'économie). */
+export function storeFeeLabel(bps: number) {
+  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(bps / 100)} %`;
+}
+
 const sumOf = (col: AnyColumn) => sql<number>`coalesce(sum(${col}), 0)`.mapWith(Number);
 const countRows = sql<number>`count(*)`.mapWith(Number);
 
@@ -70,18 +93,20 @@ export interface SalesTotals {
   /** Commission Wolleen réellement prélevée (somme de platform_fee_cents). */
   platformFeeCents: number;
   netCents: number;
-  /** Ce que le studio aurait payé en plus via l'App Store / Google Play (30 %). */
+  /** Ce que le studio aurait payé en plus via l'App Store / Google Play au taux `storeFeeBps`. */
   savingsCents: number;
+  /** Commission store de référence utilisée pour `savingsCents` (points de base, un des STORE_FEE_OPTIONS_BPS). */
+  storeFeeBps: number;
   avgCents: number;
 }
 
-export function emptyTotals(currency: Currency): SalesTotals {
-  return { currency, count: 0, grossCents: 0, platformFeeCents: 0, netCents: 0, savingsCents: 0, avgCents: 0 };
+export function emptyTotals(currency: Currency, storeFeeBps = DEFAULT_SALES_STORE_FEE_BPS): SalesTotals {
+  return { currency, count: 0, grossCents: 0, platformFeeCents: 0, netCents: 0, savingsCents: 0, storeFeeBps, avgCents: 0 };
 }
 
-function toTotals(currency: Currency, count: number, gross: number, fee: number): SalesTotals {
-  // savingsVsStores(gross, 0) = commission store complète ; on retranche la commission Wolleen réelle.
-  const savings = savingsVsStores(gross, 0) - fee;
+function toTotals(currency: Currency, count: number, gross: number, fee: number, storeFeeBps: number): SalesTotals {
+  // Commission store évitée au taux choisi, moins la commission Wolleen réellement prélevée (jamais négatif).
+  const savings = feeCents(gross, storeFeeBps) - fee;
   return {
     currency,
     count,
@@ -89,22 +114,27 @@ function toTotals(currency: Currency, count: number, gross: number, fee: number)
     platformFeeCents: fee,
     netCents: gross - fee,
     savingsCents: Math.max(0, savings),
+    storeFeeBps,
     avgCents: count ? Math.round(gross / count) : 0,
   };
 }
 
-/** Totaux de la fenêtre, une ligne par devise (la devise du jeu en premier, même vide). */
-export async function getSalesTotals(gameId: string, opts: WindowOptions, database: DB = db): Promise<SalesTotals[]> {
+/**
+ * Totaux de la fenêtre, une ligne par devise (la devise du jeu en premier, même vide).
+ * `storeFeeBps` : commission store de comparaison (STORE_FEE_OPTIONS_BPS ; 15 % par défaut).
+ */
+export async function getSalesTotals(gameId: string, opts: WindowOptions & { storeFeeBps?: number }, database: DB = db): Promise<SalesTotals[]> {
   const w = salesWindow(opts);
+  const storeFeeBps = resolveStoreFeeBps(opts.storeFeeBps);
   const [game] = await database.select({ currency: games.currency }).from(games).where(eq(games.id, gameId));
   const rows = await database
     .select({ currency: orders.currency, count: countRows, gross: sumOf(orders.amountCents), fee: sumOf(orders.platformFeeCents) })
     .from(orders)
-    .where(and(eq(orders.gameId, gameId), eq(orders.status, 'paid'), inWindow(w)))
+    .where(and(eq(orders.gameId, gameId), paidSale, inWindow(w)))
     .groupBy(orders.currency);
-  const totals = rows.map((r) => toTotals(r.currency, r.count, r.gross, r.fee));
+  const totals = rows.map((r) => toTotals(r.currency, r.count, r.gross, r.fee, storeFeeBps));
   const main = game?.currency ?? totals[0]?.currency ?? 'EUR';
-  const first = totals.find((t) => t.currency === main) ?? emptyTotals(main);
+  const first = totals.find((t) => t.currency === main) ?? emptyTotals(main, storeFeeBps);
   return [first, ...totals.filter((t) => t.currency !== main).sort((a, b) => b.grossCents - a.grossCents)];
 }
 
@@ -120,7 +150,7 @@ export async function getDailyRevenue(gameId: string, currency: Currency, opts: 
   const rows = await database
     .select({ day: localDayExpr(w.tz), gross: sumOf(orders.amountCents), count: countRows })
     .from(orders)
-    .where(and(eq(orders.gameId, gameId), eq(orders.status, 'paid'), eq(orders.currency, currency), inWindow(w)))
+    .where(and(eq(orders.gameId, gameId), paidSale, eq(orders.currency, currency), inWindow(w)))
     .groupBy(sql`1`);
   const byDay = new Map(rows.map((r) => [r.day, r]));
   return w.dayList.map((day) => ({ day, grossCents: byDay.get(day)?.gross ?? 0, count: byDay.get(day)?.count ?? 0 }));
@@ -148,7 +178,7 @@ export async function getTopItems(gameId: string, currency: Currency, opts: Wind
       grossCents: sumOf(orders.amountCents),
     })
     .from(orders)
-    .where(and(eq(orders.gameId, gameId), eq(orders.status, 'paid'), eq(orders.currency, currency), inWindow(w)))
+    .where(and(eq(orders.gameId, gameId), paidSale, eq(orders.currency, currency), inWindow(w)))
     .groupBy(orders.itemId, orders.productId)
     .orderBy(desc(sql`sum(${orders.amountCents})`), desc(countRows))
     .limit(opts.limit ?? 5);
@@ -189,7 +219,7 @@ export async function getTransactions(gameId: string, opts: WindowOptions & { li
     })
     .from(orders)
     .leftJoin(deliveries, eq(deliveries.orderId, orders.id))
-    .where(and(eq(orders.gameId, gameId), inArray(orders.status, VISIBLE_STATUSES), inWindow(w)))
+    .where(and(eq(orders.gameId, gameId), inArray(orders.status, VISIBLE_STATUSES), isSale, inWindow(w)))
     .orderBy(desc(saleTs), desc(orders.id));
   return opts.limit ? q.limit(opts.limit) : q;
 }

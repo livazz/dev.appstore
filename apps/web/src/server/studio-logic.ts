@@ -5,13 +5,13 @@ import {
   GAME_CATEGORIES,
   GRID_LIMITS,
   PRICE_TIERS_CENTS,
-  hashApiKey,
   newId,
   randomToken,
   slugify,
   type GameTheme,
 } from '@wolleen/core';
 import { and, asc, count, eq, games, gte, inArray, items, orders, studioMembers, studios, sum, type DB } from '@wolleen/db';
+import { generatePublishableKey, generateSecretApiKey } from './api-key';
 import { uploaderOfUrl, uploaderSegment } from './image-upload';
 
 /*
@@ -40,10 +40,11 @@ const hexOrNone = z.union([hex, z.literal('transparent')]);
 const DATA_IMAGE_RE = /^data:image\/(png|jpeg|webp|gif|avif|svg\+xml)[;,]/i;
 
 /**
- * URL d'image acceptée (CHK-UPL-07, T-UPL-05) : fichier téléversé sur Wolleen (/api/uploads/<kind>/<utilisateur>/<id>.webp)
- * ou data URL d'image (visuels de démo, toujours affichés dans <img> : aucun script exécuté). Les URL externes
- * (pistage des joueurs, contenu modifiable après coup) et les autres chemins du site (requêtes GET déclenchées par
- * <img>) sont refusés.
+ * URL d'image acceptée (CHK-UPL-07, T-UPL-05) : uniquement un fichier produit par notre stockage — disque local
+ * (/api/uploads/<kind>/<utilisateur>/<id>.webp) ou S3/R2 (<S3_PUBLIC_URL>/<kind>/<utilisateur>/<id>.webp) —, ou une
+ * data URL d'image (visuels de démo du seed, toujours affichés dans <img> : aucune requête ni script). Les URL https
+ * tierces (pistage des joueurs, contenu modifiable après coup) et les autres chemins du site (requêtes GET déclenchées
+ * par <img>) sont refusés.
  */
 export const imageUrlSchema = z
   .string()
@@ -179,7 +180,9 @@ export async function createGameFor(database: DB, userId: string, input: NewGame
   const studio = await findCreatorStudio(database, userId);
   if (!studio) throw new StudioError("Vous devez d'abord créer ou rejoindre un studio.");
 
-  const apiKey = randomToken('wk_live_');
+  // Clé secrète au format actuel (`wk_secret_…`, D-05) et clé publique (`wk_pub_…`) générées dès la création :
+  // un jeu sans serveur peut intégrer le SDK client sans passer par une génération différée.
+  const { key: apiKey, hash: apiKeyHash, prefix: apiKeyPrefix } = generateSecretApiKey();
   const id = newId('gam');
   const [game] = await database
     .insert(games)
@@ -194,8 +197,9 @@ export async function createGameFor(database: DB, userId: string, input: NewGame
       theme: DEFAULT_THEME,
       status: 'draft',
       webhookSecret: randomToken('whsec_'),
-      apiKeyHash: hashApiKey(apiKey),
-      apiKeyPrefix: apiKey.slice(0, 12),
+      apiKeyHash,
+      apiKeyPrefix,
+      publishableKey: generatePublishableKey(),
     })
     .returning();
   return { game: game!, apiKey };

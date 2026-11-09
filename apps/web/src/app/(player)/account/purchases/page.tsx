@@ -2,19 +2,34 @@ import Link from 'next/link';
 import { formatMoney } from '@wolleen/core';
 import { requireUser } from '@/server/session';
 import { getPlayerPurchases } from '@/server/analytics';
+import { WITHDRAWAL_ERROR_MESSAGES, withdrawableOrderIds, type WithdrawalErrorCode } from '@/server/withdrawal';
 import { formatDateTime, playerDeliveryLabel, TONE_CLASSES } from '@/lib/analytics-format';
+import { confirmWithdrawal } from './actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Mes achats — Wolleen' };
 
 const PAGE_SIZE = 25;
+const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
 export default async function PurchasesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireUser('/account/purchases');
-  const raw = (await searchParams).page;
-  const page = Math.max(1, Math.floor(Number(Array.isArray(raw) ? raw[0] : raw)) || 1);
+  const sp = await searchParams;
+  const page = Math.max(1, Math.floor(Number(first(sp.page))) || 1);
   const { rows, total } = await getPlayerPurchases(user.id, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Bouton « Me rétracter » : commande payée, livraison pas encore effectuée, passée il y a moins de 14 jours.
+  const withdrawable = await withdrawableOrderIds(user.id, rows.map((r) => r.id));
+  const confirming = rows.find((r) => r.id === first(sp.withdraw) && withdrawable.has(r.id));
+  const withdrawnId = first(sp.withdrawn);
+  const withdrawn = withdrawnId ? rows.find((r) => r.id === withdrawnId) : undefined;
+  const errorCode = first(sp.withdrawal_error);
+  const withdrawalError = errorCode && errorCode in WITHDRAWAL_ERROR_MESSAGES ? WITHDRAWAL_ERROR_MESSAGES[errorCode as WithdrawalErrorCode] : null;
+  const withPage = (extra: Record<string, string>) => {
+    const p = new URLSearchParams(extra);
+    if (page > 1) p.set('page', String(page));
+    return `?${p.toString()}`;
+  };
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
@@ -28,7 +43,47 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
             {total ? `${total.toLocaleString('fr-FR')} achat${total > 1 ? 's' : ''}` : 'Votre historique d’achats et le suivi de livraison dans vos jeux.'}
           </p>
         </div>
+        <Link href="/legal/retractation" className="text-sm text-primary hover:underline">
+          Vos droits de rétractation
+        </Link>
       </div>
+
+      {withdrawnId && (
+        <p role="status" className="mb-4 rounded-[var(--radius)] border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ink">
+          Rétractation enregistrée{withdrawn ? ` pour « ${withdrawn.itemTitle} »` : ''} : la livraison est annulée et vous êtes remboursé
+          intégralement, par le même moyen de paiement (sous 14 jours au plus, généralement quelques jours selon votre banque).
+        </p>
+      )}
+      {withdrawalError && (
+        <p role="alert" className="mb-4 rounded-[var(--radius)] border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-ink">
+          {withdrawalError}
+        </p>
+      )}
+
+      {confirming && (
+        <section aria-labelledby="withdraw-title" className="mb-5 rounded-[var(--radius)] border border-warn/40 bg-warn/10 p-5">
+          <h2 id="withdraw-title" className="text-base font-semibold text-ink">
+            Se rétracter de cet achat
+          </h2>
+          <p className="mt-1 text-sm text-ink-2">
+            « {confirming.itemTitle} »{confirming.quantity > 1 ? ` ×${confirming.quantity}` : ''} — {confirming.gameName}, acheté le{' '}
+            {formatDateTime(confirming.date)} pour {formatMoney(confirming.amountCents, confirming.currency)}.
+          </p>
+          <p className="mt-2 text-sm text-ink-2">
+            L’achat n’a pas encore été livré dans le jeu : en confirmant, la livraison est annulée et vous êtes remboursé de{' '}
+            {formatMoney(confirming.amountCents, confirming.currency)}.
+          </p>
+          <form action={confirmWithdrawal} className="mt-4 flex flex-wrap justify-end gap-3">
+            <input type="hidden" name="orderId" value={confirming.id} />
+            <Link href={withPage({})} className="inline-flex min-h-11 items-center rounded-lg border border-line bg-surface px-4 text-sm hover:bg-bg">
+              Annuler
+            </Link>
+            <button type="submit" className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:opacity-90">
+              Confirmer la rétractation
+            </button>
+          </form>
+        </section>
+      )}
 
       {rows.length === 0 ? (
         <div className="rounded-[var(--radius)] border border-line bg-surface p-10 text-center">
@@ -67,6 +122,14 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
                     {formatMoney(p.amountCents, p.currency)}
                   </span>
                   <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[s.tone]}`}>{s.label}</span>
+                  {withdrawable.has(p.id) && (
+                    <Link
+                      href={withPage({ withdraw: p.id })}
+                      className="inline-flex min-h-11 items-center text-xs font-medium text-primary underline-offset-2 hover:underline"
+                    >
+                      Me rétracter
+                    </Link>
+                  )}
                 </div>
               </li>
             );
