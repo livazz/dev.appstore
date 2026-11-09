@@ -1,13 +1,14 @@
 import 'server-only';
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { and, db, eq, games, studioMembers, type DB } from '@wolleen/db';
 import type { StudioRole } from '@wolleen/core';
+import { auth } from './auth';
 
 /*
  * CONTRAT PARTAGÉ — signatures stables, utilisées par toutes les tâches.
- * Propriétaire de l'implémentation : tâche « auth » (Better Auth).
- * Implémentation provisoire (vague 0) : utilisateur de démo fixé par le cookie `wolleen_demo_user`
- * (valeurs : usr_demo_player | usr_demo_dev), défaut usr_demo_player.
+ * Implémentation : tâche « auth » (Better Auth, cf. ./auth.ts). La session est lue depuis le cookie
+ * Better Auth de la requête en cours (Server Components, Server Actions, Route Handlers).
  */
 
 export interface SessionUser {
@@ -16,11 +17,15 @@ export interface SessionUser {
   name: string;
 }
 
+/** Lecture de la session dédupliquée sur la durée d'un rendu serveur. */
+const readSession = cache(async (): Promise<SessionUser | null> => {
+  const { headers } = await import('next/headers');
+  const s = await auth.api.getSession({ headers: await headers() });
+  return s ? { id: s.user.id, email: s.user.email, name: s.user.name } : null;
+});
+
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const { cookies } = await import('next/headers');
-  const id = (await cookies()).get('wolleen_demo_user')?.value ?? 'usr_demo_player';
-  const u = await db.query.user.findFirst({ where: (t, { eq }) => eq(t.id, id) });
-  return u ? { id: u.id, email: u.email, name: u.name } : null;
+  return readSession();
 }
 
 /** Redirige vers /login?next=… si non connecté. */
