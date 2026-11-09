@@ -7,6 +7,7 @@ describe('config', () => {
     const seed = readFileSync(new URL('../../../packages/db/src/seed.ts', import.meta.url), 'utf8');
     for (const k of Object.values(DEMO_KEYS)) {
       expect(seed).toContain(`apiKey: '${k.apiKey}'`);
+      expect(seed).toContain(`publishableKey: '${k.publishableKey}'`);
       expect(seed).toContain(`webhookSecret: '${k.webhookSecret}'`);
     }
   });

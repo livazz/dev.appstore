@@ -3,16 +3,23 @@ import type {
   EventSourceCtor,
   EventSourceLike,
   LinkCode,
+  LinkRequestStatus,
   PurchaseEvent,
   PurchaseHandler,
   PurchaseSubscription,
   StorageLike,
+  WaitForLinkOptions,
   WolleenOptions,
 } from './types.js';
 
-export const SDK_VERSION = '0.1.0';
+export const SDK_VERSION = '0.2.0';
 const DEFAULT_BASE_URL = 'https://wolleen.com';
 const PROCESSED_KEEP = 500;
+/** En-tête du jeton joueur (clé publique). */
+export const PLAYER_TOKEN_HEADER = 'Wolleen-Player-Token';
+const PUBLISHABLE_PREFIX = 'wk_pub_';
+/** Sans flux temps réel possible, rattrapage périodique. */
+const FALLBACK_POLL_MS = 30_000;
 
 /** Erreur renvoyée par l'API Wolleen (`{ error: { code, message } }`) ou par le transport. */
 export class WolleenError extends Error {
@@ -26,29 +33,61 @@ export class WolleenError extends Error {
   }
 }
 
-/** Erreurs qui ne se corrigent pas en réessayant (clé invalide, paramètre manquant…). */
+/** Erreurs qui ne se corrigent pas en réessayant (clé invalide, jeton absent, paramètre manquant…). */
 function isFatal(e: unknown) {
   return e instanceof WolleenError && (e.status === 400 || e.status === 401 || e.status === 403 || e.status === 404);
 }
 
+const tokenRequired = () =>
+  new WolleenError('Compte joueur non lié sur cet appareil : appelez requestLinkCode() puis waitForLink().', 401, 'player_token_required');
+
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(new WolleenError('Attente annulée.', 0, 'aborted'));
+    const t = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      reject(new WolleenError('Attente annulée.', 0, 'aborted'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+
 /**
  * Client Wolleen pour le jeu (navigateur, WebView, Node ≥ 20). Aucune dépendance.
  *
+ * Jeu SANS serveur — clé publique + jeton joueur :
  * ```ts
- * const wolleen = new Wolleen({ apiKey: 'wk_…', baseUrl: 'https://wolleen.com' });
- * const sub = wolleen.onPurchase(playerId, async (e) => inventory.add(e.product_id, e.quantity));
+ * const wolleen = new Wolleen({ publishableKey: 'wk_pub_…', baseUrl: 'https://wolleen.com', storage: localStorage });
+ * if (!wolleen.isLinked(playerId)) {
+ *   const link = await wolleen.requestLinkCode(playerId, playerName); // afficher link.code
+ *   await wolleen.waitForLink(link);                                  // jeton joueur mémorisé
+ * }
+ * const sub = wolleen.onPurchase(playerId, async (e) => inventory.apply(e));
  * ```
+ * Serveur du studio (Node) — clé secrète : `new Wolleen({ apiKey: process.env.WOLLEEN_SECRET_KEY })`.
  */
 export class Wolleen {
   readonly baseUrl: string;
+  /** `publishable` : clé publique (client du jeu, jeton joueur requis) ; `secret` : clé secrète (serveur). */
+  readonly keyType: 'publishable' | 'secret';
+  private readonly key: string;
   private readonly opts: Required<Pick<WolleenOptions, 'autoAck' | 'reconnectDelayMs' | 'maxReconnectDelayMs' | 'idleTimeoutMs' | 'timeoutMs'>> &
     WolleenOptions;
   private readonly fetchImpl: typeof fetch;
   /** delivery_id déjà crédités, par joueur. */
   private readonly processed = new Map<string, Set<string>>();
+  /** Jetons joueur connus (cache de `storage`) ; null = absent. */
+  private readonly tokens = new Map<string, string | null>();
+  private readonly tokenListeners = new Map<string, Set<(token: string | null) => void>>();
 
   constructor(options: WolleenOptions) {
-    if (!options?.apiKey) throw new Error('Wolleen : apiKey est obligatoire.');
+    const key = options?.publishableKey || options?.apiKey;
+    if (!key) throw new Error('Wolleen : publishableKey (client du jeu) ou apiKey (serveur) est obligatoire.');
+    this.key = key;
+    this.keyType = key.startsWith(PUBLISHABLE_PREFIX) ? 'publishable' : 'secret';
     this.opts = {
       autoAck: true,
       reconnectDelayMs: 1000,
@@ -63,38 +102,137 @@ export class Wolleen {
     this.fetchImpl = f;
   }
 
-  // ---------------------------------------------------------------- API REST
+  // ---------------------------------------------------------- Liaison et jeton joueur
 
-  /** Demande un code de liaison à afficher dans le jeu ; le joueur le saisit sur Wolleen. */
+  /**
+   * Demande un code de liaison à afficher dans le jeu ; le joueur le saisit sur Wolleen.
+   * Avec la clé publique, passez ensuite le résultat à `waitForLink` pour obtenir le jeton joueur.
+   */
   requestLinkCode(playerId: string, playerName?: string): Promise<LinkCode> {
     const body: Record<string, string> = { player_id: playerId };
     if (playerName) body.player_name = playerName;
     return this.request<LinkCode>('POST', '/api/v1/link-codes', body);
   }
 
-  /** Livraisons pending + delivered non acquittées du joueur. */
+  /** État d'une demande de liaison. Un `player_token` reçu (clé publique, une seule fois) est mémorisé. */
+  async getLinkRequest(linkRequestId: string): Promise<LinkRequestStatus> {
+    const res = await this.request<LinkRequestStatus>('GET', `/api/v1/link-requests/${encodeURIComponent(linkRequestId)}`);
+    if (res?.player_token && res.player_id) this.setPlayerToken(res.player_id, res.player_token);
+    return res;
+  }
+
+  /**
+   * Attend que le joueur ait saisi le code sur Wolleen (interrogation toutes les 3 s) et renvoie le jeton joueur
+   * (clé publique, mémorisé : `onPurchase` démarre alors tout seul) ou null (clé secrète : la liaison est faite).
+   * Lève `WolleenError` : `link_expired` (code expiré), `link_already_claimed`, `link_timeout`, `aborted`.
+   */
+  async waitForLink(link: LinkCode | string, options: WaitForLinkOptions = {}): Promise<string | null> {
+    const id = typeof link === 'string' ? link : link.link_request_id;
+    if (!id) throw new WolleenError('Réponse sans link_request_id : mettez Wolleen à jour.', 0, 'no_link_request');
+    const interval = Math.max(1000, options.intervalMs ?? 3000);
+    const expires = typeof link === 'string' ? NaN : Date.parse(link.expires_at);
+    const deadline = Date.now() + (options.timeoutMs ?? (Number.isFinite(expires) ? Math.max(0, expires - Date.now()) + 30_000 : 11 * 60_000));
+    for (;;) {
+      const r = await this.getLinkRequest(id);
+      if (r.status === 'linked') return r.player_token ?? (this.keyType === 'publishable' && r.player_id ? this.getPlayerToken(r.player_id) : null);
+      if (r.status === 'claimed') {
+        const known = r.player_id ? this.getPlayerToken(r.player_id) : null;
+        if (known) return known;
+        throw new WolleenError('Le jeton de cette liaison a déjà été délivré : demandez un nouveau code.', 409, 'link_already_claimed');
+      }
+      if (r.status === 'expired') throw new WolleenError('Code expiré : demandez-en un nouveau.', 410, 'link_expired');
+      if (Date.now() + interval > deadline) throw new WolleenError('Le code n’a pas été saisi à temps.', 408, 'link_timeout');
+      await sleep(interval, options.signal);
+    }
+  }
+
+  /** Jeton joueur mémorisé pour ce joueur (clé publique), ou null. */
+  getPlayerToken(playerId: string): string | null {
+    if (!this.tokens.has(playerId)) {
+      const stored = safeGet(this.opts.storage, tokenKey(playerId));
+      this.tokens.set(playerId, stored && stored.startsWith('wk_pt_') ? stored : null);
+    }
+    return this.tokens.get(playerId) ?? null;
+  }
+
+  /** Mémorise (ou efface, avec null) le jeton joueur — ex. jeton obtenu par votre propre écran de liaison. */
+  setPlayerToken(playerId: string, token: string | null): void {
+    const before = this.getPlayerToken(playerId);
+    this.tokens.set(playerId, token);
+    if (token) safeSet(this.opts.storage, tokenKey(playerId), token);
+    else safeRemove(this.opts.storage, tokenKey(playerId));
+    if (before === token) return;
+    for (const l of [...(this.tokenListeners.get(playerId) ?? [])]) {
+      try {
+        l(token);
+      } catch (e) {
+        this._reportError(e);
+      }
+    }
+  }
+
+  /** Vrai si les achats de ce joueur sont accessibles (clé secrète, ou jeton joueur présent). */
+  isLinked(playerId: string): boolean {
+    return this.keyType === 'secret' || !!this.getPlayerToken(playerId);
+  }
+
+  /**
+   * Délie : clé publique → révoque le jeton de cet appareil et l'oublie ; clé secrète (serveur) → révoque tous les
+   * jetons joueur de ce player_id. Renvoie le nombre de jetons révoqués côté serveur.
+   */
+  async unlink(playerId: string): Promise<number> {
+    if (this.keyType === 'secret') {
+      const r = await this.request<{ revoked: number }>('DELETE', `/api/v1/player-tokens?player_id=${encodeURIComponent(playerId)}`);
+      return r?.revoked ?? 0;
+    }
+    if (!this.getPlayerToken(playerId)) return 0;
+    try {
+      const r = await this.request<{ revoked: number }>('DELETE', '/api/v1/player-tokens', undefined, playerId);
+      return r?.revoked ?? 0;
+    } catch (e) {
+      if (e instanceof WolleenError && e.code === 'player_token_required') return 0; // déjà révoqué
+      throw e;
+    } finally {
+      this.setPlayerToken(playerId, null);
+    }
+  }
+
+  // ---------------------------------------------------------------- Livraisons
+
+  /** Livraisons pending + delivered non acquittées du joueur (achats et remboursements). */
   async getPendingPurchases(playerId: string): Promise<PurchaseEvent[]> {
-    const res = await this.request<{ data: PurchaseEvent[] }>('GET', `/api/v1/deliveries?player_id=${encodeURIComponent(playerId)}`);
+    const res = await this.request<{ data: PurchaseEvent[] }>('GET', `/api/v1/deliveries?player_id=${encodeURIComponent(playerId)}`, undefined, playerId);
     return Array.isArray(res?.data) ? res.data : [];
   }
 
-  /** Confirme que l'achat a été crédité (statut `acknowledged`). */
-  ack(deliveryId: string): Promise<{ ok: true }> {
-    return this.request<{ ok: true }>('POST', `/api/v1/deliveries/${encodeURIComponent(deliveryId)}/ack`);
+  /**
+   * Confirme que l'achat a été crédité (ou le remboursement appliqué) : statut `acknowledged`.
+   * Clé publique : `playerId` désigne le jeton à utiliser (facultatif si un seul joueur est lié).
+   */
+  ack(deliveryId: string, playerId?: string): Promise<{ ok: true }> {
+    let pid = playerId;
+    if (this.keyType === 'publishable' && pid === undefined) {
+      const linked = [...this.tokens.entries()].filter(([, t]) => !!t).map(([p]) => p);
+      if (linked.length === 1) pid = linked[0];
+    }
+    return this.request<{ ok: true }>('POST', `/api/v1/deliveries/${encodeURIComponent(deliveryId)}/ack`, undefined, pid);
   }
 
-  private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  private async request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown, playerId?: string): Promise<T> {
+    const headers: Record<string, string> = { authorization: `Bearer ${this.key}`, accept: 'application/json' };
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    if (this.keyType === 'publishable' && playerId !== undefined && path.startsWith('/api/v1/') && !path.startsWith('/api/v1/link-')) {
+      const token = this.getPlayerToken(playerId);
+      if (!token) throw tokenRequired();
+      headers[PLAYER_TOKEN_HEADER] = token;
+    }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), this.opts.timeoutMs);
     let res: Response;
     try {
       res = await this.fetchImpl(this.baseUrl + path, {
         method,
-        headers: {
-          authorization: `Bearer ${this.opts.apiKey}`,
-          accept: 'application/json',
-          ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-        },
+        headers,
         body: body !== undefined ? JSON.stringify(body) : method === 'POST' ? '{}' : undefined,
         signal: ctrl.signal,
       });
@@ -112,7 +250,10 @@ export class Wolleen {
     }
     if (!res.ok) {
       const err = (json as { error?: { code?: string; message?: string } } | undefined)?.error;
-      throw new WolleenError(err?.message ?? `HTTP ${res.status}`, res.status, err?.code ?? 'http_error');
+      const error = new WolleenError(err?.message ?? `HTTP ${res.status}`, res.status, err?.code ?? 'http_error');
+      // Jeton révoqué ou invalide : on l'oublie, le jeu doit refaire la liaison.
+      if (error.code === 'player_token_required' && playerId !== undefined && headers[PLAYER_TOKEN_HEADER]) this.setPlayerToken(playerId, null);
+      throw error;
     }
     return json as T;
   }
@@ -124,6 +265,8 @@ export class Wolleen {
    * quand l'onglet redevient visible. Chaque `delivery_id` n'est passé qu'une fois au handler ; après sa
    * résolution, l'achat est acquitté automatiquement (`autoAck`). Si le handler lève une erreur, rien n'est
    * acquitté : la livraison sera proposée de nouveau au prochain rattrapage.
+   * Clé publique sans jeton : l'abonnement attend la liaison (`waitForLink`) et démarre tout seul ensuite ;
+   * un jeton révoqué le remet en attente.
    */
   onPurchase(playerId: string, handler: PurchaseHandler): PurchaseSubscription {
     if (!playerId) throw new Error('Wolleen : playerId est obligatoire.');
@@ -132,7 +275,15 @@ export class Wolleen {
 
   /** @internal */
   _ctx() {
-    return { opts: this.opts, fetchImpl: this.fetchImpl, baseUrl: this.baseUrl };
+    return { opts: this.opts, fetchImpl: this.fetchImpl, baseUrl: this.baseUrl, key: this.key, keyType: this.keyType };
+  }
+
+  /** @internal */
+  _onTokenChange(playerId: string, listener: (token: string | null) => void): () => void {
+    let set = this.tokenListeners.get(playerId);
+    if (!set) this.tokenListeners.set(playerId, (set = new Set()));
+    set.add(listener);
+    return () => set!.delete(listener);
   }
 
   /** @internal Ensemble des livraisons déjà traitées (chargé depuis `storage`). */
@@ -175,6 +326,7 @@ export class Wolleen {
 }
 
 const storageKey = (playerId: string) => `wolleen:processed:${playerId}`;
+const tokenKey = (playerId: string) => `wolleen:player-token:${playerId}`;
 function safeGet(s: StorageLike | null | undefined, k: string) {
   try {
     return s?.getItem(k) ?? null;
@@ -189,6 +341,15 @@ function safeSet(s: StorageLike | null | undefined, k: string, v: string) {
     /* stockage plein ou interdit */
   }
 }
+function safeRemove(s: StorageLike | null | undefined, k: string) {
+  try {
+    const r = s as (StorageLike & { removeItem?: (key: string) => void }) | null | undefined;
+    if (typeof r?.removeItem === 'function') r.removeItem(k);
+    else r?.setItem(k, '');
+  } catch {
+    /* stockage interdit */
+  }
+}
 
 class Subscription implements PurchaseSubscription {
   private closed = false;
@@ -196,6 +357,7 @@ class Subscription implements PurchaseSubscription {
   private attempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
+  private pollTimer: ReturnType<typeof setInterval> | undefined;
   private abort: AbortController | undefined;
   private es: EventSourceLike | undefined;
   private queue: Promise<void> = Promise.resolve();
@@ -204,6 +366,9 @@ class Subscription implements PurchaseSubscription {
   private readonly acked = new Set<string>();
   /** Vrai après la première connexion : les suivantes déclenchent un rattrapage. */
   private attemptedBefore = false;
+  /** Clé publique sans jeton joueur : en attente de la liaison. */
+  private waitingForToken = false;
+  private foregroundBound = false;
   private readonly detach: Array<() => void> = [];
 
   constructor(
@@ -211,9 +376,13 @@ class Subscription implements PurchaseSubscription {
     private readonly playerId: string,
     private readonly handler: PurchaseHandler,
   ) {
-    this.catchUp().catch(() => {});
-    this.connect();
-    this.listenForeground();
+    this.detach.push(client._onTokenChange(playerId, (token) => this.onToken(token)));
+    if (!client.isLinked(playerId)) {
+      this.waitingForToken = true;
+      client._reportError(tokenRequired());
+      return;
+    }
+    this.start();
   }
 
   get connected() {
@@ -223,22 +392,54 @@ class Subscription implements PurchaseSubscription {
   unsubscribe(): void {
     if (this.closed) return;
     this.closed = true;
-    this._connected = false;
-    clearTimeout(this.reconnectTimer);
-    clearTimeout(this.idleTimer);
-    this.abort?.abort();
-    this.es?.close();
+    this.stopTransport();
     for (const d of this.detach) d();
   }
 
   async catchUp(): Promise<void> {
-    if (this.closed) return;
+    if (this.closed || this.waitingForToken) return;
     try {
       const events = await this.client.getPendingPurchases(this.playerId);
       await Promise.all(events.map((e) => this.process(e)));
     } catch (e) {
       this.client._reportError(e);
     }
+  }
+
+  private start() {
+    this.waitingForToken = false;
+    this.attempt = 0;
+    this.attemptedBefore = false;
+    this.catchUp().catch(() => {});
+    this.connect();
+    if (!this.foregroundBound) {
+      this.foregroundBound = true;
+      this.listenForeground();
+    }
+  }
+
+  /** Jeton reçu (liaison) → démarrage ; jeton effacé (révoqué, `unlink`) → mise en attente. */
+  private onToken(token: string | null) {
+    if (this.closed) return;
+    if (token && this.waitingForToken) this.start();
+    else if (!token && this.client._ctx().keyType === 'publishable' && !this.waitingForToken) {
+      this.waitingForToken = true;
+      this.stopTransport();
+    }
+  }
+
+  private stopTransport() {
+    this._connected = false;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
+    clearTimeout(this.idleTimer);
+    clearInterval(this.pollTimer);
+    this.pollTimer = undefined;
+    const ctrl = this.abort;
+    this.abort = undefined;
+    ctrl?.abort();
+    this.es?.close();
+    this.es = undefined;
   }
 
   /** Dédoublonne, appelle le handler (en série), puis acquitte. */
@@ -273,7 +474,7 @@ class Subscription implements PurchaseSubscription {
 
   private async ackOnce(id: string) {
     try {
-      await this.client.ack(id);
+      await this.client.ack(id, this.playerId);
       this.acked.add(id);
     } catch (err) {
       this.client._reportError(err);
@@ -286,28 +487,41 @@ class Subscription implements PurchaseSubscription {
     return `${this.client._ctx().baseUrl}/api/v1/deliveries/stream?player_id=${encodeURIComponent(this.playerId)}`;
   }
 
-  private headers(): Record<string, string> {
-    return { authorization: `Bearer ${this.client._ctx().opts.apiKey}`, accept: 'text/event-stream' };
+  /** La clé et le jeton voyagent TOUJOURS en en-têtes, jamais dans l'URL. */
+  private headers(): Record<string, string> | null {
+    const { key, keyType } = this.client._ctx();
+    const h: Record<string, string> = { authorization: `Bearer ${key}`, accept: 'text/event-stream' };
+    if (keyType === 'publishable') {
+      const token = this.client.getPlayerToken(this.playerId);
+      if (!token) return null;
+      h[PLAYER_TOKEN_HEADER] = token;
+    }
+    return h;
   }
 
-  private pickTransport(): { kind: 'fetch' } | { kind: 'eventsource'; ctor: EventSourceCtor; headersSupported: boolean } {
+  /**
+   * - `fetch` : flux lu via fetch + ReadableStream (en-têtes possibles) ;
+   * - `eventsource` : constructeur fourni en option acceptant `{ headers }` (polyfill) ;
+   * - `none` : aucun transport capable d'envoyer des en-têtes (EventSource natif seul) → rattrapage périodique.
+   */
+  private pickTransport(): { kind: 'fetch' } | { kind: 'eventsource'; ctor: EventSourceCtor } | { kind: 'none' } {
     const { opts } = this.client._ctx();
-    const globalEs = (globalThis as { EventSource?: EventSourceCtor }).EventSource;
     const fetchStream = typeof ReadableStream !== 'undefined' && typeof TextDecoder !== 'undefined';
     const t = opts.transport ?? 'auto';
     if (t === 'fetch') return { kind: 'fetch' };
-    if (opts.EventSource) return { kind: 'eventsource', ctor: opts.EventSource, headersSupported: true };
-    if (t === 'eventsource' || !fetchStream) {
-      if (globalEs) return { kind: 'eventsource', ctor: globalEs, headersSupported: false };
-    }
-    return { kind: 'fetch' };
+    if (opts.EventSource) return { kind: 'eventsource', ctor: opts.EventSource };
+    return fetchStream ? { kind: 'fetch' } : { kind: 'none' };
   }
 
   private connect() {
-    if (this.closed) return;
+    if (this.closed || this.waitingForToken) return;
     const t = this.pickTransport();
     if (t.kind === 'fetch') this.connectFetch();
-    else this.connectEventSource(t.ctor, t.headersSupported);
+    else if (t.kind === 'eventsource') this.connectEventSource(t.ctor);
+    else if (!this.pollTimer) {
+      this.client._reportError(new WolleenError('Flux temps réel indisponible ici : rattrapage toutes les 30 s.', 0, 'realtime_unavailable'));
+      this.pollTimer = setInterval(() => this.catchUp().catch(() => {}), FALLBACK_POLL_MS);
+    }
   }
 
   private onOpen() {
@@ -344,10 +558,12 @@ class Subscription implements PurchaseSubscription {
 
   private async connectFetch() {
     const { fetchImpl } = this.client._ctx();
+    const headers = this.headers();
+    if (!headers) return;
     const ctrl = new AbortController();
     this.abort = ctrl;
     try {
-      const res = await fetchImpl(this.streamUrl(), { headers: this.headers(), signal: ctrl.signal, cache: 'no-store' });
+      const res = await fetchImpl(this.streamUrl(), { headers, signal: ctrl.signal, cache: 'no-store' });
       if (!res.ok || !res.body) {
         let code = 'http_error';
         let message = `Flux indisponible (HTTP ${res.status})`;
@@ -378,18 +594,19 @@ class Subscription implements PurchaseSubscription {
       if (!(e instanceof Error && e.name === 'AbortError')) this.client._reportError(e);
       if (isFatal(e)) {
         this._connected = false;
-        return; // clé invalide : inutile d'insister
+        // Jeton révoqué : on l'oublie (l'abonnement se remet en attente de liaison). Clé invalide : on arrête.
+        if (e instanceof WolleenError && e.code === 'player_token_required') this.client.setPlayerToken(this.playerId, null);
+        return;
       }
     }
     if (this.abort !== ctrl) return; // une autre connexion a pris le relais
     this.scheduleReconnect();
   }
 
-  private connectEventSource(ctor: EventSourceCtor, headersSupported: boolean) {
-    let url = this.streamUrl();
-    // L'EventSource natif ne permet pas d'en-têtes : la clé passe alors en paramètre (le serveur doit l'accepter).
-    if (!headersSupported) url += `&access_token=${encodeURIComponent(this.client._ctx().opts.apiKey)}`;
-    const es = new ctor(url, headersSupported ? { headers: this.headers() } : undefined);
+  private connectEventSource(ctor: EventSourceCtor) {
+    const headers = this.headers();
+    if (!headers) return;
+    const es = new ctor(this.streamUrl(), { headers });
     this.es = es;
     es.onopen = () => {
       if (this.es !== es) return;
@@ -412,7 +629,7 @@ class Subscription implements PurchaseSubscription {
   }
 
   private scheduleReconnect() {
-    if (this.closed) return;
+    if (this.closed || this.waitingForToken) return;
     this._connected = false;
     clearTimeout(this.idleTimer);
     clearTimeout(this.reconnectTimer);
@@ -428,7 +645,7 @@ class Subscription implements PurchaseSubscription {
 
   /** Reconnexion immédiate (retour au premier plan, réseau revenu). */
   private reconnectNow() {
-    if (this.closed || this._connected) return;
+    if (this.closed || this._connected || this.waitingForToken) return;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;

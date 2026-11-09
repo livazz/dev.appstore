@@ -133,6 +133,7 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
     }
     const r = store.credit(game.key, event);
     if (r.duplicate) log(`webhook ${event.delivery_id} déjà traité (rejeu ignoré)`);
+    else if (r.ignored) log(`remboursement ${event.delivery_id} : commande ${event.order_id} jamais créditée, rien à retirer`);
     else if (r.unknownProduct) log(`webhook ${event.delivery_id} : produit inconnu ${event.product_id}, rien crédité`);
     else log(`${game.name} : ${event.player_id} crédité de ${JSON.stringify(r.record?.delta)} (${event.delivery_id})`);
     if (!r.duplicate && ack) {
@@ -237,8 +238,8 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
       games: Object.fromEntries(
         games.map((g) => [
           g.key,
-          // La clé API n'est transmise au navigateur que pour le jeu en mode SDK (elle est embarquée dans le client du jeu).
-          { key: g.key, id: g.id, slug: g.slug, name: g.name, mode: g.mode, ...(g.mode === 'sdk' ? { apiKey: g.apiKey } : {}) },
+          // Seule la clé PUBLIQUE du jeu en mode SDK est transmise au navigateur ; les clés secrètes restent sur ce serveur.
+          { key: g.key, id: g.id, slug: g.slug, name: g.name, mode: g.mode, ...(g.mode === 'sdk' ? { publishableKey: g.publishableKey } : {}) },
         ]),
       ),
     });
@@ -247,14 +248,14 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
   // -------------------------------------------------- Proxy vers Wolleen
 
   /**
-   * /proxy/api/v1/* → WOLLEEN_URL/api/v1/* : le client du jeu (mode SDK) parle à Wolleen via le même
-   * domaine, sans dépendre des en-têtes CORS de l'API. Le flux SSE est relayé tel quel.
+   * /proxy/api/v1/* → WOLLEEN_URL/api/v1/* : relais même origine (facultatif — l'API v1 autorise CORS et la page du jeu
+   * appelle Wolleen directement). Utile derrière un réseau qui bloque l'origine de Wolleen. Le flux SSE est relayé tel quel.
    */
   async function handleProxy(req: IncomingMessage, res: ServerResponse, url: URL) {
     const path = url.pathname.slice('/proxy'.length);
     if (!path.startsWith('/api/v1/')) throw new HttpError(404, 'not_found', 'Introuvable.');
     const headers: Record<string, string> = {};
-    for (const h of ['authorization', 'content-type', 'accept', 'last-event-id']) {
+    for (const h of ['authorization', 'content-type', 'accept', 'last-event-id', 'wolleen-player-token']) {
       const v = req.headers[h];
       if (typeof v === 'string') headers[h] = v;
     }
@@ -313,7 +314,7 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
     if (method === 'GET' && p === '/api/events') return handleEvents(req, res, url);
     if (method === 'POST' && p === '/api/link-code') return handleLinkCode(req, res);
     if (method === 'POST' && p === '/api/dev/simulate') return handleSimulate(req, res);
-    if (p.startsWith('/proxy/') && (method === 'GET' || method === 'POST')) return handleProxy(req, res, url);
+    if (p.startsWith('/proxy/') && (method === 'GET' || method === 'POST' || method === 'DELETE')) return handleProxy(req, res, url);
     if (method === 'GET' && p === '/favicon.ico') return res.writeHead(204).end();
     throw new HttpError(404, 'not_found', 'Introuvable.');
   }

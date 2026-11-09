@@ -1,6 +1,8 @@
 // Client du faux jeu Nova Games.
-// - Crystal Clash (mode webhook) : Wolleen appelle le serveur du jeu, qui pousse l'inventaire ici (SSE /api/events).
-// - Pixel Farm (mode SDK) : le client du jeu écoute Wolleen lui-même avec @wolleen/sdk (servi en ES module par /sdk/).
+// - Crystal Clash (jeu AVEC serveur) : Wolleen appelle le serveur du jeu (webhook signé), qui pousse l'inventaire ici
+//   (SSE /api/events). La clé secrète reste sur le serveur du jeu ; le code de liaison est demandé par ce serveur.
+// - Pixel Farm (jeu SANS serveur) : le client écoute Wolleen lui-même avec @wolleen/sdk (servi en ES module par /sdk/),
+//   avec la clé PUBLIQUE du jeu et le jeton joueur obtenu après la liaison par code.
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n).toLocaleString('fr-FR');
@@ -34,6 +36,7 @@ let teardown = () => {};
 let wolleen; // client SDK (Pixel Farm)
 let expiryTimer;
 let mountSeq = 0;
+let linkAbort; // attente de la saisie du code (Pixel Farm)
 
 function readPref(k, d) {
   try {
@@ -162,48 +165,125 @@ function startCrystal() {
 function farmKey() {
   return `farm:inv:${player.id}`;
 }
+/** Commandes créditées (order_id → variation) : un remboursement retire exactement ce qui avait été crédité. */
+function farmOrdersKey() {
+  return `farm:orders:${player.id}`;
+}
 
-function applyGrant(inv, productId, quantity, refund) {
+function grantDelta(productId, quantity) {
   const g = config.grants[productId];
   if (!g) return null;
-  const sign = refund ? -1 : 1;
-  const delta = 'perUnit' in g ? { [g.perUnit]: sign * (quantity > 0 ? quantity : g.fallback) } : Object.fromEntries(Object.entries(g.fixed).map(([k, v]) => [k, sign * v]));
+  return 'perUnit' in g ? { [g.perUnit]: quantity > 0 ? quantity : g.fallback } : { ...g.fixed };
+}
+
+function applyDelta(inv, delta) {
   const next = { ...inv };
   for (const [k, v] of Object.entries(delta)) next[k] = Math.max(0, (next[k] ?? 0) + v);
-  return { next, delta };
+  return next;
 }
 
 async function startFarm() {
   const { Wolleen } = await import('/sdk/index.js');
   const saved = readPref(farmKey(), null);
   setInventory(saved ? JSON.parse(saved) : { seeds: 0, gold: 0, ...config.startingInventory.farm });
-  // Le client du jeu parle à Wolleen via le proxy du serveur démo (même origine, pas de CORS).
+  // Jeu sans serveur : le client parle directement à Wolleen (CORS) avec la clé PUBLIQUE du jeu. Les achats ne sont
+  // accessibles qu'après la liaison (jeton joueur, mémorisé dans localStorage) et uniquement ceux de CE joueur.
   wolleen = new Wolleen({
-    apiKey: config.games.farm.apiKey,
-    baseUrl: `${location.origin}/proxy`,
-    storage: localStorage, // dédoublonnage persistant : jamais deux fois le même delivery_id
+    publishableKey: config.games.farm.publishableKey,
+    baseUrl: config.wolleenUrl,
+    storage: localStorage, // jeton joueur + dédoublonnage persistant : jamais deux fois le même delivery_id
     onError: (e) => console.warn('[Wolleen]', e),
   });
   const sub = wolleen.onPurchase(player.id, (e) => {
     const refund = e.event === 'purchase.refunded';
-    const r = applyGrant(inventory, e.product_id, e.quantity, refund);
-    if (!r) {
-      log(`Produit inconnu ignoré : ${e.product_id}`, 'warn');
-      return;
+    let orders = {};
+    try {
+      orders = JSON.parse(readPref(farmOrdersKey(), '{}'));
+    } catch {
+      /* préférences corrompues */
     }
+    let delta;
+    if (refund) {
+      const granted = orders[e.order_id];
+      if (!granted) {
+        log(`Remboursement ignoré : commande ${e.order_id} jamais créditée`, 'warn');
+        return; // le SDK acquitte quand même
+      }
+      delete orders[e.order_id];
+      delta = Object.fromEntries(Object.entries(granted).map(([k, v]) => [k, -v]));
+    } else {
+      delta = grantDelta(e.product_id, e.quantity);
+      if (!delta) {
+        log(`Produit inconnu ignoré : ${e.product_id}`, 'warn');
+        return;
+      }
+      orders[e.order_id] = delta;
+    }
+    const next = applyDelta(inventory, delta);
     // Créditer (et sauvegarder) AVANT de rendre la main : le SDK acquitte ensuite.
-    writePref(farmKey(), JSON.stringify(r.next));
-    setInventory(r.next, { animate: true });
-    showReward(e.product_id, r.delta, refund);
-    log(`SDK : ${PRODUCT_LABELS[e.product_id] ?? e.product_id} reçu et acquitté (${e.delivery_id})`, 'ok');
+    writePref(farmOrdersKey(), JSON.stringify(orders));
+    writePref(farmKey(), JSON.stringify(next));
+    setInventory(next, { animate: true });
+    showReward(e.product_id, delta, refund);
+    log(`SDK : ${refund ? 'remboursement' : PRODUCT_LABELS[e.product_id] ?? e.product_id} reçu et acquitté (${e.delivery_id})`, 'ok');
   });
   const poll = setInterval(() => {
-    setStatus(sub.connected ? 'on' : 'wait', sub.connected ? 'SDK connecté à Wolleen · temps réel' : 'SDK : connexion à Wolleen…');
+    if (!wolleen.isLinked(player.id)) setStatus('wait', 'Compte web non lié · Paramètres → Lier mon compte web');
+    else setStatus(sub.connected ? 'on' : 'wait', sub.connected ? 'SDK connecté à Wolleen · temps réel' : 'SDK : connexion à Wolleen…');
   }, 500);
+  updateLinkState();
   return () => {
     clearInterval(poll);
+    linkAbort?.abort();
     sub.unsubscribe();
   };
+}
+
+/** Pixel Farm : état de la liaison de CET appareil (jeton joueur présent ou non). */
+function updateLinkState() {
+  const farm = gameKey === 'farm' && wolleen;
+  const linked = !!farm && wolleen.isLinked(player.id);
+  $('link-state').hidden = !farm;
+  $('link-state').textContent = linked ? 'Cet appareil est lié : il reçoit les achats de ce joueur.' : 'Cet appareil n’est pas encore lié.';
+  $('link-state').className = linked ? 'small linked' : 'small muted';
+  $('unlink-device').hidden = !linked;
+}
+
+/** Pixel Farm : attend que le joueur saisisse le code sur Wolleen, puis reçoit le jeton joueur (le SDK démarre seul). */
+function waitForLink(code) {
+  linkAbort?.abort();
+  const ctrl = new AbortController();
+  linkAbort = ctrl;
+  const client = wolleen;
+  client
+    .waitForLink(code, { signal: ctrl.signal })
+    .then(() => {
+      if (client !== wolleen) return;
+      clearInterval(expiryTimer);
+      $('code-box').hidden = true;
+      updateLinkState();
+      log('Compte web lié : jeton joueur reçu (achats de ce joueur uniquement)', 'ok');
+    })
+    .catch((e) => {
+      if (ctrl.signal.aborted || e?.code === 'aborted') return;
+      $('link-error').textContent = e?.message ?? String(e);
+      $('link-error').hidden = false;
+    });
+}
+
+async function unlinkDevice() {
+  if (!wolleen) return;
+  $('unlink-device').disabled = true;
+  try {
+    await wolleen.unlink(player.id);
+    log('Appareil délié : jeton joueur révoqué', 'warn');
+  } catch (e) {
+    $('link-error').textContent = e?.message ?? String(e);
+    $('link-error').hidden = false;
+  } finally {
+    $('unlink-device').disabled = false;
+    updateLinkState();
+  }
 }
 
 // ---------------------------------------------------- Code de liaison
@@ -215,7 +295,9 @@ async function requestCode() {
   try {
     let code;
     if (gameKey === 'farm') {
+      // Clé publique : le code s'accompagne d'une demande de liaison, échangée contre le jeton joueur après la saisie.
       code = await wolleen.requestLinkCode(player.id, player.name);
+      waitForLink(code);
     } else {
       const res = await fetch('/api/link-code', {
         method: 'POST',
@@ -258,7 +340,7 @@ async function mount() {
   $('mode-hint').textContent =
     g.mode === 'webhook'
       ? 'Wolleen envoie un webhook signé au serveur du jeu (port 4100), qui crédite l’inventaire puis le pousse au jeu.'
-      : 'Le jeu écoute Wolleen directement avec @wolleen/sdk (flux temps réel + rattrapage), crédite puis acquitte.';
+      : 'Jeu sans serveur : @wolleen/sdk avec la clé publique ; après la liaison par code, le jeton joueur donne accès aux achats de ce joueur (temps réel + rattrapage).';
   $('simulate').hidden = g.mode !== 'webhook';
   $('player-name').textContent = player.name;
   $('player-level').textContent = `Niv. ${player.level}`;
@@ -267,9 +349,12 @@ async function mount() {
   $('shop-link').href = `${config.wolleenUrl}/games/${g.slug}`;
   $('link-url').href = `${config.wolleenUrl}/games/${g.slug}/link`;
   $('link-url').textContent = `${config.wolleenUrl.replace(/^https?:\/\//, '')}/games/${g.slug}/link`;
-  $('link-via').textContent = g.mode === 'webhook' ? 'via le serveur du jeu' : 'via le SDK';
+  $('link-via').textContent = g.mode === 'webhook' ? 'via le serveur du jeu (clé secrète)' : 'via le SDK (clé publique)';
   $('code-box').hidden = true;
   $('link-error').hidden = true;
+  $('link-state').hidden = true;
+  $('unlink-device').hidden = true;
+  wolleen = undefined;
   setStatus('wait', 'Connexion…');
   const seq = ++mountSeq;
   try {
@@ -313,6 +398,7 @@ async function main() {
     if (e.target === $('settings')) $('settings').hidden = true;
   });
   $('request-code').addEventListener('click', requestCode);
+  $('unlink-device').addEventListener('click', unlinkDevice);
   $('simulate').addEventListener('click', async () => {
     const products = ['gems_1200', 'gold_10000', 'gems_6500', 'starter_pack', 'pass_royal_monthly'];
     const product_id = products[Math.floor(Math.random() * products.length)];
