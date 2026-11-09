@@ -18,9 +18,9 @@ import {
   type GameInfoInput,
   type GameRow,
   type ItemInput,
-  type ItemRow,
   type NewGameInput,
 } from './studio-logic';
+import { toEditorGame, toEditorItem, type EditorGame, type EditorItem } from '@/lib/studio-types';
 
 /*
  * Server Actions de l'espace studio (tâche studio-editor).
@@ -70,28 +70,28 @@ export async function createGame(input: NewGameInput): Promise<ActionResult<{ id
 }
 
 /** Nom, sous-titre, éditeur, icône, bannière, thème (dégradé + grille). */
-export async function updateGame(gameId: string, patch: GameInfoInput): Promise<ActionResult<GameRow>> {
+export async function updateGame(gameId: string, patch: GameInfoInput): Promise<ActionResult<EditorGame>> {
   return guarded(gameId, async () => {
     const game = await updateGameInfo(db, gameId, patch);
     revalidateGame(game);
-    return game;
+    return toEditorGame(game);
   });
 }
 
 /** Phase 1 : « Soumettre / publier » passe directement le jeu en ligne. */
-export async function publishGame(gameId: string): Promise<ActionResult<GameRow>> {
+export async function publishGame(gameId: string): Promise<ActionResult<EditorGame>> {
   return guarded(gameId, async () => {
     const game = await setGameStatus(db, gameId, 'live');
     revalidateGame(game);
-    return game;
+    return toEditorGame(game);
   });
 }
 
-export async function unpublishGame(gameId: string): Promise<ActionResult<GameRow>> {
+export async function unpublishGame(gameId: string): Promise<ActionResult<EditorGame>> {
   return guarded(gameId, async () => {
     const game = await setGameStatus(db, gameId, 'draft');
     revalidateGame(game);
-    return game;
+    return toEditorGame(game);
   });
 }
 
@@ -111,19 +111,19 @@ export async function deleteGame(gameId: string): Promise<ActionResult> {
 
 /* ---------------- Articles ---------------- */
 
-export async function createItem(gameId: string, input: ItemInput): Promise<ActionResult<ItemRow>> {
+export async function createItem(gameId: string, input: ItemInput): Promise<ActionResult<EditorItem>> {
   return guarded(gameId, async () => {
     const item = await createItemFor(db, gameId, input);
     revalidateGame(await getGame(db, gameId));
-    return item;
+    return toEditorItem(item);
   });
 }
 
-export async function updateItem(gameId: string, itemId: string, input: ItemInput): Promise<ActionResult<ItemRow>> {
+export async function updateItem(gameId: string, itemId: string, input: ItemInput): Promise<ActionResult<EditorItem>> {
   return guarded(gameId, async () => {
     const item = await updateItemFor(db, gameId, String(itemId), input);
     revalidateGame(await getGame(db, gameId));
-    return item;
+    return toEditorItem(item);
   });
 }
 

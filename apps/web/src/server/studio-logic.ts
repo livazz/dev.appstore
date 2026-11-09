@@ -11,7 +11,7 @@ import {
   slugify,
   type GameTheme,
 } from '@wolleen/core';
-import { and, asc, count, eq, games, items, orders, studioMembers, studios, type DB } from '@wolleen/db';
+import { and, asc, count, eq, games, gte, inArray, items, orders, studioMembers, studios, sum, type DB } from '@wolleen/db';
 
 /*
  * Logique de l'espace studio (création de jeu, édition de la boutique, articles).
@@ -368,4 +368,43 @@ async function writeOrder(database: DB, gameId: string, order: string[], list: I
     if (pos.get(id) === i) continue;
     await database.update(items).set({ position: i }).where(and(eq(items.id, id), eq(items.gameId, gameId)));
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tableau de bord « Mes jeux »                                       */
+/* ------------------------------------------------------------------ */
+
+/** Jeux des studios de l'utilisateur, avec nombre d'articles actifs et revenu brut payé sur 30 jours. */
+export async function listStudioGames(database: DB, userId: string, now = new Date()) {
+  const rows = await database
+    .select({
+      id: games.id,
+      slug: games.slug,
+      name: games.name,
+      publisherName: games.publisherName,
+      iconUrl: games.iconUrl,
+      status: games.status,
+      currency: games.currency,
+      category: games.category,
+      createdAt: games.createdAt,
+    })
+    .from(games)
+    .innerJoin(studioMembers, and(eq(studioMembers.studioId, games.studioId), eq(studioMembers.userId, userId)))
+    .orderBy(asc(games.createdAt));
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const since = new Date(now.getTime() - 30 * 86_400_000);
+  const itemCounts = await database
+    .select({ gameId: items.gameId, n: count() })
+    .from(items)
+    .where(and(inArray(items.gameId, ids), eq(items.active, true)))
+    .groupBy(items.gameId);
+  const revenue = await database
+    .select({ gameId: orders.gameId, cents: sum(orders.amountCents) })
+    .from(orders)
+    .where(and(inArray(orders.gameId, ids), eq(orders.status, 'paid'), gte(orders.createdAt, since)))
+    .groupBy(orders.gameId);
+  const nItems = new Map(itemCounts.map((r) => [r.gameId, Number(r.n)]));
+  const rev = new Map(revenue.map((r) => [r.gameId, Number(r.cents ?? 0)]));
+  return rows.map((r) => ({ ...r, itemCount: nItems.get(r.id) ?? 0, revenue30dCents: rev.get(r.id) ?? 0 }));
 }

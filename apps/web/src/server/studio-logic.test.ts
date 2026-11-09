@@ -14,6 +14,7 @@ import {
   setGameStatus,
   updateGameInfo,
   updateItemFor,
+  listStudioGames,
   type ItemInput,
 } from './studio-logic';
 
@@ -208,6 +209,21 @@ describe('statut et suppression du jeu', () => {
     await createItemFor(t, g.id, item());
     await t.update(games).set({ status: 'suspended' }).where(eq(games.id, g.id));
     await expect(setGameStatus(t, g.id, 'live')).rejects.toThrow('suspendu');
+  });
+
+  it("liste les jeux des studios de l'utilisateur avec articles actifs et revenu payé sur 30 jours", async () => {
+    const g = await newGame('Tableau de bord');
+    const a = await createItemFor(t, g.id, item({ productId: 'a' }));
+    await createItemFor(t, g.id, item({ productId: 'b' }));
+    const base = { userId: 'usr_none', gameId: g.id, itemId: a.id, productId: 'a', itemTitle: 'A', playerId: 'p', platformFeeCents: 0, currency: 'EUR' as const };
+    await t.insert(orders).values([
+      { ...base, id: 'ord_dash1', amountCents: 799, status: 'paid' },
+      { ...base, id: 'ord_dash2', amountCents: 1000, status: 'pending' },
+      { ...base, id: 'ord_dash3', amountCents: 500, status: 'paid', createdAt: new Date(Date.now() - 40 * 86_400_000) },
+    ]);
+    const list = await listStudioGames(t, 'usr_dev');
+    expect(list.find((r) => r.id === g.id)).toMatchObject({ name: 'Tableau de bord', itemCount: 2, revenue30dCents: 799, status: 'draft' });
+    expect(await listStudioGames(t, 'usr_none')).toEqual([]);
   });
 
   it('supprime un jeu sans ventes (et ses articles)', async () => {
