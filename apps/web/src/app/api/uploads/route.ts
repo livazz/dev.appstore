@@ -5,6 +5,7 @@ import {
   MAX_UPLOAD_BODY_BYTES,
   UPLOAD_ROLES,
   UploadError,
+  checkUploadRate,
   isCrossSiteRequest,
   parseKind,
   readBodyCapped,
@@ -27,6 +28,14 @@ export async function POST(req: Request) {
   const memberships = await getUserStudios(user.id);
   if (!memberships.some((m) => UPLOAD_ROLES.includes(m.role))) {
     return NextResponse.json({ error: 'Réservé aux membres d’un studio' }, { status: 403 });
+  }
+  // Limitation de débit par utilisateur (C-03, T-UPL-04), avant toute lecture du corps.
+  const retryAfterS = await checkUploadRate(user.id);
+  if (retryAfterS !== null) {
+    return NextResponse.json(
+      { error: 'Trop de fichiers envoyés : réessayez plus tard.' },
+      { status: 429, headers: { 'Retry-After': String(Math.max(1, Math.ceil(retryAfterS))) } },
+    );
   }
   const kind = parseKind(new URL(req.url).searchParams.get('kind'));
   if (!kind) return NextResponse.json({ error: 'Paramètre kind invalide (icon, banner, item)' }, { status: 400 });

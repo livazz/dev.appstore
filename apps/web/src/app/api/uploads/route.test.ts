@@ -28,6 +28,7 @@ vi.mock('@/server/storage', async (importOriginal) => {
 });
 
 h.root = mkdtempSync(join(tmpdir(), 'wl-upl-'));
+const { MemoryRateLimitStore, setRateLimitStore } = await import('@/server/rate-limit');
 const { POST } = await import('./route');
 const { GET } = await import('./[...key]/route');
 
@@ -72,6 +73,7 @@ async function hugePng(width: number, height: number) {
 }
 
 beforeEach(() => {
+  setRateLimitStore(new MemoryRateLimitStore());
   h.user = { id: 'usr_dev', email: 'dev@t.test', name: 'Dev' };
   h.roles = ['developer'];
 });
@@ -140,6 +142,29 @@ describe('POST /api/uploads — contenu', () => {
       const res = await post(multipart(await hugePng(w, hh), 'image/png', 'bomb.png'));
       expect(res.status, `${w}x${hh}`).toBe(413);
     }
+  });
+});
+
+describe('POST /api/uploads — revue 2026-11', () => {
+  it('C-03 : limitation de débit par utilisateur → 429 avec Retry-After, sans lire le corps', async () => {
+    const body = await png(4, 4);
+    for (let i = 0; i < 30; i++) expect((await post(multipart(body, 'image/png', 'a.png'))).status, `upload ${i}`).toBe(200);
+    const res = await post(multipart(body, 'image/png', 'a.png'));
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThan(0);
+    // Un autre utilisateur n'est pas affecté.
+    h.user = { id: 'usr_autre', email: 'b@t.test', name: 'B' };
+    expect((await post(multipart(body, 'image/png', 'a.png'))).status).toBe(200);
+  });
+
+  it('C-03 : plafond abaissé à 24 mégapixels (5 000 × 5 000 refusé)', async () => {
+    expect((await post(multipart(await hugePng(5_000, 5_000), 'image/png', 'big.png'))).status).toBe(413);
+  });
+
+  it('C-07 : AVIF / HEIF refusés (liste blanche PNG, JPEG, WebP, GIF)', async () => {
+    const avif = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#08f' } }).avif().toBuffer();
+    expect((await post(multipart(avif, 'image/avif', 'a.avif'))).status).toBe(415);
+    expect((await post(multipart(avif, 'image/png', 'a.png'))).status).toBe(415);
   });
 });
 

@@ -1,15 +1,63 @@
 import { randomUUID } from 'node:crypto';
 import sharp, { type Metadata } from 'sharp';
 import type { StorageAdapter } from './storage';
+import { getRateLimitStore, type RateLimitStore, type RateRule } from './rate-limit';
 
 export type UploadKind = 'icon' | 'banner' | 'item';
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 /** Plafond du corps multipart lu par POST /api/uploads (fichier + enveloppe multipart). */
 export const MAX_UPLOAD_BODY_BYTES = MAX_UPLOAD_BYTES + 64 * 1024;
-/** Décompression maximale (anti « bombe » PNG) : vérifiée sur l'en-tête avant tout décodage. */
-export const MAX_INPUT_PIXELS = 40_000_000;
-/** Formats acceptés, déterminés par les octets (sharp) — jamais par l'extension ni le Content-Type du client. */
-const SHARP_FORMATS = new Set(['png', 'jpeg', 'webp', 'gif', 'heif']);
+/**
+ * Décompression maximale (anti « bombe » PNG) : vérifiée sur l'en-tête avant tout décodage.
+ * 24 Mpx (≈ 96 Mo de pixels RGBA) suffisent largement pour une icône de 300 px ou une bannière de 1 600 px
+ * (revue 2026-11, C-03 : 40 Mpx auparavant).
+ */
+export const MAX_INPUT_PIXELS = 24_000_000;
+/**
+ * Formats acceptés, déterminés par les octets (sharp) — jamais par l'extension ni le Content-Type du client.
+ * Liste blanche CHK-UPL-02 : PNG, JPEG, WebP, GIF (HEIF/AVIF retirés : surface de décodage libheif inutile, C-07).
+ */
+const SHARP_FORMATS = new Set(['png', 'jpeg', 'webp', 'gif']);
+
+/** Limites de débit des uploads par utilisateur (revue 2026-11, C-03, T-UPL-04). */
+export const UPLOAD_RATE_RULES: readonly (RateRule & { id: string })[] = [
+  { id: '10m', max: 30, windowMs: 10 * 60_000 },
+  { id: '24h', max: 200, windowMs: 24 * 60 * 60_000 },
+];
+
+/** Compte un upload : null si autorisé, sinon le délai d'attente (s) avant de réessayer. */
+export async function checkUploadRate(userId: string, store: RateLimitStore = getRateLimitStore()): Promise<number | null> {
+  for (const rule of UPLOAD_RATE_RULES) {
+    const d = await store.hit(`upload:${rule.id}:${userId}`, rule);
+    if (!d.allowed) return d.retryAfterS;
+  }
+  return null;
+}
+
+/**
+ * Décodages sharp simultanés par instance (C-03) : au-delà, les requêtes attendent ; si la file est pleine,
+ * 503 immédiat plutôt qu'une saturation mémoire.
+ */
+export const MAX_CONCURRENT_DECODES = 2;
+export const MAX_QUEUED_DECODES = 16;
+let activeDecodes = 0;
+const decodeQueue: (() => void)[] = [];
+
+export async function withDecodeSlot<T>(fn: () => Promise<T>): Promise<T> {
+  if (activeDecodes >= MAX_CONCURRENT_DECODES) {
+    if (decodeQueue.length >= MAX_QUEUED_DECODES) throw new UploadError(503, 'Serveur occupé : réessayez dans un instant.');
+    await new Promise<void>((resolve) => decodeQueue.push(resolve));
+  } else {
+    activeDecodes++;
+  }
+  try {
+    return await fn();
+  } finally {
+    const next = decodeQueue.shift();
+    if (next) next(); // le créneau passe directement à la requête suivante
+    else activeDecodes--;
+  }
+}
 
 export class UploadError extends Error {
   constructor(
@@ -41,7 +89,7 @@ export async function processImage(input: Buffer, _declaredType: string, kind: U
   // Vérifie le contenu réel (refuse SVG, HTML, texte… même déguisés en .png / image/png).
   if (!meta.format || !SHARP_FORMATS.has(meta.format)) throw new UploadError(415, 'Type de fichier non autorisé');
   if (!meta.width || !meta.height || meta.width * meta.height > MAX_INPUT_PIXELS) {
-    throw new UploadError(413, 'Image trop grande (40 mégapixels max)');
+    throw new UploadError(413, 'Image trop grande (24 mégapixels max)');
   }
   const img = sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).rotate();
   if (kind === 'icon') img.resize(300, 300, { fit: 'cover', position: 'attention' });
@@ -66,7 +114,7 @@ export async function storeUpload(
   declaredType: string,
   kind: UploadKind,
 ): Promise<string> {
-  const out = await processImage(input, declaredType, kind);
+  const out = await withDecodeSlot(() => processImage(input, declaredType, kind));
   // Clé générée côté serveur : le nom de fichier du client n'apparaît jamais dans le chemin.
   return storage.put(`${kind}/${uploaderSegment(userId)}/${randomUUID()}.webp`, out, 'image/webp');
 }
