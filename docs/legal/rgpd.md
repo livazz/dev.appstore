@@ -1,4 +1,4 @@
-# RGPD — données traitées par Wolleen
+# RGPD — données traitées par Dev AppStore
 
 > **Note de travail, pas un avis juridique.** État au **9 novembre 2026**. Base pour le **registre des
 > traitements** (art. 30 RGPD) et la **politique de confidentialité**, à faire valider (DPO externe ou
@@ -8,14 +8,14 @@
 
 | Acteur | Rôle | Commentaire |
 |---|---|---|
-| **Wolleen** | Responsable de traitement | Comptes joueurs et studios, commandes, liaison, livraison, sécurité, support |
+| **Dev AppStore** | Responsable de traitement | Comptes joueurs et studios, commandes, liaison, livraison, sécurité, support |
 | **Studios** | Responsables de traitement **indépendants** | Reçoivent `player_id`, nom de joueur, commande pour créditer l'Objet ; gèrent le compte de jeu |
 | **Stripe** | Sous-traitant pour le traitement des paiements **et** responsable indépendant pour certaines finalités (lutte contre la fraude/Radar, obligations LCB-FT, KYC des comptes Connect) | Voir l'accord de traitement de Stripe (DPA) et sa politique de confidentialité |
 | **Hébergeur** [à choisir] | Sous-traitant | Application et base Postgres |
 | Phase 2 : fournisseur e-mail, Sentry | Sous-traitants | Contrat art. 28 + vérification transferts |
 
-> Le choix de responsables **indépendants** pour Wolleen et les studios suppose que chacun définit ses
-> propres finalités. Si Wolleen et un studio déterminent ensemble finalités et moyens (ex. lookup de joueur
+> Le choix de responsables **indépendants** pour Dev AppStore et les studios suppose que chacun définit ses
+> propres finalités. Si Dev AppStore et un studio déterminent ensemble finalités et moyens (ex. lookup de joueur
 > conçu conjointement), une **responsabilité conjointe** (art. 26) devrait être organisée : à trancher avec
 > le conseil, et à refléter dans les conditions studio (art. 11).
 
@@ -75,8 +75,8 @@ Prévoir un **plan B** (CCT 2021/914 déjà incluses dans le DPA de Stripe) et p
 | Preuves de rétractation / renonciation, acceptation des CGV | Durée de la relation | 5 ans (prescription civile, C. civ. art. 2224) | Preuve de conformité |
 | Journal de livraison (webhooks, ack) | 13 mois (litiges bancaires) | Agrégé/anonymisé ensuite, ou conservé avec la commande | Délai des rétrofacturations (jusqu'à ~13 mois selon les réseaux) |
 | Données anti-fraude | 13 mois max. pour les données de transaction ; liste d'alerte : durée justifiée et proportionnée | — | CNIL (fraude au paiement à distance) |
-| Données de carte | **Non conservées par Wolleen** (Stripe) | — | PCI DSS ; délibération CNIL 2018-303 |
-| Journaux de connexion / sécurité | **1 an** | — | LCEN art. 6, décret 2021-1362 *(périmètre à vérifier pour Wolleen)* ; recommandation CNIL journalisation (6 mois à 1 an) |
+| Données de carte | **Non conservées par Dev AppStore** (Stripe) | — | PCI DSS ; délibération CNIL 2018-303 |
+| Journaux de connexion / sécurité | **1 an** | — | LCEN art. 6, décret 2021-1362 *(périmètre à vérifier pour Dev AppStore)* ; recommandation CNIL journalisation (6 mois à 1 an) |
 | Comptes studio, membres | Durée du contrat | 5 ans après la fin (prescription) | C. civ. art. 2224 |
 | Support | 3 ans après la clôture du ticket | — | Intérêt légitime |
 | Cookies de mesure | 13 mois max. (traceur), 25 mois (données) | — | Lignes directrices CNIL |
@@ -96,7 +96,7 @@ d'effacement relative au compte de jeu lié.
 
 - Mots de passe hachés (Better Auth), cookies `HttpOnly`/`Secure`/`SameSite`.
 - Clés API studio stockées **hachées** ; webhooks signés **HMAC** avec horodatage (anti-rejeu).
-- Aucune donnée de carte chez Wolleen (Stripe Checkout hébergé : périmètre PCI DSS SAQ A).
+- Aucune donnée de carte chez Dev AppStore (Stripe Checkout hébergé : périmètre PCI DSS SAQ A).
 - Chiffrement TLS ; chiffrement au repos chez l'hébergeur ; sauvegardes chiffrées.
 - Principe du moindre privilège pour les membres de studio (`requireGameAccess(gameId, roles)`).
 - Payloads de webhook **minimisés** (pas d'e-mail du joueur).

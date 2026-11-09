@@ -4,18 +4,18 @@
  * liste / flux restreints (CHK-DLV-07), CORS sans credentials (CHK-API-10).
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_THEME, hashApiKey, type PurchaseEvent } from '@wolleen/core';
-import type { DB } from '@wolleen/db';
+import { DEFAULT_THEME, hashApiKey, type PurchaseEvent } from '@devappstore/core';
+import type { DB } from '@devappstore/db';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@wolleen/db', async () => {
-  const schema = await import('@wolleen/db/schema');
+vi.mock('@devappstore/db', async () => {
+  const schema = await import('@devappstore/db/schema');
   const orm = await import('drizzle-orm');
-  const { createTestDb } = await import('@wolleen/db/testing');
+  const { createTestDb } = await import('@devappstore/db/testing');
   return { ...schema, schema, ...orm, db: await createTestDb() };
 });
 
-const D = await import('@wolleen/db');
+const D = await import('@devappstore/db');
 const db = D.db as DB;
 const { enqueueDelivery } = await import('@/server/delivery');
 const { redeemLinkCode } = await import('@/server/linking');
@@ -27,20 +27,20 @@ const ackRoute = await import('./deliveries/[id]/ack/route');
 const streamRoute = await import('./deliveries/stream/route');
 const playerTokensRoute = await import('./player-tokens/route');
 
-const SECRET_A = 'wk_secret_test_game_a';
-const PUB_A = 'wk_pub_test_game_a';
-const SECRET_B = 'wk_secret_test_game_b';
-const PUB_B = 'wk_pub_test_game_b';
-const LEGACY_A2 = 'wk_live_ancienne_cle';
+const SECRET_A = 'das_secret_test_game_a';
+const PUB_A = 'das_pub_test_game_a';
+const SECRET_B = 'das_secret_test_game_b';
+const PUB_B = 'das_pub_test_game_b';
+const LEGACY_A2 = 'das_live_ancienne_cle';
 
 type Init = { method?: string; key?: string; token?: string; origin?: string; body?: unknown; signal?: AbortSignal };
 function req(path: string, init: Init = {}) {
   const headers: Record<string, string> = {};
   if (init.key) headers.authorization = `Bearer ${init.key}`;
-  if (init.token) headers['wolleen-player-token'] = init.token;
+  if (init.token) headers['devappstore-player-token'] = init.token;
   if (init.origin) headers.origin = init.origin;
   if (init.body !== undefined) headers['content-type'] = 'application/json';
-  return new Request(`http://wolleen.test${path}`, {
+  return new Request(`http://devappstore.test${path}`, {
     method: init.method ?? 'GET',
     headers,
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
@@ -62,8 +62,8 @@ beforeAll(async () => {
   await db.insert(D.games).values([
     game('gam_a', SECRET_A, PUB_A),
     game('gam_b', SECRET_B, PUB_B),
-    game('gam_legacy', LEGACY_A2, 'wk_pub_test_legacy'),
-    game('gam_susp', 'wk_secret_test_susp', 'wk_pub_test_susp', { status: 'suspended' }),
+    game('gam_legacy', LEGACY_A2, 'das_pub_test_legacy'),
+    game('gam_susp', 'das_secret_test_susp', 'das_pub_test_susp', { status: 'suspended' }),
   ]);
   await db.insert(D.items).values(
     ['gam_a', 'gam_b'].map((g) => ({ id: `itm_${g}`, gameId: g, productId: 'gems', title: 'Gemmes', priceCents: 199, style: {} as never })),
@@ -110,10 +110,10 @@ describe('authentification de l’API v1 (CHK-API-01/03/04, D-04)', () => {
     const body = { player_id: 'p1' };
     for (const r of [
       req(path, { method: 'POST', body }),
-      req(path, { method: 'POST', key: 'wk_faux', body }),
+      req(path, { method: 'POST', key: 'das_faux', body }),
       req(`${path}&api_key=${SECRET_A}&access_token=${SECRET_A}`, { method: 'POST', body }),
-      req(path, { method: 'POST', key: 'wk_secret_test_susp', body }),
-      req(path, { method: 'POST', key: 'wk_pub_test_susp', body }),
+      req(path, { method: 'POST', key: 'das_secret_test_susp', body }),
+      req(path, { method: 'POST', key: 'das_pub_test_susp', body }),
     ]) {
       const res = await handler(r);
       expect(res.status).toBe(401);
@@ -126,34 +126,34 @@ describe('authentification de l’API v1 (CHK-API-01/03/04, D-04)', () => {
     expect(auth?.kind).toBe('secret');
     expect(Object.keys(auth!.game).sort()).toEqual(['currency', 'id', 'linkMethods', 'status', 'studioId', 'webhookUrl']);
     expect((await apiKey.authenticateApi(req('/', { key: PUB_A })))?.kind).toBe('publishable');
-    expect((await apiKey.authenticateApi(req('/', { key: LEGACY_A2 })))?.game.id).toBe('gam_legacy'); // anciennes clés wk_live_ acceptées
+    expect((await apiKey.authenticateApi(req('/', { key: LEGACY_A2 })))?.game.id).toBe('gam_legacy'); // anciennes clés das_live_ acceptées
     expect(await apiKey.authenticateGame(req('/', { key: PUB_A }))).toBeNull();
-    expect(await apiKey.authenticateGame(req('/', { key: 'wk_secret_test_susp' }))).toBeNull();
+    expect(await apiKey.authenticateGame(req('/', { key: 'das_secret_test_susp' }))).toBeNull();
     expect((await apiKey.authenticateGame(req('/', { key: SECRET_A })))?.id).toBe('gam_a');
   });
 
   it('un jeu créé sans clé publique en reçoit une (stable) à l’ouverture de l’onglet Intégration', async () => {
     await db.insert(D.games).values({
       id: 'gam_nokey', studioId: 'std_t', slug: 'gam_nokey', name: 'Sans clé', theme: DEFAULT_THEME,
-      webhookSecret: 'whsec_x', apiKeyHash: hashApiKey('wk_secret_nokey'), apiKeyPrefix: 'wk_secret_noke',
+      webhookSecret: 'whsec_x', apiKeyHash: hashApiKey('das_secret_nokey'), apiKeyPrefix: 'das_secret_noke',
     });
     const [k1, k2] = await Promise.all([apiKey.ensurePublishableKey('gam_nokey'), apiKey.ensurePublishableKey('gam_nokey')]);
-    expect(k1).toMatch(/^wk_pub_/);
+    expect(k1).toMatch(/^das_pub_/);
     expect(k2).toBe(k1);
     expect(await apiKey.ensurePublishableKey('gam_nokey')).toBe(k1);
     expect((await apiKey.authenticateApi(req('/', { key: k1! })))?.game.id).toBe('gam_nokey');
     expect(await apiKey.ensurePublishableKey('gam_inconnu')).toBeNull();
   });
 
-  it('nouvelles clés : secrète wk_secret_ (empreinte seule), publique wk_pub_, jeton wk_pt_', () => {
+  it('nouvelles clés : secrète das_secret_ (empreinte seule), publique das_pub_, jeton das_pt_', () => {
     const s = apiKey.generateSecretApiKey();
-    expect(s.key.startsWith('wk_secret_')).toBe(true);
+    expect(s.key.startsWith('das_secret_')).toBe(true);
     expect(s.hash).toBe(hashApiKey(s.key));
     expect(s.key.startsWith(s.prefix)).toBe(true);
     expect(s.prefix.length).toBeLessThan(s.key.length - 20);
-    expect(apiKey.generatePublishableKey().startsWith('wk_pub_')).toBe(true);
+    expect(apiKey.generatePublishableKey().startsWith('das_pub_')).toBe(true);
     const t = apiKey.generatePlayerToken();
-    expect(t.token.startsWith('wk_pt_')).toBe(true);
+    expect(t.token.startsWith('das_pt_')).toBe(true);
     expect(t.hash).toBe(hashApiKey(t.token));
   });
 });
@@ -177,7 +177,7 @@ describe('clé publique : liaison → jeton joueur (D-05)', () => {
     const [first, second] = await Promise.all([poll(), poll()]);
     const issued = [first, second].filter((p) => typeof p.player_token === 'string');
     expect(issued).toHaveLength(1); // échange unique, même en concurrence
-    expect(String(issued[0]!.player_token)).toMatch(/^wk_pt_/);
+    expect(String(issued[0]!.player_token)).toMatch(/^das_pt_/);
     expect([first.status, second.status].sort()).toEqual(['claimed', 'linked']);
     expect(await poll()).toEqual({ status: 'claimed', player_id: 'P_flow' });
     expect(await poll(SECRET_A)).toEqual({ status: 'linked', player_id: 'P_flow' }); // clé secrète : statut seulement
@@ -217,7 +217,7 @@ describe('clé publique : livraisons restreintes au joueur du jeton (CHK-API-06,
       await deliveriesRoute.GET(req('/api/v1/deliveries?player_id=P1', { key: PUB_A })),
       await streamRoute.GET(req('/api/v1/deliveries/stream?player_id=P1', { key: PUB_A })),
       await ackRoute.POST(req('/', { method: 'POST', key: PUB_A }), params('dlv_x')),
-      await deliveriesRoute.GET(req('/api/v1/deliveries?player_id=P1', { key: PUB_A, token: 'wk_pt_invente' })),
+      await deliveriesRoute.GET(req('/api/v1/deliveries?player_id=P1', { key: PUB_A, token: 'das_pt_invente' })),
     ]) {
       expect(res.status).toBe(401);
       expect((await json(res)).error).toMatchObject({ code: 'player_token_required' });
@@ -326,7 +326,7 @@ describe('CORS de l’API v1 (CHK-API-10)', () => {
     expect(res.status).toBe(204);
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
     expect(res.headers.get('access-control-allow-credentials')).toBeNull();
-    expect(res.headers.get('access-control-allow-headers')).toContain('Wolleen-Player-Token');
+    expect(res.headers.get('access-control-allow-headers')).toContain('DevAppStore-Player-Token');
     expect(res.headers.get('access-control-allow-headers')).toContain('Authorization');
     expect(res.headers.get('access-control-allow-methods')).toContain('DELETE');
   });

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { DeliveryStatus, GameStatus } from '@wolleen/core';
+import type { DeliveryStatus, GameStatus } from '@devappstore/core';
 import { SUSPENSION_GROUNDS, auditActionLabel, auditTargetHref, type SuspensionGround } from '@/server/admin-logic';
 import { DELIVERY_STATUS, GAME_STATUS, Mono, Time } from './ui';
 

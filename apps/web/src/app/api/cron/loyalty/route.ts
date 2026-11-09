@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * GET /api/cron/loyalty — tâche quotidienne des Points Wolleen : inscrit les expirations de points (et des bons non
+ * GET /api/cron/loyalty — tâche quotidienne des Points Dev AppStore : inscrit les expirations de points (et des bons non
  * utilisés) dans le registre, puis rattrape la livraison des objets bonus dont l'envoi a échoué juste après le rachat.
  * Idempotente. Protégée par `Authorization: Bearer $CRON_SECRET` (cronGuard, comparaison à temps constant).
  */

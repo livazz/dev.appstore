@@ -1,4 +1,4 @@
-import { LINK_CODE_TTL_MS, SIGNATURE_HEADER, SIGNATURE_TOLERANCE_S, WEBHOOK_RETRY_SCHEDULE_MS } from '@wolleen/core';
+import { LINK_CODE_TTL_MS, SIGNATURE_HEADER, SIGNATURE_TOLERANCE_S, WEBHOOK_RETRY_SCHEDULE_MS } from '@devappstore/core';
 
 /** Délai lisible : 10 s, 1 min, 2 h, 1 j 6 h… */
 export function formatDelay(ms: number): string {
@@ -15,13 +15,13 @@ export function formatDelay(ms: number): string {
 }
 
 /**
- * Valeurs techniques citées par la documentation, lues depuis @wolleen/core (une seule source de vérité)
+ * Valeurs techniques citées par la documentation, lues depuis @devappstore/core (une seule source de vérité)
  * ou recopiées du code des routes quand elles n'y sont pas exportées (testées dans examples.test.ts).
  */
 export const DOCS_FACTS = {
   signatureHeader: SIGNATURE_HEADER,
-  deliveryHeader: 'Wolleen-Delivery',
-  testHeader: 'Wolleen-Test',
+  deliveryHeader: 'DevAppStore-Delivery',
+  testHeader: 'DevAppStore-Test',
   toleranceS: SIGNATURE_TOLERANCE_S,
   linkCodeTtlMin: LINK_CODE_TTL_MS / 60_000,
   retrySchedule: WEBHOOK_RETRY_SCHEDULE_MS.map(formatDelay),

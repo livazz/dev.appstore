@@ -50,13 +50,13 @@ describe('JWT', () => {
   it('assertion de compte de service Google RS256', () => {
     const now = 1_700_000_000_000;
     const token = createServiceAccountAssertion(
-      { client_email: 'wolleen-import@nova-games.iam.gserviceaccount.com', private_key: rsaPem, private_key_id: 'abc123' },
+      { client_email: 'devappstore-import@nova-games.iam.gserviceaccount.com', private_key: rsaPem, private_key_id: 'abc123' },
       { now },
     );
     const { header, payload } = decodeJwt(token);
     expect(header).toEqual({ alg: 'RS256', typ: 'JWT', kid: 'abc123' });
     expect(payload).toEqual({
-      iss: 'wolleen-import@nova-games.iam.gserviceaccount.com',
+      iss: 'devappstore-import@nova-games.iam.gserviceaccount.com',
       scope: 'https://www.googleapis.com/auth/androidpublisher',
       aud: 'https://oauth2.googleapis.com/token',
       iat: now / 1000,

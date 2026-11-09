@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { db, eq, games } from '@wolleen/db';
+import { db, eq, games } from '@devappstore/db';
 import { requireGameAccess } from '@/server/session';
 import { GameActions, GameTabs } from '@/components/studio/GameNav';
 import { SuspensionNotice } from '@/components/moderation/SuspensionNotice';

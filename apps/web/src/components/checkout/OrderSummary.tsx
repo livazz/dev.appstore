@@ -1,4 +1,4 @@
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import type { OrderView } from '@/server/payments';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });

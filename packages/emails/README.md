@@ -1,7 +1,7 @@
-# @wolleen/emails
+# @devappstore/emails
 
-E-mails transactionnels Wolleen, sans dépendance lourde : chaque modèle est une fonction TS qui renvoie
-`{ subject, html, text }` (HTML compatible clients mail : tableaux, styles inline, 600 px, logo W jaune en
+E-mails transactionnels Dev AppStore, sans dépendance lourde : chaque modèle est une fonction TS qui renvoie
+`{ subject, html, text }` (HTML compatible clients mail : tableaux, styles inline, 600 px, logo D jaune en
 pur HTML). **Code serveur uniquement** (l'adaptateur console utilise `node:fs`).
 
 ## Modèles
@@ -18,7 +18,7 @@ pur HTML). **Code serveur uniquement** (l'adaptateur console utilise `node:fs`).
 | `studioDeliveryAlertEmail` | studio | livraisons en échec |
 | `studioWeeklyReportEmail` | studio | cron hebdo (revenu, économie vs stores via `savingsVsStores`) |
 
-`renderEmail({ …, brand })` accepte une marque d'en-tête (`WOLLEEN_BRAND` par défaut, `DEV_APPSTORE_BRAND`).
+`renderEmail({ …, brand })` accepte une marque d'en-tête (`DEVAPPSTORE_BRAND` par défaut, `DEV_APPSTORE_BRAND`).
 
 `WITHDRAWAL_WAIVER_TEXT` est le texte exact de la case à cocher du checkout : l'afficher tel quel, ou passer
 la variante réellement affichée dans `consent.waiverText`.
@@ -26,7 +26,7 @@ la variante réellement affichée dans `consent.waiverText`.
 ## Envoi
 
 ```ts
-import { createMailerFromEnv, sendEmail, purchaseReceiptEmail, contextFromEnv } from '@wolleen/emails';
+import { createMailerFromEnv, sendEmail, purchaseReceiptEmail, contextFromEnv } from '@devappstore/emails';
 
 const mailer = createMailerFromEnv(); // console en dev, Resend si RESEND_API_KEY
 await sendEmail(mailer, user.email, purchaseReceiptEmail(data, contextFromEnv()));
@@ -36,7 +36,7 @@ await sendEmail(mailer, user.email, purchaseReceiptEmail(data, contextFromEnv())
 |---|---|
 | `MAIL_TRANSPORT` | `console` ou `resend` (défaut : `resend` si `RESEND_API_KEY`, sinon `console`) |
 | `RESEND_API_KEY` | clé Resend |
-| `MAIL_FROM` | expéditeur (défaut `Wolleen <no-reply@wolleen.com>`, domaine à vérifier chez Resend) |
+| `MAIL_FROM` | expéditeur (défaut `Dev AppStore <no-reply@devappstore.com>`, domaine à vérifier chez Resend) |
 | `MAIL_REPLY_TO` | adresse de réponse |
 | `MAIL_CONSOLE_DIR` | dossier des copies HTML en dev (défaut `.data/mails`, relatif au cwd) |
 | `APP_URL` / `NEXT_PUBLIC_APP_URL`, `SUPPORT_EMAIL`, `MAIL_COMPANY_NAME`, `MAIL_COMPANY_ADDRESS`, `MAIL_MEDIATOR_NAME`, `MAIL_MEDIATOR_URL` | lus par `contextFromEnv()` |
@@ -50,5 +50,5 @@ await sendEmail(mailer, user.email, purchaseReceiptEmail(data, contextFromEnv())
 ## Prévisualisation
 
 ```sh
-npm run preview -w @wolleen/emails   # → .data/mails-preview/index.html
+npm run preview -w @devappstore/emails   # → .data/mails-preview/index.html
 ```

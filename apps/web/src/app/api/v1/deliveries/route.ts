@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/v1/deliveries → { data: PurchaseEvent[] } (pending + delivered non acquittées, achats et remboursements).
  * - Clé secrète : `?player_id=` obligatoire.
- * - Clé publique : en-tête `Wolleen-Player-Token` obligatoire ; renvoie seulement les achats du joueur du jeton.
+ * - Clé publique : en-tête `DevAppStore-Player-Token` obligatoire ; renvoie seulement les achats du joueur du jeton.
  */
 export async function GET(req: Request) {
   ensureDevRetryLoop();

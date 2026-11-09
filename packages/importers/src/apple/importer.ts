@@ -1,4 +1,4 @@
-import type { ItemType } from '@wolleen/core';
+import type { ItemType } from '@devappstore/core';
 import { applePeriod } from '../periods';
 import { decimalToCents, toCurrency } from '../pricing';
 import { mapLimit, pickLocale, StoreApiError } from '../http';
@@ -155,7 +155,7 @@ export async function importAppStoreCatalog(opts: AppStoreImportOptions): Promis
       warn({
         productId,
         code: 'unsupported_period',
-        message: `Période « ${a.subscriptionPeriod} » non gérée par Wolleen (semaine, mois, an) : à ajuster avant publication.`,
+        message: `Période « ${a.subscriptionPeriod} » non gérée par Dev AppStore (semaine, mois, an) : à ajuster avant publication.`,
       });
     }
     let price: ResolvedPrice | null;

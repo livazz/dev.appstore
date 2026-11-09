@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import type { GameStatus } from '@wolleen/core';
+import type { GameStatus } from '@devappstore/core';
 import { deleteGame, publishGame, unpublishGame } from '@/server/studio';
 import { IconExternal, IconMore, IconPlus } from './icons';
 

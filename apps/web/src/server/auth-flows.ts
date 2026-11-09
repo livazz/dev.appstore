@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
-import { newId, slugify } from '@wolleen/core';
-import { db, eq, ilike, or, studioMembers, studios, type DB } from '@wolleen/db';
+import { newId, slugify } from '@devappstore/core';
+import { db, eq, ilike, or, studioMembers, studios, type DB } from '@devappstore/db';
 import { auth as defaultAuth, PASSWORD_MIN_LENGTH, type Auth } from './auth';
 import { AUTH_RATE_LIMITS, authLimiter, clientIp, type SlidingWindowLimiter } from './auth-rate-limit';
 import { runInBackground, sendPlayerWelcome, sendStudioWelcome } from './notifications';

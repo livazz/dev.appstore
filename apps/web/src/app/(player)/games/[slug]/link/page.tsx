@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { LINK_CODE_TTL_MS } from '@wolleen/core';
+import { LINK_CODE_TTL_MS } from '@devappstore/core';
 import { getGameLink } from '@/server/links';
 import { LINK_METHOD_LABELS, availableLinkMethods, getLinkableGame, linkReturnPath } from '@/server/linking';
 import { requireUser } from '@/server/session';
@@ -9,7 +9,7 @@ import { CodeForm } from './CodeForm';
 import { IdConfirmForm } from './IdConfirmForm';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Lier mon compte de jeu — Wolleen' };
+export const metadata: Metadata = { title: 'Lier mon compte de jeu — Dev AppStore' };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' });
 
@@ -59,7 +59,7 @@ export default async function LinkPage({
 
       {link && !changing ? (
         <>
-          <p className="mt-6 text-ink-2">Vos achats sur Wolleen sont livrés automatiquement à ce compte {game.name}.</p>
+          <p className="mt-6 text-ink-2">Vos achats sur Dev AppStore sont livrés automatiquement à ce compte {game.name}.</p>
           <section className={`${card} mt-4`} aria-labelledby="linked-title">
             <p id="linked-title" className="text-xs font-medium uppercase tracking-wide text-ink-3">
               Compte lié
@@ -87,7 +87,7 @@ export default async function LinkPage({
       ) : (
         <>
           <p className="mt-6 text-ink-2">
-            Pour recevoir vos achats directement dans {game.name}, indiquez à Wolleen le compte de jeu à créditer. Vous ne le
+            Pour recevoir vos achats directement dans {game.name}, indiquez à Dev AppStore le compte de jeu à créditer. Vous ne le
             faites qu&apos;une fois.
           </p>
           {link && (
@@ -110,7 +110,7 @@ export default async function LinkPage({
                 Avec le code affiché dans le jeu
               </h2>
               <p className="mt-1 text-sm text-ink-2">
-                Dans {game.name}, ouvrez la boutique web ou les réglages du compte et choisissez « Lier à Wolleen » : un code de 8
+                Dans {game.name}, ouvrez la boutique web ou les réglages du compte et choisissez « Lier à Dev AppStore » : un code de 8
                 caractères s&apos;affiche. Il est valable {ttlMin} minutes.
               </p>
               <CodeForm slug={game.slug} item={item} />

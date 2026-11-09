@@ -3,7 +3,7 @@ import { contient } from '../support/text';
 
 export interface NouvelArticle {
   titre: string;
-  /** Palier de prix en centimes (PRICE_TIERS_CENTS de @wolleen/core), ex. 199. */
+  /** Palier de prix en centimes (PRICE_TIERS_CENTS de @devappstore/core), ex. 199. */
   prixCents?: number;
   sousTitre?: string;
   /** Identifiant produit envoyé au jeu ; par défaut celui suggéré depuis le titre. */

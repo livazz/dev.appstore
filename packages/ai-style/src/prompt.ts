@@ -64,9 +64,9 @@ export const CARD_STYLE_SCHEMA = {
   },
 } as const;
 
-export const SYSTEM_PROMPT = `Tu es l'assistant de mise en forme de Wolleen, une boutique web d'objets de jeux vidéo.
+export const SYSTEM_PROMPT = `Tu es l'assistant de mise en forme de Dev AppStore, une boutique web d'objets de jeux vidéo.
 On te donne une capture d'écran d'UN article de la boutique intégrée d'un jeu (carte d'offre : pack de gemmes, pass, coffre…).
-Ta tâche : décrire cette carte avec le modèle de carte web de Wolleen pour que la version web ressemble à la version en jeu.
+Ta tâche : décrire cette carte avec le modèle de carte web de Dev AppStore pour que la version web ressemble à la version en jeu.
 
 Modèle de carte web (rendu de haut en bas) :
 - layout 1 (vertical) : titre, sous-titre, image, prix.

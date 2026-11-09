@@ -15,7 +15,7 @@ export const WEB_APP_DIR = resolve(REPO_ROOT, 'apps/web/src/app');
 
 export const WEB_PORT = Number(process.env.E2E_WEB_PORT || 3000);
 export const DEMO_PORT = Number(process.env.E2E_DEMO_PORT || 4100);
-/** URL de Wolleen (site + API). */
+/** URL de Dev AppStore (site + API). */
 export const BASE_URL = (process.env.E2E_BASE_URL || `http://localhost:${WEB_PORT}`).replace(/\/+$/, '');
 /** URL du jeu de démo (apps/demo-game). */
 export const DEMO_GAME_URL = (process.env.E2E_DEMO_URL || `http://localhost:${DEMO_PORT}`).replace(/\/+$/, '');
@@ -28,7 +28,7 @@ export const DATA_DIR = resolve(REPO_ROOT, process.env.E2E_DATA_DIR || 'e2e/.dat
 
 /**
  * Réutiliser des serveurs déjà lancés (E2E_REUSE_SERVER=1). Dans ce cas le globalSetup ne touche PAS à la base :
- * le serveur existant la tient ouverte — c'est à vous de l'avoir lancé avec WOLLEEN_DATA_DIR=e2e/.data, migrée et seedée.
+ * le serveur existant la tient ouverte — c'est à vous de l'avoir lancé avec DEVAPPSTORE_DATA_DIR=e2e/.data, migrée et seedée.
  */
 export const REUSE_SERVER = process.env.E2E_REUSE_SERVER === '1';
 
@@ -47,7 +47,7 @@ export function demoGameAvailable(root = REPO_ROOT): boolean {
 /** Variables passées au serveur Next.js de test. */
 export function webServerEnv(): Record<string, string> {
   return {
-    WOLLEEN_DATA_DIR: DATA_DIR,
+    DEVAPPSTORE_DATA_DIR: DATA_DIR,
     // Force PGlite même si le développeur a un DATABASE_URL dans son shell.
     DATABASE_URL: '',
     // Mode simulation des paiements (/checkout/mock).

@@ -3,14 +3,14 @@
  * arrêt atomique de la livraison, remboursement (Stripe ou simulation), événement purchase.refunded.
  */
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_THEME } from '@wolleen/core';
-import type { DB } from '@wolleen/db';
+import { DEFAULT_THEME } from '@devappstore/core';
+import type { DB } from '@devappstore/db';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@wolleen/db', async () => {
-  const schema = await import('@wolleen/db/schema');
+vi.mock('@devappstore/db', async () => {
+  const schema = await import('@devappstore/db/schema');
   const orm = await import('drizzle-orm');
-  const { createTestDb } = await import('@wolleen/db/testing');
+  const { createTestDb } = await import('@devappstore/db/testing');
   return { ...schema, schema, ...orm, db: await createTestDb() };
 });
 
@@ -29,7 +29,7 @@ vi.mock('./notifications', async (importOriginal) => {
   };
 });
 
-const D = await import('@wolleen/db');
+const D = await import('@devappstore/db');
 const db = D.db as DB;
 const { enqueueDelivery, retryDelivery } = await import('./delivery');
 const W = await import('./withdrawal');
@@ -44,7 +44,7 @@ beforeAll(async () => {
   // Jeu sans webhook (SDK) : la livraison reste `pending` tant que le jeu ne l'a pas récupérée.
   await db.insert(D.games).values({
     id: 'gam_w', studioId: 'std_w', slug: 'gam_w', name: 'Jeu W', theme: DEFAULT_THEME, status: 'live',
-    webhookSecret: 'whsec_w', apiKeyHash: 'h_w', apiKeyPrefix: 'wk_secret_w',
+    webhookSecret: 'whsec_w', apiKeyHash: 'h_w', apiKeyPrefix: 'das_secret_w',
   });
   await db.insert(D.items).values({ id: 'itm_w', gameId: 'gam_w', productId: 'gems', title: 'Gemmes', priceCents: 499, style: {} as never });
 }, 60_000);
@@ -169,9 +169,9 @@ describe('withdrawOrder', () => {
     expect(f.calls).toHaveLength(1);
     expect(f.calls[0]!.params).toMatchObject({
       payment_intent: `pi_${id}`, reason: 'requested_by_customer', reverse_transfer: true, refund_application_fee: true,
-      metadata: { order_id: id, wolleen_reason: 'withdrawal' },
+      metadata: { order_id: id, devappstore_reason: 'withdrawal' },
     });
-    expect(f.calls[0]!.options).toEqual({ idempotencyKey: `wolleen_withdrawal_${id}` });
+    expect(f.calls[0]!.options).toEqual({ idempotencyKey: `devappstore_withdrawal_${id}` });
     expect((await orderRow(id)).status).toBe('refunded');
     expect(await refundRows(id)).toHaveLength(1);
   });
@@ -187,7 +187,7 @@ describe('withdrawOrder', () => {
     }
     expect(f.calls[0]!.params).toMatchObject({ payment_intent: `pi_${id}`, refund_application_fee: true });
     expect(f.calls[0]!.params).not.toHaveProperty('reverse_transfer');
-    expect(f.calls[0]!.options).toEqual({ stripeAccount: 'acct_studio', idempotencyKey: `wolleen_withdrawal_${id}` });
+    expect(f.calls[0]!.options).toEqual({ stripeAccount: 'acct_studio', idempotencyKey: `devappstore_withdrawal_${id}` });
   });
 
   it('Stripe, paiement sur la plateforme sans transfert : remboursement simple ; PaymentIntent retrouvé via la session', async () => {

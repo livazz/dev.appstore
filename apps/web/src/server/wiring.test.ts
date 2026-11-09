@@ -1,9 +1,9 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WEBHOOK_RETRY_SCHEDULE_MS } from '@wolleen/core';
-import type { Mailer } from '@wolleen/emails';
-import { and, db, deliveries, eq, games, loyaltyEntries, notificationsSent, orders, refundDeliveries, studioMembers, user } from '@wolleen/db';
+import { WEBHOOK_RETRY_SCHEDULE_MS } from '@devappstore/core';
+import type { Mailer } from '@devappstore/emails';
+import { and, db, deliveries, eq, games, loyaltyEntries, notificationsSent, orders, refundDeliveries, studioMembers, user } from '@devappstore/db';
 import { FX, getOrder, insertPendingOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
 import { acknowledgeDelivery, dispatchDelivery, takeOpenDeliveries } from './delivery';
 import { markOrderPaid, markOrderRefunded, payMockOrder, WITHDRAWAL_WAIVER_LABEL } from './payments';
@@ -15,16 +15,16 @@ import { markOrderPaid, markOrderRefunded, payMockOrder, WITHDRAWAL_WAIVER_LABEL
  * est remplacé par une boîte de réception en mémoire.
  */
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const { createTestDb } = await import('@wolleen/db/testing');
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const { createTestDb } = await import('@devappstore/db/testing');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
   return importOriginal();
 });
 
 type Sent = { to: string; subject: string; text: string };
 const inbox = vi.hoisted(() => [] as { to: string; subject: string; text: string }[]);
-vi.mock('@wolleen/emails', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wolleen/emails')>();
+vi.mock('@devappstore/emails', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@devappstore/emails')>();
   const mailer: Mailer = {
     async send(m) {
       inbox.push({ to: m.to, subject: m.subject, text: m.text });
@@ -183,7 +183,7 @@ describe('livraison → e-mails « livré » et « échec définitif »', () => 
   });
 
   it('relances épuisées : e-mail « échec » au joueur et alerte au studio ; un échec intermédiaire ne notifie pas', async () => {
-    await db.insert(user).values({ id: 'usr_dev_wiring', name: 'Dev', email: 'dev-wiring@wolleen.test' }).onConflictDoNothing();
+    await db.insert(user).values({ id: 'usr_dev_wiring', name: 'Dev', email: 'dev-wiring@devappstore.test' }).onConflictDoNothing();
     await db.insert(studioMembers).values({ studioId: FX.studio, userId: 'usr_dev_wiring', role: 'developer' }).onConflictDoNothing();
     await db.update(games).set({ webhookUrl }).where(eq(games.id, FX.game.id));
     status = 500;
@@ -203,7 +203,7 @@ describe('livraison → e-mails « livré » et « échec définitif »', () => 
     const [last] = await db.select({ status: deliveries.status }).from(deliveries).where(eq(deliveries.id, deliveryId!));
     expect(last!.status).toBe('failed');
     await vi.waitFor(async () => expect(await sentKinds(deliveryId!)).toEqual(['delivery_failed:sent']));
-    await vi.waitFor(() => expect(mails('dev-wiring@wolleen.test', /.+/).length).toBeGreaterThanOrEqual(1));
+    await vi.waitFor(() => expect(mails('dev-wiring@devappstore.test', /.+/).length).toBeGreaterThanOrEqual(1));
   });
 
   it('remboursement livré par webhook : pas d’e-mail « livré » pour l’événement de révocation', async () => {
@@ -236,8 +236,8 @@ describe('inscription → bienvenue joueur / studio', () => {
     const { signUpWithPassword } = await import('./auth-flows');
     const { SlidingWindowLimiter } = await import('./auth-rate-limit');
     const r = await signUpWithPassword(
-      { name: 'Nouveau', email: 'nouveau@wolleen.test', password: 'motdepasse1' },
-      { auth: fakeAuth('usr_new_player', 'nouveau@wolleen.test'), limiter: new SlidingWindowLimiter() },
+      { name: 'Nouveau', email: 'nouveau@devappstore.test', password: 'motdepasse1' },
+      { auth: fakeAuth('usr_new_player', 'nouveau@devappstore.test'), limiter: new SlidingWindowLimiter() },
     );
     expect(r).toMatchObject({ ok: true, userId: 'usr_new_player' });
     await vi.waitFor(async () => expect(await sentKinds('usr_new_player')).toEqual(['player_welcome:sent']));
@@ -247,12 +247,12 @@ describe('inscription → bienvenue joueur / studio', () => {
     const { signUpStudio } = await import('./auth-flows');
     const { SlidingWindowLimiter } = await import('./auth-rate-limit');
     const r = await signUpStudio(
-      { studioName: 'Studio Câblé', name: 'Fondatrice', email: 'fondatrice@wolleen.test', password: 'motdepasse1' },
-      { auth: fakeAuth('usr_new_owner', 'fondatrice@wolleen.test'), limiter: new SlidingWindowLimiter() },
+      { studioName: 'Studio Câblé', name: 'Fondatrice', email: 'fondatrice@devappstore.test', password: 'motdepasse1' },
+      { auth: fakeAuth('usr_new_owner', 'fondatrice@devappstore.test'), limiter: new SlidingWindowLimiter() },
     );
     expect(r.ok).toBe(true);
     await vi.waitFor(async () => expect(await sentKinds(r.studioId!)).toEqual(['studio_welcome:sent']));
-    expect(mails('fondatrice@wolleen.test', /.+/)).toHaveLength(1);
+    expect(mails('fondatrice@devappstore.test', /.+/)).toHaveLength(1);
     expect(await sentKinds('usr_new_owner')).toEqual([]);
     const [m] = await db.select().from(studioMembers).where(and(eq(studioMembers.studioId, r.studioId!), eq(studioMembers.userId, 'usr_new_owner')));
     expect(m?.role).toBe('owner');

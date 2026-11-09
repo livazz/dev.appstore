@@ -1,6 +1,6 @@
 {
-    "name": "Wolleen.Runtime",
-    "rootNamespace": "Wolleen",
+    "name": "DevAppStore.Runtime",
+    "rootNamespace": "DevAppStore",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],

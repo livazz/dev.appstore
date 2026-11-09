@@ -29,9 +29,9 @@ const sections: LegalSection[] = [
           caption="Cookies strictement nécessaires"
           head={['Cookie', 'Finalité', 'Durée']}
           rows={[
-            [<code key="t">wolleen.session_token</code>, 'Vous garder connecté à votre compte (session sécurisée)', '30 jours, prolongée à l’usage'],
-            [<code key="d">wolleen.session_data</code>, 'Cache de session pour accélérer l’affichage, si activé', 'Quelques minutes'],
-            [<code key="r">wolleen.dont_remember</code>, 'Mémoriser que vous ne souhaitez pas rester connecté', 'Session du navigateur'],
+            [<code key="t">devappstore.session_token</code>, 'Vous garder connecté à votre compte (session sécurisée)', '30 jours, prolongée à l’usage'],
+            [<code key="d">devappstore.session_data</code>, 'Cache de session pour accélérer l’affichage, si activé', 'Quelques minutes'],
+            [<code key="r">devappstore.dont_remember</code>, 'Mémoriser que vous ne souhaitez pas rester connecté', 'Session du navigateur'],
             [
               'Cookies de Stripe',
               'Sécuriser le paiement et prévenir la fraude, sur la page de paiement hébergée par Stripe',
@@ -40,7 +40,7 @@ const sections: LegalSection[] = [
           ]}
         />
         <p>
-          Le préfixe technique « wolleen » des noms de cookies correspond à l’ancien nom du service et sera renommé ; en HTTPS, les noms sont précédés de <code>__Secure-</code>.{' '}
+          En HTTPS, les noms sont précédés de <code>__Secure-</code>.{' '}
           <Todo>liste définitive des cookies à valider avant publication</Todo>
         </p>
         <p>

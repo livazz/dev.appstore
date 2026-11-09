@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { PurchaseEvent } from '@wolleen/sdk';
+import type { PurchaseEvent } from '@devappstore/sdk';
 import { applyDelta, emptyInventory, grantFor, STARTING_INVENTORY, type Inventory } from './catalog';
 import type { GameKey } from './config';
 
@@ -35,7 +35,7 @@ interface PlayerState {
 
 /**
  * « Base de données » du faux serveur de jeu, en mémoire. Le crédit est idempotent par `delivery_id`
- * (par jeu) : un webhook rejoué ou relancé par Wolleen ne crédite jamais deux fois.
+ * (par jeu) : un webhook rejoué ou relancé par Dev AppStore ne crédite jamais deux fois.
  * Un `purchase.refunded` retire exactement ce que la commande (`order_id`) avait crédité, et rien si elle ne
  * l'avait jamais été (remboursée avant livraison).
  */

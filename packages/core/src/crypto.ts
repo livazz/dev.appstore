@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
-/** En-tête : `Wolleen-Signature: t=<unix>,v1=<hex>` — HMAC-SHA256 de `${t}.${body}`. */
-export const SIGNATURE_HEADER = 'Wolleen-Signature';
+/** En-tête : `DevAppStore-Signature: t=<unix>,v1=<hex>` — HMAC-SHA256 de `${t}.${body}`. */
+export const SIGNATURE_HEADER = 'DevAppStore-Signature';
 export const SIGNATURE_TOLERANCE_S = 300;
 
 export function signPayload(body: string, secret: string, timestamp = Math.floor(Date.now() / 1000)) {

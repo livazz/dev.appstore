@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { UserMenu } from '@/components/auth/UserMenu';
 
-export const metadata: Metadata = { title: 'Espace studio — Wolleen' };
+export const metadata: Metadata = { title: 'Espace studio — Dev AppStore' };
 export const dynamic = 'force-dynamic';
 
 /**
@@ -16,7 +16,7 @@ export default async function StudioLayout({ children }: { children: React.React
         {/* 390 px : logo + menu compte sur la 1re ligne, navigation sur la 2e (aucun scroll horizontal). */}
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 px-4 py-1.5 sm:h-14 sm:flex-nowrap sm:px-6 sm:py-0">
           <Link href="/studio" className="flex min-h-11 min-w-0 items-center gap-3" aria-label="Espace studio — accueil">
-            <span className="flex size-9 flex-none items-center justify-center rounded-xl bg-brand text-lg font-black text-ink shadow-sm">W</span>
+            <span className="flex size-9 flex-none items-center justify-center rounded-xl bg-brand text-lg font-black text-ink shadow-sm">D</span>
             <span className="truncate text-base font-semibold">Espace studio</span>
           </Link>
           <nav

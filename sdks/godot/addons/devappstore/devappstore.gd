@@ -1,16 +1,16 @@
 extends Node
-## SDK Wolleen pour Godot 4.2+ (autoload « Wolleen ») — jeu SANS serveur.
+## SDK Dev AppStore pour Godot 4.2+ (autoload « Dev AppStore ») — jeu SANS serveur.
 ##
-## Récupère les achats faits sur la place de marché Wolleen et les remet au jeu :
-## - liaison du compte : [method request_link_code] affiche un code que le joueur saisit sur Wolleen ; le SDK reçoit
+## Récupère les achats faits sur la place de marché Dev AppStore et les remet au jeu :
+## - liaison du compte : [method request_link_code] affiche un code que le joueur saisit sur Dev AppStore ; le SDK reçoit
 ##   alors un jeton joueur (mémorisé) qui donne accès aux achats de CE joueur seulement ([signal linked]) ;
 ## - interrogation (polling) au lancement, à intervalle régulier et au retour au premier plan, une fois lié ;
 ## - signal [signal purchase_received] (et [signal refund_received]) une seule fois par delivery_id ;
 ## - [method ack] à appeler UNIQUEMENT après que le jeu a crédité (et sauvegardé) l'objet.
 ##
-## Clé PUBLIQUE uniquement (wk_pub_…, non secrète). N'embarquez jamais la clé secrète (wk_secret_…) dans le jeu.
+## Clé PUBLIQUE uniquement (das_pub_…, non secrète). N'embarquez jamais la clé secrète (das_secret_…) dans le jeu.
 ##
-## Contrat d'API (Authorization: Bearer <clé publique> ; après liaison, Wolleen-Player-Token: <jeton joueur>) :
+## Contrat d'API (Authorization: Bearer <clé publique> ; après liaison, DevAppStore-Player-Token: <jeton joueur>) :
 ##   POST   /api/v1/link-codes               -> { "code", "expires_at", "link_request_id" }
 ##   GET    /api/v1/link-requests/{id}       -> { "status": "pending"|"linked"|"expired"|"claimed", "player_token"? }
 ##   GET    /api/v1/deliveries?player_id=…   -> { "data": PurchaseEvent[] }            (jeton requis)
@@ -18,16 +18,16 @@ extends Node
 ##   DELETE /api/v1/player-tokens            -> { "ok": true, "revoked": 1 }           (jeton requis)
 
 ## Émis une seule fois par delivery_id pour un achat (event == "purchase.completed").
-## Créditez le joueur, sauvegardez, puis appelez [code]Wolleen.ack(purchase.delivery_id)[/code].
+## Créditez le joueur, sauvegardez, puis appelez [code]DevAppStore.ack(purchase.delivery_id)[/code].
 signal purchase_received(purchase: Dictionary)
 ## Émis pour un remboursement (event == "purchase.refunded") : retirez l'objet SI cet order_id avait été crédité
 ## (sinon ignorez), puis ack. Mêmes product_id / quantity que l'achat ; delivery_id propre.
 signal refund_received(purchase: Dictionary)
-## Émis quand le serveur Wolleen a confirmé l'accusé de réception.
+## Émis quand le serveur Dev AppStore a confirmé l'accusé de réception.
 signal ack_completed(delivery_id: String)
 ## Émis quand un code de liaison a été obtenu.
 signal link_code_received(code: String, expires_at: String)
-## Le joueur a saisi le code sur Wolleen : jeton joueur reçu, les achats commencent à arriver.
+## Le joueur a saisi le code sur Dev AppStore : jeton joueur reçu, les achats commencent à arriver.
 signal linked(player_id: String)
 ## Le jeton joueur a été révoqué ou oublié (unlink, révocation par le studio) : proposez de relier le compte.
 signal unlinked()
@@ -35,21 +35,21 @@ signal unlinked()
 signal request_failed(endpoint: String, status: int, code: String, message: String)
 
 const SDK_VERSION := "0.2.0"
-const STATE_PATH := "user://wolleen_sdk.cfg"
-const PLAYER_TOKEN_HEADER := "Wolleen-Player-Token"
+const STATE_PATH := "user://devappstore_sdk.cfg"
+const PLAYER_TOKEN_HEADER := "DevAppStore-Player-Token"
 const MIN_POLL_GAP_MSEC := 5000
 const MAX_REMEMBERED_ACKS := 500
 const LINK_POLL_SEC := 3.0
 
-## URL de base de Wolleen (sans / final). Réglage : wolleen/api/base_url.
+## URL de base de Dev AppStore (sans / final). Réglage : devappstore/api/base_url.
 var base_url: String = ""
-## Clé PUBLIQUE du jeu (wk_pub_…). Réglage : wolleen/api/publishable_key.
+## Clé PUBLIQUE du jeu (das_pub_…). Réglage : devappstore/api/publishable_key.
 var publishable_key: String = ""
-## Intervalle de polling en secondes (0 = désactivé). Réglage : wolleen/delivery/poll_interval_sec.
+## Intervalle de polling en secondes (0 = désactivé). Réglage : devappstore/delivery/poll_interval_sec.
 var poll_interval_sec: float = 60.0
-## Interroger au retour au premier plan. Réglage : wolleen/delivery/poll_on_focus.
+## Interroger au retour au premier plan. Réglage : devappstore/delivery/poll_on_focus.
 var poll_on_focus: bool = true
-## Identifiant du joueur dans VOTRE jeu (celui qui est lié sur Wolleen).
+## Identifiant du joueur dans VOTRE jeu (celui qui est lié sur Dev AppStore).
 var player_id: String = ""
 
 var _timer: Timer
@@ -70,12 +70,12 @@ var _link_wait_id := 0
 
 
 func _ready() -> void:
-	base_url = str(ProjectSettings.get_setting("wolleen/api/base_url", "https://wolleen.example"))
-	publishable_key = str(ProjectSettings.get_setting("wolleen/api/publishable_key", ""))
+	base_url = str(ProjectSettings.get_setting("devappstore/api/base_url", "https://devappstore.example"))
+	publishable_key = str(ProjectSettings.get_setting("devappstore/api/publishable_key", ""))
 	if publishable_key.is_empty():
-		publishable_key = str(ProjectSettings.get_setting("wolleen/api/api_key", ""))  # réglage de la 0.1 (déprécié)
-	poll_interval_sec = float(ProjectSettings.get_setting("wolleen/delivery/poll_interval_sec", 60.0))
-	poll_on_focus = bool(ProjectSettings.get_setting("wolleen/delivery/poll_on_focus", true))
+		publishable_key = str(ProjectSettings.get_setting("devappstore/api/api_key", ""))  # réglage de la 0.1 (déprécié)
+	poll_interval_sec = float(ProjectSettings.get_setting("devappstore/delivery/poll_interval_sec", 60.0))
+	poll_on_focus = bool(ProjectSettings.get_setting("devappstore/delivery/poll_on_focus", true))
 	_check_key()
 	_load_state()
 
@@ -129,7 +129,7 @@ func is_linked() -> bool:
 	return not _token_for(player_id).is_empty()
 
 
-## Interroge Wolleen pour les livraisons en attente du joueur courant (sans liaison : ne fait rien).
+## Interroge Dev AppStore pour les livraisons en attente du joueur courant (sans liaison : ne fait rien).
 ## Les appels rapprochés (< 5 s) sont ignorés ; un appel pendant un polling en cours est remis à la suite.
 func poll() -> void:
 	if publishable_key.is_empty() or player_id.is_empty() or not is_linked():
@@ -175,9 +175,9 @@ func ack(delivery_id: String) -> void:
 	_send_ack(delivery_id)
 
 
-## Demande un code de liaison à afficher au joueur (il le saisit sur la page du jeu sur Wolleen), puis attend la
+## Demande un code de liaison à afficher au joueur (il le saisit sur la page du jeu sur Dev AppStore), puis attend la
 ## saisie en arrière-plan : [signal linked] est émis quand le jeton joueur est reçu.
-## Utilisable avec await : [code]var r := await Wolleen.request_link_code()[/code].
+## Utilisable avec await : [code]var r := await DevAppStore.request_link_code()[/code].
 ## Renvoie { "code", "expires_at", "link_request_id" } ou un dictionnaire vide en cas d'erreur.
 func request_link_code(player_name: String = "") -> Dictionary:
 	if player_id.is_empty():
@@ -204,7 +204,7 @@ func cancel_link_wait() -> void:
 	_link_wait_id += 1
 
 
-## Délie cet appareil : révoque le jeton joueur côté Wolleen puis l'oublie ([signal unlinked]).
+## Délie cet appareil : révoque le jeton joueur côté Dev AppStore puis l'oublie ([signal unlinked]).
 func unlink() -> void:
 	if not is_linked():
 		return
@@ -225,8 +225,8 @@ func pending_ack_count() -> int:
 # ---------------------------------------------------------------------------
 
 func _check_key() -> void:
-	if not publishable_key.is_empty() and not publishable_key.begins_with("wk_pub_"):
-		push_error("[Wolleen] La clé configurée n'est pas une clé publique (wk_pub_…). Une clé secrète embarquée dans le jeu " +
+	if not publishable_key.is_empty() and not publishable_key.begins_with("das_pub_"):
+		push_error("[Dev AppStore] La clé configurée n'est pas une clé publique (das_pub_…). Une clé secrète embarquée dans le jeu " +
 			"peut être extraite et donne accès aux achats de tous les joueurs : utilisez la clé publique.")
 
 
@@ -357,7 +357,7 @@ func _send(method: HTTPClient.Method, path: String, body: Variant = null, with_t
 	var headers := PackedStringArray([
 		"Authorization: Bearer " + publishable_key,
 		"Accept: application/json",
-		"User-Agent: wolleen-godot/" + SDK_VERSION,
+		"User-Agent: devappstore-godot/" + SDK_VERSION,
 	])
 	if with_token:
 		headers.append(PLAYER_TOKEN_HEADER + ": " + token)
@@ -400,7 +400,7 @@ func _report_failure(endpoint: String, res: Dictionary) -> void:
 		code = "http_%d" % int(res["status"])
 	request_failed.emit(endpoint, int(res.get("status", 0)), code, message)
 	if int(res.get("status", 0)) == 401 and code == "unauthorized":
-		push_warning("[Wolleen] Clé refusée (401) : vérifiez wolleen/api/publishable_key.")
+		push_warning("[Dev AppStore] Clé refusée (401) : vérifiez devappstore/api/publishable_key.")
 
 
 func _load_state() -> void:
@@ -424,4 +424,4 @@ func _save_state() -> void:
 	cfg.set_value("tokens", "by_player", _tokens)
 	var err := cfg.save(STATE_PATH)
 	if err != OK:
-		push_warning("[Wolleen] Impossible d'enregistrer %s : %s" % [STATE_PATH, error_string(err)])
+		push_warning("[Dev AppStore] Impossible d'enregistrer %s : %s" % [STATE_PATH, error_string(err)])

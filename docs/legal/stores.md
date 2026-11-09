@@ -5,9 +5,9 @@
 > officiels (App Review Guidelines, Payments policy Google Play, Developer Program License Agreement) avant
 > toute décision. Les chiffres marqués *(à confirmer)* proviennent de sources secondaires discordantes.
 
-## 1. Le cas d'usage Wolleen, en une phrase
+## 1. Le cas d'usage Dev AppStore, en une phrase
 
-Le joueur achète un objet **sur le site Wolleen (navigateur, hors de l'app)** ; le jeu mobile, distribué par
+Le joueur achète un objet **sur le site Dev AppStore (navigateur, hors de l'app)** ; le jeu mobile, distribué par
 l'App Store ou Google Play, **crédite l'objet** (webhook signé ou SDK). **Aucun lien d'achat dans l'app** dans
 le scénario de base.
 
@@ -43,18 +43,18 @@ souvent facturé, région par région.
   vitrines (hors entitlement), « apps and their metadata may not include buttons, external links, or other
   calls to action that direct customers to purchasing mechanisms other than in-app purchase ».
 - **3.1.1 (loot boxes)** : obligation d'afficher les probabilités avant achat (règle Apple, mais aussi
-  attendue côté consommateur — à reproduire sur Wolleen pour tout objet aléatoire).
+  attendue côté consommateur — à reproduire sur Dev AppStore pour tout objet aléatoire).
 
 ### 2.2 Ce que cela implique, monde entier
 
 | Question | Réponse | Fondement |
 |---|---|---|
-| Un jeu iOS peut-il créditer un objet consommable acheté sur Wolleen ? | **Oui** | 3.1.3(b) |
+| Un jeu iOS peut-il créditer un objet consommable acheté sur Dev AppStore ? | **Oui** | 3.1.3(b) |
 | Condition ? | **L'objet doit aussi être disponible en IAP dans l'app iOS** | 3.1.3(b) |
 | Apple prend-elle une commission sur l'achat web organique (sans lien depuis l'app) ? | **Non**, dans aucune région à notre connaissance *(voir zone grise UE §2.4)* | Pas de base contractuelle : la transaction n'a pas lieu dans l'app ni via un lien de l'app |
-| Le studio peut-il écrire à ses joueurs (e-mail, réseaux, site, Discord) « achetez moins cher sur Wolleen » ? | **Oui**, hors de l'app | 3.1.3 dernière phrase (issue de l'accord Cameron 2021) |
-| Le jeu peut-il afficher dans l'app un bouton/lien/texte vers Wolleen ? | **Dépend de la vitrine** (tableau §4) | 3.1.1(a), 3.1.3 |
-| Le prix peut-il être plus bas sur Wolleen qu'en IAP ? | **Oui**, aucune clause de parité de prix | — |
+| Le studio peut-il écrire à ses joueurs (e-mail, réseaux, site, Discord) « achetez moins cher sur Dev AppStore » ? | **Oui**, hors de l'app | 3.1.3 dernière phrase (issue de l'accord Cameron 2021) |
+| Le jeu peut-il afficher dans l'app un bouton/lien/texte vers Dev AppStore ? | **Dépend de la vitrine** (tableau §4) | 3.1.1(a), 3.1.3 |
+| Le prix peut-il être plus bas sur Dev AppStore qu'en IAP ? | **Oui**, aucune clause de parité de prix | — |
 
 ### 2.3 États-Unis : Epic v. Apple
 
@@ -74,7 +74,7 @@ souvent facturé, région par région.
   commission aux États-Unis tant que le tribunal n'a pas fixé le taux** ; ce régime est **explicitement
   temporaire**.
 
-**Conséquence** : aux États-Unis, un jeu peut aujourd'hui afficher un bouton « Acheter sur Wolleen » sans
+**Conséquence** : aux États-Unis, un jeu peut aujourd'hui afficher un bouton « Acheter sur Dev AppStore » sans
 entitlement et sans commission Apple. Il faut s'attendre à une **commission future sur les achats liés**
 (montant inconnu, inférieur à 27 %), qui ne toucherait pas les achats web organiques.
 
@@ -91,13 +91,13 @@ entitlement et sans commission Apple. Il faut s'attendre à une **commission fut
   art. 6(4) reste ouverte.
 - **Zone grise** : la formulation exacte du périmètre de la CTC (« digital goods and services sold… ») doit
   être lue dans les conditions d'Apple. Sous les conditions de 2025, les commissions sur liens sortants ne
-  visaient que les transactions **initiées depuis l'app** (fenêtre de 7 jours après le clic). Un achat Wolleen
+  visaient que les transactions **initiées depuis l'app** (fenêtre de 7 jours après le clic). Un achat Dev AppStore
   fait par un joueur venu par un autre canal (recherche, publicité, e-mail) **ne devrait pas** être concerné
   — à vérifier sur le texte en vigueur au 1ᵉʳ octobre 2026.
 
-**Conséquence** : dans l'UE, un lien Wolleen dans l'app est **possible** avec l'entitlement UE, mais
+**Conséquence** : dans l'UE, un lien Dev AppStore dans l'app est **possible** avec l'entitlement UE, mais
 **facturé** (~15 % + 5 %, à confirmer) : il perd l'essentiel de l'intérêt économique (studio à ~5 % via
-Wolleen). Recommandation : **pas de lien dans l'app UE**, acquisition par les canaux hors app.
+Dev AppStore). Recommandation : **pas de lien dans l'app UE**, acquisition par les canaux hors app.
 
 ### 2.5 Japon : Mobile Software Competition Act (MSCA)
 
@@ -168,11 +168,11 @@ Wolleen). Recommandation : **pas de lien dans l'app UE**, acquisition par les ca
 - **Japon (MSCA)** : paiement alternatif/lien autorisés ; frais rapportés jusqu'à ~20 % *(à confirmer)*.
 - **Corée** : facturation alternative imposée par la loi (commission réduite) ; amende de 42,9 Md KRW
   (oct. 2026).
-- **Inde, Indonésie, etc.** : programmes de « User Choice Billing » — hors périmètre initial de Wolleen.
+- **Inde, Indonésie, etc.** : programmes de « User Choice Billing » — hors périmètre initial de Dev AppStore.
 
 ## 4. Synthèse par région (novembre 2026)
 
-| Région | Achat web organique, crédité en jeu | Mention / lien Wolleen **dans** l'app | Commission store sur achat web |
+| Région | Achat web organique, crédité en jeu | Mention / lien Dev AppStore **dans** l'app | Commission store sur achat web |
 |---|---|---|---|
 | **États-Unis** | Autorisé (Apple : objet aussi en IAP) | **Autorisé** sans entitlement (Apple) ; autorisé (Google, injonction) | Organique : 0. Lien : Apple 0 % **provisoire** (taux « raisonnable » à fixer) ; Google : frais programme depuis 01/10/2026 |
 | **UE / EEE** | Autorisé (idem) | Autorisé **avec entitlement / programme**, information encadrée | Organique : 0 *(vérifier périmètre CTC)*. Lien : Apple ~15 % + CTC 5 %, Google ~10–20 % *(à confirmer)* |
@@ -181,42 +181,42 @@ Wolleen). Recommandation : **pas de lien dans l'app UE**, acquisition par les ca
 | **Corée du Sud** | Autorisé | Paiement alternatif in-app possible ; liens : zone grise | Paiement alternatif : ~26 % |
 | **Reste du monde** | Autorisé | **Interdit** (pas de bouton, lien, ni « call to action ») | Organique : 0 |
 
-## 5. Zones grises propres à Wolleen
+## 5. Zones grises propres à Dev AppStore
 
 1. **Écran de liaison par code dans le jeu** (`POST /api/v1/link-codes`, code affiché au joueur). Afficher
-   « Votre code : ABCD-1234 » avec le nom ou l'URL de Wolleen peut être lu, hors US, comme un « call to
+   « Votre code : ABCD-1234 » avec le nom ou l'URL de Dev AppStore peut être lu, hors US, comme un « call to
    action » vers un mécanisme d'achat externe si le texte évoque des achats ou des prix.
    *Recommandation* : libellé neutre (« Lier un compte web », « Code de liaison »), **pas d'URL cliquable,
    pas de mention de prix ou de boutique**, et laisser le studio activer cet écran par vitrine. Privilégier
    ailleurs la méthode `id_confirm`, qui ne demande **aucune interface dans le jeu**.
-2. **Notification de livraison** (« Merci pour votre achat sur Wolleen ! ») : hors US, préférer un message
+2. **Notification de livraison** (« Merci pour votre achat sur Dev AppStore ! ») : hors US, préférer un message
    neutre (« Objet reçu : Pack de 500 gemmes »). Une notification qui vante la boutique externe peut être vue
    comme une incitation.
 3. **Métadonnées de la fiche store** (description, captures) : la règle d'Apple vise aussi les
-   « metadata ». Aucune mention de Wolleen hors US.
-4. **Exigence « also available as IAP »** (Apple) : un objet **exclusif à Wolleen** (non vendu en IAP) viole
+   « metadata ». Aucune mention de Dev AppStore hors US.
+4. **Exigence « also available as IAP »** (Apple) : un objet **exclusif à Dev AppStore** (non vendu en IAP) viole
    3.1.3(b). Les studios doivent maintenir un équivalent IAP (même contenu, prix libre) pour chaque article
-   Wolleen consommable sur iOS. Les **bonus Wolleen** (ex. +10 % de gemmes) sont une zone grise : défendables
+   Dev AppStore consommable sur iOS. Les **bonus Dev AppStore** (ex. +10 % de gemmes) sont une zone grise : défendables
    si l'objet de base existe en IAP, mais l'App Review apprécie au cas par cas.
 5. **Comptes mineurs** : au Japon, interdiction des liens pour les moins de 13 ans ; les règles de protection
    des mineurs (voir `consumer.md`) s'appliquent dans tous les cas.
 6. **Appréciation discrétionnaire de l'App Review** : même conforme sur le papier, une app peut être rejetée
-   ou retirée. Le risque est porté par le **studio** (titulaire du compte développeur), pas par Wolleen
+   ou retirée. Le risque est porté par le **studio** (titulaire du compte développeur), pas par Dev AppStore
    — à rappeler dans les conditions studio.
 
 ## 6. Conséquences concrètes
 
 ### Pour les studios (à mettre dans la documentation d'intégration et les conditions studio)
 
-- Garder chaque article Wolleen **également disponible en IAP sur iOS** (Apple 3.1.3(b)).
-- **Hors US : aucun bouton, lien, prix comparatif ni mention de Wolleen dans l'app ou sa fiche store**, sauf
+- Garder chaque article Dev AppStore **également disponible en IAP sur iOS** (Apple 3.1.3(b)).
+- **Hors US : aucun bouton, lien, prix comparatif ni mention de Dev AppStore dans l'app ou sa fiche store**, sauf
   entitlement régional assumé (et ses frais).
 - **US** : un bouton « Acheter sur le web » est aujourd'hui autorisé et gratuit côté Apple, mais susceptible
   de devenir payant (taux à fixer) ; côté Google, frais de programme depuis le 1ᵉʳ octobre 2026.
-- Promotion de Wolleen **hors app** : libre partout (e-mails, réseaux, site, communauté, publicités).
+- Promotion de Dev AppStore **hors app** : libre partout (e-mails, réseaux, site, communauté, publicités).
 - Le studio reste seul responsable de la conformité de son app aux règles des stores.
 
-### Pour Wolleen
+### Pour Dev AppStore
 
 - Le modèle « achat web organique + livraison automatique » est **le plus robuste** juridiquement : il ne
   dépend d'aucune des décisions en cours.

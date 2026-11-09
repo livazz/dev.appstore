@@ -15,7 +15,7 @@ describe('formulaire type de rétractation', () => {
     expect(text).toContain('Je vous notifie par la présente ma rétractation du contrat');
     expect(text).toContain('N° de commande : …');
     expect(text).toContain('Signature du consommateur (uniquement en cas de notification du présent formulaire sur papier)');
-    expect(text).not.toMatch(/wolleen/i);
+    expect(text).not.toMatch(/devappstore/i);
   });
 
   it('insère les champs saisis, nettoyés', () => {

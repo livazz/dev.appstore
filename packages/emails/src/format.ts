@@ -1,4 +1,4 @@
-import { formatMoney, type Currency } from '@wolleen/core';
+import { formatMoney, type Currency } from '@devappstore/core';
 
 export { formatMoney };
 

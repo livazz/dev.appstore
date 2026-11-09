@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { GRID_LIMITS, type GameTheme } from '@wolleen/core';
+import { GRID_LIMITS, type GameTheme } from '@devappstore/core';
 import { StorePanel, type PanelItem } from '@/components/store/StorePanel';
 import { safeImageUrl } from '@/components/store/style-safety';
 import { moveItem, updateGame } from '@/server/studio';

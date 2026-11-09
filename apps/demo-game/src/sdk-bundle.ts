@@ -4,10 +4,10 @@ import { dirname, join } from 'node:path';
 import ts from 'typescript';
 
 /**
- * Sert @wolleen/sdk au navigateur en modules ES : chaque fichier source TypeScript est transpilé à la volée
+ * Sert @devappstore/sdk au navigateur en modules ES : chaque fichier source TypeScript est transpilé à la volée
  * (les imports du SDK sont déjà en `./x.js`). Pas de bundler nécessaire. `server.ts` (node:crypto) est exclu.
  */
-const sdkDir = dirname(createRequire(import.meta.url).resolve('@wolleen/sdk'));
+const sdkDir = dirname(createRequire(import.meta.url).resolve('@devappstore/sdk'));
 const cache = new Map<string, string>();
 
 const BROWSER_FILES = new Set(['index', 'client', 'sse', 'types']);

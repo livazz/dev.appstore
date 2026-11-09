@@ -83,10 +83,10 @@ function fakeS3(respond: (c: Call) => Response) {
   }) as typeof fetch;
   const storage = new S3Storage({
     endpoint: 'https://acc123.eu.r2.cloudflarestorage.com/',
-    bucket: 'wolleen-uploads',
+    bucket: 'devappstore-uploads',
     accessKeyId: 'AKID',
     secretAccessKey: 'SECRET',
-    publicUrl: 'https://cdn.wolleen.test/',
+    publicUrl: 'https://cdn.devappstore.test/',
     fetch: fetchImpl,
     now: () => new Date('2026-11-09T12:34:56Z'),
   });
@@ -100,10 +100,10 @@ describe('S3Storage (fetch simulé)', () => {
     const { storage, calls } = fakeS3(() => new Response(null, { status: 200 }));
     const body = Buffer.from('image-bytes');
     const url = await storage.put('icon/usr_1/abc.webp', body, 'image/webp');
-    expect(url).toBe('https://cdn.wolleen.test/icon/usr_1/abc.webp');
+    expect(url).toBe('https://cdn.devappstore.test/icon/usr_1/abc.webp');
     expect(calls).toHaveLength(1);
     const [c] = calls;
-    expect(c.url).toBe('https://acc123.eu.r2.cloudflarestorage.com/wolleen-uploads/icon/usr_1/abc.webp');
+    expect(c.url).toBe('https://acc123.eu.r2.cloudflarestorage.com/devappstore-uploads/icon/usr_1/abc.webp');
     expect(c.init.method).toBe('PUT');
     const h = hdr(c);
     expect(h['content-type']).toBe('image/webp');

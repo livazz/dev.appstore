@@ -14,7 +14,7 @@ export interface DemoGame {
   id: string;
   slug: string;
   name: string;
-  /** webhook : le serveur du studio reçoit les achats ; sdk : le client du jeu les écoute via @wolleen/sdk. */
+  /** webhook : le serveur du studio reçoit les achats ; sdk : le client du jeu les écoute via @devappstore/sdk. */
   mode: 'webhook' | 'sdk';
   /** Clé secrète : jamais envoyée au navigateur. */
   apiKey: string;
@@ -25,20 +25,20 @@ export interface DemoGame {
 
 export interface DemoConfig {
   port: number;
-  /** URL de Wolleen (site + API). */
-  wolleenUrl: string;
+  /** URL de Dev AppStore (site + API). */
+  devAppStoreUrl: string;
   games: Record<GameKey, DemoGame>;
 }
 
 export const DEMO_KEYS = {
-  crystal: { apiKey: 'wk_secret_demo_crystal_clash', publishableKey: 'wk_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
-  farm: { apiKey: 'wk_secret_demo_pixel_farm', publishableKey: 'wk_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
+  crystal: { apiKey: 'das_secret_demo_crystal_clash', publishableKey: 'das_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
+  farm: { apiKey: 'das_secret_demo_pixel_farm', publishableKey: 'das_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
 } as const;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DemoConfig {
   return {
     port: Number(env.PORT) || 4100,
-    wolleenUrl: (env.WOLLEEN_URL || 'http://localhost:3000').replace(/\/+$/, ''),
+    devAppStoreUrl: (env.DEVAPPSTORE_URL || 'http://localhost:3000').replace(/\/+$/, ''),
     games: {
       crystal: {
         key: 'crystal',

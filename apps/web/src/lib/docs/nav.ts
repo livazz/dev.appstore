@@ -79,9 +79,9 @@ export const DOC_PAGES: DocPage[] = [
     keywords: 'serveur signature hmac',
     sections: [
       { id: 'fonctionnement', title: 'Fonctionnement' },
-      { id: 'requete', title: 'Requête envoyée', keywords: 'en-têtes headers Wolleen-Delivery' },
+      { id: 'requete', title: 'Requête envoyée', keywords: 'en-têtes headers DevAppStore-Delivery' },
       { id: 'purchase-event', title: 'Format PurchaseEvent', keywords: 'payload corps json' },
-      { id: 'signature', title: 'Signature', keywords: 'Wolleen-Signature hmac sha256 tolérance' },
+      { id: 'signature', title: 'Signature', keywords: 'DevAppStore-Signature hmac sha256 tolérance' },
       { id: 'verification', title: 'Vérifier la signature', keywords: 'node python php go csharp c#' },
       { id: 'relances', title: 'Réponses et relances', keywords: 'retry 2xx timeout échec' },
     ],
@@ -109,7 +109,7 @@ export const DOC_PAGES: DocPage[] = [
     sections: [
       { id: 'role', title: 'Rôle' },
       { id: 'appel', title: 'Appel reçu', keywords: 'requête GET {player_id}' },
-      { id: 'signature-lookup', title: 'Signature', keywords: 'hmac Wolleen-Signature' },
+      { id: 'signature-lookup', title: 'Signature', keywords: 'hmac DevAppStore-Signature' },
       { id: 'reponse', title: 'Réponse PlayerLookupResponse', keywords: 'display_name level avatar_url' },
       { id: 'exemple-lookup', title: 'Exemple d’implémentation' },
       { id: 'contraintes', title: 'Contraintes et sécurité', keywords: 'timeout ssrf limite' },
@@ -136,7 +136,7 @@ export const DOC_PAGES: DocPage[] = [
     group: 'Référence',
     keywords: 'rest http curl endpoints',
     sections: [
-      { id: 'authentification', title: 'Authentification', keywords: 'bearer authorization clé wk_' },
+      { id: 'authentification', title: 'Authentification', keywords: 'bearer authorization clé das_' },
       { id: 'erreurs', title: 'Erreurs', keywords: 'error code message 401 400 404 429' },
       { id: 'post-link-codes', title: 'POST /api/v1/link-codes', keywords: 'code de liaison' },
       { id: 'get-deliveries', title: 'GET /api/v1/deliveries', keywords: 'livraisons en attente polling' },

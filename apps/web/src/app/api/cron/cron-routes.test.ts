@@ -6,9 +6,9 @@ import { cronGuard, isCronAuthorized } from '@/server/delivery-http';
  * développement) et sont toutes déclarées dans vercel.json.
  */
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const { createTestDb } = await import('@wolleen/db/testing');
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const { createTestDb } = await import('@devappstore/db/testing');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
   return importOriginal();
 });
 

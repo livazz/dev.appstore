@@ -4,7 +4,7 @@ import { bpsToPercentLabel, estimateSavings, keptPercentLabel, netViaStoresCents
 const FEES = { storeFeeBps: 3000, platformFeeBps: 500 };
 
 describe('estimateSavings', () => {
-  it('calcule le gain annuel sur la part basculée (30 % stores vs 5 % Wolleen)', () => {
+  it('calcule le gain annuel sur la part basculée (30 % stores vs 5 % Dev AppStore)', () => {
     const r = estimateSavings({ monthlyRevenueCents: 2_000_000, webSharePct: 30, storeFeeBps: 3000, platformFeeBps: 500 });
     expect(r.annualWebCents).toBe(7_200_000);
     expect(r.annualStoreFeeCents).toBe(2_160_000);
@@ -19,9 +19,9 @@ describe('estimateSavings', () => {
   });
 });
 
-describe('cohérence avec @wolleen/core', () => {
+describe('cohérence avec @devappstore/core', () => {
   it('utilise les mêmes arrondis que feeCents / savingsVsStores', async () => {
-    const core = await import('@wolleen/core');
+    const core = await import('@devappstore/core');
     for (const cents of [0, 1, 99, 12_345, 2_000_000]) {
       const r = estimateSavings({
         monthlyRevenueCents: cents,
@@ -39,7 +39,7 @@ describe('commission store configurable (comparatif non trompeur)', () => {
   const OPTIONS = [1500, 3000] as const;
 
   it('core expose 15 % et 30 %, STORE_FEE_BPS reste exporté pour compatibilité', async () => {
-    const core = await import('@wolleen/core');
+    const core = await import('@devappstore/core');
     expect(core.STORE_FEE_BPS).toBe(3000);
     expect(core.REDUCED_STORE_FEE_BPS).toBe(1500);
     expect([...core.STORE_FEE_OPTIONS_BPS]).toEqual([1500, 3000]);
@@ -53,7 +53,7 @@ describe('commission store configurable (comparatif non trompeur)', () => {
     for (const bad of [undefined, '', '0', '-15', '20', '99', 'abc', '15abc', 'Infinity', {}]) expect(parseStoreFeeBps(bad, OPTIONS, 3000)).toBe(3000);
   });
 
-  it('gain réel à 15 % : commission store évitée − commission Wolleen réelle, jamais négatif', () => {
+  it('gain réel à 15 % : commission store évitée − commission Dev AppStore réelle, jamais négatif', () => {
     expect(savingsVsStoreCents(10_000, 500, 3000)).toBe(2_500);
     expect(savingsVsStoreCents(10_000, 500, 1500)).toBe(1_000);
     expect(savingsVsStoreCents(10_000, 2_000, 1500)).toBe(0);
@@ -61,7 +61,7 @@ describe('commission store configurable (comparatif non trompeur)', () => {
     expect(netViaStoresCents(10_000, 3000)).toBe(7_000);
   });
 
-  it('le calculateur donne un gain deux fois et demie plus faible à 15 % qu’à 30 % (5 % Wolleen)', () => {
+  it('le calculateur donne un gain deux fois et demie plus faible à 15 % qu’à 30 % (5 % Dev AppStore)', () => {
     const base = { monthlyRevenueCents: 1_000_000, webSharePct: 100, platformFeeBps: 500 };
     const at30 = estimateSavings({ ...base, storeFeeBps: 3000 }).annualGainCents;
     const at15 = estimateSavings({ ...base, storeFeeBps: 1500 }).annualGainCents;

@@ -1,8 +1,8 @@
 using UnrealBuildTool;
 
-public class Wolleen : ModuleRules
+public class DevAppStore : ModuleRules
 {
-	public Wolleen(ReadOnlyTargetRules Target) : base(Target)
+	public DevAppStore(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 

@@ -1,6 +1,6 @@
-import { PRICE_TIERS_CENTS, type Currency } from '@wolleen/core';
+import { PRICE_TIERS_CENTS, type Currency } from '@devappstore/core';
 
-/** Devises acceptées par Wolleen (miroir de `Currency` de @wolleen/core). */
+/** Devises acceptées par Dev AppStore (miroir de `Currency` de @devappstore/core). */
 export const SUPPORTED_CURRENCIES: readonly Currency[] = ['EUR', 'USD', 'GBP'];
 
 export function toCurrency(code: string | undefined | null): Currency | null {

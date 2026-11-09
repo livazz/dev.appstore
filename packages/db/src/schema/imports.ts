@@ -7,7 +7,7 @@ import { user } from './auth';
  * Module « imports » : apps/web/src/server/import-logic.ts.
  */
 
-/** Store d'origine (miroir de `ImportSource` de @wolleen/importers). */
+/** Store d'origine (miroir de `ImportSource` de @devappstore/importers). */
 export type StoreSource = 'app_store' | 'google_play';
 
 /**
@@ -35,7 +35,7 @@ export const storeCredentials = pgTable(
 export type ImportRunStatus = 'fetched' | 'imported' | 'failed';
 export type ImportRunMode = 'live' | 'demo';
 
-/** Avertissement d'import conservé au journal (forme de `ImportWarning` de @wolleen/importers). */
+/** Avertissement d'import conservé au journal (forme de `ImportWarning` de @devappstore/importers). */
 export interface ImportRunWarning {
   source: StoreSource;
   productId?: string;

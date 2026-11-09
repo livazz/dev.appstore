@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Wolleen — achats in-app sur le web",
+  title: "Dev AppStore — achats in-app sur le web",
   description: "Achetez vos objets de jeu moins cher, directement sur le web.",
 };
 

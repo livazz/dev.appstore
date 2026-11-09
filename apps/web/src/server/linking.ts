@@ -13,17 +13,17 @@ import {
   signPayload,
   type LinkMethod,
   type PlayerLookupResponse,
-} from '@wolleen/core';
-import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttempts, linkCodes, lt, playerTokens, sql, studioMembers, type DB } from '@wolleen/db';
+} from '@devappstore/core';
+import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttempts, linkCodes, lt, playerTokens, sql, studioMembers, type DB } from '@devappstore/db';
 
 /*
- * Liaison d'un compte Wolleen à un compte de jeu (tâche « linking »). Point de sécurité critique :
+ * Liaison d'un compte Dev AppStore à un compte de jeu (tâche « linking »). Point de sécurité critique :
  *
  * - `code` (vérifié) : le jeu demande un code via POST /api/v1/link-codes ; le joueur le saisit sur
  *   /games/[slug]/link. Le code est consommé atomiquement (UPDATE … WHERE consumed_at IS NULL AND expires_at > now),
  *   une seule fois, uniquement pour le jeu qui l'a émis. Les saisies erronées sont limitées par utilisateur.
  *
- * - `id_confirm` (déclaratif) : le joueur saisit son ID ; Wolleen appelle l'endpoint « player lookup » du studio
+ * - `id_confirm` (déclaratif) : le joueur saisit son ID ; Dev AppStore appelle l'endpoint « player lookup » du studio
  *   (protégé contre le SSRF) puis demande « Est-ce bien vous ? ». La confirmation ne fait confiance qu'à la recherche
  *   enregistrée côté serveur (link_attempts), jamais au nom renvoyé par le navigateur.
  *
@@ -31,12 +31,12 @@ import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttemp
  *
  *   GET <games.playerLookupUrl, « {player_id} » remplacé par encodeURIComponent(player_id)>
  *   Accept: application/json
- *   User-Agent: Wolleen-PlayerLookup/1.0
- *   Wolleen-Signature: t=<unix>,v1=<hex>
+ *   User-Agent: DevAppStore-PlayerLookup/1.0
+ *   DevAppStore-Signature: t=<unix>,v1=<hex>
  *
  *   où v1 = HMAC-SHA256(secret webhook du jeu, `${t}.${player_id}`) — c.-à-d. signPayload(player_id, secret) de
- *   @wolleen/core, le « corps » signé étant l'ID joueur brut (décodé, tel que saisi, espaces de bord retirés).
- *   Côté studio : verifySignature(decodeURIComponent(param), req.headers['wolleen-signature'], secret).
+ *   @devappstore/core, le « corps » signé étant l'ID joueur brut (décodé, tel que saisi, espaces de bord retirés).
+ *   Côté studio : verifySignature(decodeURIComponent(param), req.headers['devappstore-signature'], secret).
  *   Signer l'ID (et pas un corps vide) empêche de rejouer une signature pour un autre joueur.
  *
  *   Réponses : 200 + PlayerLookupResponse JSON `{ player_id, display_name, level?, avatar_url? }`, 404 si inconnu.
@@ -184,7 +184,7 @@ export async function createLinkCode(
  * simultanées liraient toutes « 0 échec » et contourneraient la limite (force brute en parallèle).
  */
 async function lockUserAttempts(tx: Tx, userId: string, kind: 'code' | 'lookup') {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`wolleen:link:${kind}:${userId}`}))`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`devappstore:link:${kind}:${userId}`}))`);
 }
 
 /** Fenêtre glissante sur link_attempts pour un utilisateur. */
@@ -361,7 +361,7 @@ export function checkOutboundUrl(
 }
 
 export class BlockedAddressError extends Error {
-  code = 'EWOLLEEN_BLOCKED';
+  code = 'EDEVAPPSTORE_BLOCKED';
   constructor(host: string) {
     super(`Adresse refusée pour ${host}`);
   }
@@ -450,8 +450,8 @@ export function checkLookupTemplate(template: string): string | null {
   let a: URL;
   let b: URL;
   try {
-    a = new URL(template.replaceAll('{player_id}', 'wolleenplayera'));
-    b = new URL(template.replaceAll('{player_id}', 'wolleenplayerb'));
+    a = new URL(template.replaceAll('{player_id}', 'devappstoreplayera'));
+    b = new URL(template.replaceAll('{player_id}', 'devappstoreplayerb'));
   } catch {
     return 'URL invalide.';
   }
@@ -495,7 +495,7 @@ export async function fetchPlayerLookup(
   try {
     res = await safeHttpGet(
       shape.url,
-      { accept: 'application/json', 'user-agent': 'Wolleen-PlayerLookup/1.0', [SIGNATURE_HEADER]: signPayload(playerId, game.webhookSecret, ts) },
+      { accept: 'application/json', 'user-agent': 'DevAppStore-PlayerLookup/1.0', [SIGNATURE_HEADER]: signPayload(playerId, game.webhookSecret, ts) },
       { allowPrivate, requireHttps, timeoutMs: opts.timeoutMs ?? LINK_LIMITS.lookupTimeoutMs, maxBytes: LINK_LIMITS.lookupMaxBytes },
     );
   } catch (e) {

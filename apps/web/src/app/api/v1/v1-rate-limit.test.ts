@@ -3,18 +3,18 @@
  * link-codes / link-requests, plafond de flux SSE simultanés par joueur et durée maximale d'un flux.
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_THEME, hashApiKey } from '@wolleen/core';
-import type { DB } from '@wolleen/db';
+import { DEFAULT_THEME, hashApiKey } from '@devappstore/core';
+import type { DB } from '@devappstore/db';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@wolleen/db', async () => {
-  const schema = await import('@wolleen/db/schema');
+vi.mock('@devappstore/db', async () => {
+  const schema = await import('@devappstore/db/schema');
   const orm = await import('drizzle-orm');
-  const { createTestDb } = await import('@wolleen/db/testing');
+  const { createTestDb } = await import('@devappstore/db/testing');
   return { ...schema, schema, ...orm, db: await createTestDb() };
 });
 
-const D = await import('@wolleen/db');
+const D = await import('@devappstore/db');
 const db = D.db as DB;
 const RL = await import('@/server/rate-limit');
 const G = await import('@/server/api-rate-limit');
@@ -22,8 +22,8 @@ const linkCodesRoute = await import('./link-codes/route');
 const linkRequestsRoute = await import('./link-requests/[id]/route');
 const streamRoute = await import('./deliveries/stream/route');
 
-const SECRET = 'wk_secret_rl_game';
-const PUB = 'wk_pub_rl_game';
+const SECRET = 'das_secret_rl_game';
+const PUB = 'das_pub_rl_game';
 
 type Init = { method?: string; key?: string; ip?: string; body?: unknown; signal?: AbortSignal };
 function req(path: string, init: Init = {}) {
@@ -31,7 +31,7 @@ function req(path: string, init: Init = {}) {
   if (init.key) headers.authorization = `Bearer ${init.key}`;
   if (init.ip) headers['x-forwarded-for'] = `${init.ip}, 10.0.0.1`;
   if (init.body !== undefined) headers['content-type'] = 'application/json';
-  return new Request(`http://wolleen.test${path}`, {
+  return new Request(`http://devappstore.test${path}`, {
     method: init.method ?? 'GET',
     headers,
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
@@ -69,7 +69,7 @@ describe('limitation de débit /api/v1', () => {
   it('link-requests : les clés invalides comptent aussi pour l’IP (frein à l’essai de clés)', async () => {
     const max = G.API_RATE_LIMITS.routes['link-requests']!.perIp.max;
     for (let i = 0; i < max; i++) {
-      expect((await linkRequestsRoute.GET(req('/api/v1/link-requests/lnc_x', { key: `wk_pub_faux${i}`, ip: '192.0.2.50' }), params('lnc_x'))).status).toBe(401);
+      expect((await linkRequestsRoute.GET(req('/api/v1/link-requests/lnc_x', { key: `das_pub_faux${i}`, ip: '192.0.2.50' }), params('lnc_x'))).status).toBe(401);
     }
     const blocked = await linkRequestsRoute.GET(req('/api/v1/link-requests/lnc_x', { key: PUB, ip: '192.0.2.50' }), params('lnc_x'));
     expect(blocked.status).toBe(429);

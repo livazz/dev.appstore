@@ -3,24 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Nova Games · démo Wolleen</title>
+    <title>Nova Games · démo Dev AppStore</title>
     <link rel="stylesheet" href="/game.css" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand">
-        <span class="logo">W</span>
+        <span class="logo">D</span>
         <span>Démo studio <strong>Nova Games</strong></span>
       </div>
-      <a id="open-wolleen" class="link" href="http://localhost:3000" target="_blank" rel="noopener">Ouvrir Wolleen ↗</a>
+      <a id="open-devappstore" class="link" href="http://localhost:3000" target="_blank" rel="noopener">Ouvrir Dev AppStore ↗</a>
     </header>
 
     <main class="layout">
       <section class="side">
         <h1>Le jeu se met à jour tout seul</h1>
         <ol class="steps">
-          <li>Dans le jeu : <em>Paramètres → Lier mon compte web</em>, puis saisissez le code sur Wolleen.</li>
-          <li>Achetez un article sur la boutique Wolleen du jeu.</li>
+          <li>Dans le jeu : <em>Paramètres → Lier mon compte web</em>, puis saisissez le code sur Dev AppStore.</li>
+          <li>Achetez un article sur la boutique Dev AppStore du jeu.</li>
           <li>Revenez ici : les compteurs s'animent, sans recharger la page.</li>
         </ol>
 
@@ -49,7 +49,7 @@
         <div class="journal">
           <div class="journal-head">
             <h2>Journal</h2>
-            <button id="simulate" class="btn-ghost" type="button" title="Envoie au serveur du jeu un webhook signé, comme le ferait Wolleen">Simuler un achat</button>
+            <button id="simulate" class="btn-ghost" type="button" title="Envoie au serveur du jeu un webhook signé, comme le ferait Dev AppStore">Simuler un achat</button>
           </div>
           <ul id="log"><li class="muted">En attente d'un achat…</li></ul>
         </div>
@@ -91,14 +91,14 @@
                   <code id="player-id">—</code>
                 </div>
                 <div class="row">
-                  <span>Compte web Wolleen</span>
+                  <span>Compte web Dev AppStore</span>
                   <span class="muted small" id="link-via"></span>
                 </div>
                 <div class="code-box" id="code-box" hidden>
                   <div class="small muted">Votre code de liaison</div>
                   <div class="code" id="link-code">————-————</div>
                   <div class="small muted" id="link-expiry"></div>
-                  <div class="small">Saisissez-le sur <a id="link-url" target="_blank" rel="noopener">Wolleen</a>.</div>
+                  <div class="small">Saisissez-le sur <a id="link-url" target="_blank" rel="noopener">Dev AppStore</a>.</div>
                 </div>
                 <p class="small linked" id="link-state" hidden></p>
                 <p class="error small" id="link-error" hidden></p>

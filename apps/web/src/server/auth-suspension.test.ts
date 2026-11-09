@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestDb } from '@wolleen/db/testing';
-import { session as sessions, userSuspensions } from '@wolleen/db/schema';
+import { createTestDb } from '@devappstore/db/testing';
+import { session as sessions, userSuspensions } from '@devappstore/db/schema';
 import { eq } from 'drizzle-orm';
-import type { DB } from '@wolleen/db';
+import type { DB } from '@devappstore/db';
 
 /*
  * Back-office (user-suspension) : un compte désactivé ne peut plus se connecter par e-mail / mot de passe. Le refus vient
@@ -41,7 +41,7 @@ const PASSWORD = 'motdepasse1';
 
 beforeAll(async () => {
   tdb = await createTestDb();
-  (globalThis as unknown as { __wolleenDb?: DB }).__wolleenDb = tdb;
+  (globalThis as unknown as { __devAppStoreDb?: DB }).__devAppStoreDb = tdb;
   flows = await import('./auth-flows');
   session = await import('./session');
   const r = await flows.signUpWithPassword({ name: 'Banni', email: EMAIL, password: PASSWORD }, { playerWelcome: false });
@@ -67,7 +67,7 @@ describe('connexion d’un compte désactivé (databaseHooks.session.create.befo
     expect(r).toMatchObject({ error: expect.any(String) });
     expect(r).not.toMatchObject({ error: 'E-mail ou mot de passe incorrect.' });
     expect(await sessionCount()).toBe(0);
-    expect([...jar.keys()].some((k) => k.startsWith('wolleen.session_token'))).toBe(false);
+    expect([...jar.keys()].some((k) => k.startsWith('devappstore.session_token'))).toBe(false);
     expect(await session.getCurrentUser()).toBeNull();
   });
 

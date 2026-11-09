@@ -1,13 +1,13 @@
-# @wolleen/importers
+# @devappstore/importers
 
 Import du catalogue d'achats in-app **existant** d'un studio depuis **App Store Connect** et **Google Play**,
-normalisé en `ImportedProduct` (montants en centimes, types de `@wolleen/core`), plus une suggestion de prix web.
+normalisé en `ImportedProduct` (montants en centimes, types de `@devappstore/core`), plus une suggestion de prix web.
 
 Module autonome, sans dépendance externe (signatures JWT ES256 / RS256 via `node:crypto`), `fetch` injectable.
 Il n'est pas encore branché dans `apps/web` : ce sera fait après fusion (voir « Intégration prévue »).
 
 ```ts
-import { importAppStoreCatalog, importGooglePlayCatalog, importCatalog, suggestWebPrice } from '@wolleen/importers';
+import { importAppStoreCatalog, importGooglePlayCatalog, importCatalog, suggestWebPrice } from '@devappstore/importers';
 
 const { products, warnings } = await importCatalog({
   appStore: {
@@ -56,7 +56,7 @@ inférieur (149,99 → 119,99) au lieu de retomber à 99,99. Retourne `null` si 
 
 ## Correspondances
 
-| Store | Source | Wolleen |
+| Store | Source | Dev AppStore |
 |---|---|---|
 | App Store | `inAppPurchaseType` `CONSUMABLE` / `NON_CONSUMABLE` / `NON_RENEWING_SUBSCRIPTION` | `consumable` / `non_consumable` / `non_renewing` |
 | App Store | abonnement (groupe d'abonnements) | `auto_renewable`, `subscriptionPeriod` `ONE_WEEK` / `ONE_MONTH` / `ONE_YEAR` → `week` / `month` / `year` |
@@ -78,13 +78,13 @@ Produits retirés de la vente / inactifs / brouillons : ignorés avec avertissem
 1. Se connecter à [App Store Connect](https://appstoreconnect.apple.com) avec un compte **Account Holder** ou **Admin**
    (la première fois, l'Account Holder doit demander l'accès à l'API).
 2. **Utilisateurs et accès → Intégrations → App Store Connect API → Clés d'équipe → « + »**.
-3. Nommer la clé (ex. « Wolleen import ») et choisir le rôle **App Manager** (lecture des achats intégrés et des prix ;
+3. Nommer la clé (ex. « Dev AppStore import ») et choisir le rôle **App Manager** (lecture des achats intégrés et des prix ;
    éviter Admin).
 4. **Télécharger la clé** `AuthKey_<KEY_ID>.p8` : elle n'est téléchargeable **qu'une seule fois**.
 5. Relever le **Key ID** (colonne de la clé) et l'**Issuer ID** (en haut de la page, bouton « Copier »).
 6. Relever l'**Apple ID** de l'app : **Apps → <app> → Informations sur l'app → Informations générales → Apple ID**
    (nombre, ex. `1561234567` ; ce n'est pas le bundle id).
-7. Côté Wolleen, stocker `issuerId`, `keyId` et le contenu du `.p8` (chiffré au repos). Les `\n` littéraux et une clé collée
+7. Côté Dev AppStore, stocker `issuerId`, `keyId` et le contenu du `.p8` (chiffré au repos). Les `\n` littéraux et une clé collée
    sans en-têtes `-----BEGIN PRIVATE KEY-----` sont acceptés.
 
 Le module signe un JWT ES256 (`alg: ES256`, `kid`, `typ: JWT` ; `iss`, `iat`, `exp` ≤ 20 min, `aud: appstoreconnect-v1`),
@@ -94,7 +94,7 @@ le réutilise pendant sa validité et le renouvelle automatiquement. Les clés *
 
 1. Dans [Google Cloud Console](https://console.cloud.google.com), créer (ou choisir) un projet et **activer
    « Google Play Android Developer API »** (API et services → Bibliothèque).
-2. **IAM et administration → Comptes de service → Créer un compte de service** (ex. `wolleen-import`), sans rôle Cloud.
+2. **IAM et administration → Comptes de service → Créer un compte de service** (ex. `devappstore-import`), sans rôle Cloud.
 3. Ouvrir le compte → **Clés → Ajouter une clé → Créer une clé → JSON** : un fichier
    `{ "type": "service_account", "client_email": …, "private_key": …, "private_key_id": … }` est téléchargé.
 4. Dans la [Play Console](https://play.google.com/console) : **Utilisateurs et autorisations → Inviter des utilisateurs**,
@@ -102,7 +102,7 @@ le réutilise pendant sa validité et le renouvelle automatiquement. Les clés *
    avec au minimum « Voir les informations sur l'application » ; si l'API répond 403 sur les produits, ajouter
    la permission « Gérer les commandes et abonnements » ou « Gérer la présence sur le Play Store » (selon la console, les intitulés varient).
 5. Relever le **nom de package** (`com.studio.jeu`).
-6. Côté Wolleen, stocker le contenu du fichier JSON (chiffré au repos). Les nouvelles permissions peuvent mettre
+6. Côté Dev AppStore, stocker le contenu du fichier JSON (chiffré au repos). Les nouvelles permissions peuvent mettre
    jusqu'à 24 h à se propager (erreur 401/403 « The current user has insufficient permissions » en attendant).
 
 Le module signe une assertion JWT RS256 (`iss` = `client_email`, `scope` = `https://www.googleapis.com/auth/androidpublisher`,
@@ -136,7 +136,7 @@ quelques secondes. Google : 3 appels pour la plupart des apps.
 
 ## Limites connues
 
-- Devises Wolleen : EUR, USD, GBP. Les autres sont signalées et ignorées.
+- Devises Dev AppStore : EUR, USD, GBP. Les autres sont signalées et ignorées.
 - Une seule région par import : relancer avec `territory` / `regionCode` pour un autre pays (prix par pays = phase 2).
 - Offres d'introduction, codes promo, offres de reconquête, plans mensuels engagés Apple (`planType: MONTHLY`) : non importés.
 - Images des produits : non importées (Apple ne les expose que pour la mise en avant, Google pas du tout).
@@ -153,8 +153,8 @@ quelques secondes. Google : 3 appels pour la plupart des apps.
 ## Développement
 
 ```bash
-npm test -w @wolleen/importers
-npm run typecheck -w @wolleen/importers
+npm test -w @devappstore/importers
+npm run typecheck -w @devappstore/importers
 ```
 
 Les tests n'appellent aucun réseau : clés générées à la volée, réponses simulées au format des API (voir `src/**/*.test.ts`).

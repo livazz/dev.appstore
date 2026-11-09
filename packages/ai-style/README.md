@@ -1,10 +1,10 @@
-# @wolleen/ai-style
+# @devappstore/ai-style
 
 Génère automatiquement le **style de carte web** d'un article à partir d'une **capture d'écran de la carte dans le jeu**
 (les pages « In Game → Template → In Web » des maquettes) :
 
 ```ts
-{ layout: LayoutId, style: ItemStyle }   // types de @wolleen/core, directement utilisables par ItemCard
+{ layout: LayoutId, style: ItemStyle }   // types de @devappstore/core, directement utilisables par ItemCard
 + title / subtitle suggérés (lus sur l'image)
 + contraste mesuré, avertissements, coût estimé
 ```
@@ -39,7 +39,7 @@ Module autonome (phase 3) : **rien n'est branché dans `apps/web`** pour l'insta
 
 ```ts
 import 'server-only';
-import { generateCardStyle, AiStyleError } from '@wolleen/ai-style';
+import { generateCardStyle, AiStyleError } from '@devappstore/ai-style';
 import Anthropic from '@anthropic-ai/sdk';
 
 // ANTHROPIC_API_KEY est lu par le SDK. Code serveur uniquement.
@@ -75,15 +75,15 @@ et celles de `normalizeCardStyle` : `fallbackStyle` (ex. le style du dernier art
 Post-traitement seul (sans réseau), par exemple pour revalider un style saisi :
 
 ```ts
-import { normalizeCardStyle } from '@wolleen/ai-style';
+import { normalizeCardStyle } from '@devappstore/ai-style';
 const { style, warnings } = normalizeCardStyle(rawJson, { fallbackStyle: lastItem.style });
 ```
 
 ### Tests
 
 ```bash
-npm test -w @wolleen/ai-style        # vitest, client simulé : aucun appel réseau, aucune clé requise
-npm run typecheck -w @wolleen/ai-style
+npm test -w @devappstore/ai-style        # vitest, client simulé : aucun appel réseau, aucune clé requise
+npm run typecheck -w @devappstore/ai-style
 ```
 
 ## Coût estimé par image
@@ -122,8 +122,8 @@ Dans la modale article de `/studio/games/[id]` (onglet « Mise en page », à c�
 5. Bouton masqué si `ANTHROPIC_API_KEY` est absent ; erreurs traduites (`image_too_large` → « Image trop lourde,
    recadrez la capture », `RateLimitError` → « Service saturé, réessayez dans une minute »).
 
-À prévoir côté web : ajouter `@wolleen/ai-style` aux dépendances de `apps/web` (et à `transpilePackages` si le paquet
-y figure pour `@wolleen/core`), variable `ANTHROPIC_API_KEY` dans l'environnement serveur, et mention dans les CGU
+À prévoir côté web : ajouter `@devappstore/ai-style` aux dépendances de `apps/web` (et à `transpilePackages` si le paquet
+y figure pour `@devappstore/core`), variable `ANTHROPIC_API_KEY` dans l'environnement serveur, et mention dans les CGU
 studio que la capture est transmise à Anthropic pour analyse.
 
 ## Limites connues

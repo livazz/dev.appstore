@@ -1,19 +1,19 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_THEME, WEBHOOK_RETRY_SCHEDULE_MS, hashApiKey, verifySignature, type PurchaseEvent } from '@wolleen/core';
-import type { DB } from '@wolleen/db';
+import { DEFAULT_THEME, WEBHOOK_RETRY_SCHEDULE_MS, hashApiKey, verifySignature, type PurchaseEvent } from '@devappstore/core';
+import type { DB } from '@devappstore/db';
 
 vi.mock('server-only', () => ({}));
 // Remplace l'instance PGlite du dépôt par une base en mémoire (le module réel ouvrirait .data/pglite).
-vi.mock('@wolleen/db', async () => {
-  const schema = await import('@wolleen/db/schema');
+vi.mock('@devappstore/db', async () => {
+  const schema = await import('@devappstore/db/schema');
   const orm = await import('drizzle-orm');
-  const { createTestDb } = await import('@wolleen/db/testing');
+  const { createTestDb } = await import('@devappstore/db/testing');
   return { ...schema, schema, ...orm, db: await createTestDb() };
 });
 
-const { db, deliveries, games, items, orders, studios, user, webhookAttempts, eq } = await import('@wolleen/db');
+const { db, deliveries, games, items, orders, studios, user, webhookAttempts, eq } = await import('@devappstore/db');
 const delivery = await import('./delivery');
 const events = await import('./events');
 const { authenticateGame } = await import('./api-key');
@@ -31,7 +31,7 @@ beforeAll(async () => {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
-      hits.push({ body, signature: req.headers['wolleen-signature'] as string | undefined, deliveryHeader: req.headers['wolleen-delivery'] as string | undefined });
+      hits.push({ body, signature: req.headers['devappstore-signature'] as string | undefined, deliveryHeader: req.headers['devappstore-delivery'] as string | undefined });
       res.statusCode = responder(req);
       res.end('ok');
     });
@@ -47,7 +47,7 @@ beforeAll(async () => {
   ]);
   const game = (id: string, studioId: string, webhookUrl: string | null) => ({
     id, studioId, slug: id, name: id, theme: DEFAULT_THEME, webhookUrl,
-    webhookSecret: `whsec_${id}`, apiKeyHash: hashApiKey(`wk_${id}`), apiKeyPrefix: `wk_${id}`.slice(0, 12),
+    webhookSecret: `whsec_${id}`, apiKeyHash: hashApiKey(`das_${id}`), apiKeyPrefix: `das_${id}`.slice(0, 12),
   });
   await database.insert(games).values([
     game('gam_hook', 'std_a', `${baseUrl}/webhook`),
@@ -273,9 +273,9 @@ describe('isolement entre jeux', () => {
 
   it('authenticateGame résout le bon jeu par clé API', async () => {
     const req = (key: string) => new Request('http://x/api/v1/deliveries', { headers: { authorization: `Bearer ${key}` } });
-    expect((await authenticateGame(req('wk_gam_sdk')))?.id).toBe('gam_sdk');
-    expect((await authenticateGame(req('wk_gam_other')))?.id).toBe('gam_other');
-    expect(await authenticateGame(req('wk_inconnue'))).toBeNull();
+    expect((await authenticateGame(req('das_gam_sdk')))?.id).toBe('gam_sdk');
+    expect((await authenticateGame(req('das_gam_other')))?.id).toBe('gam_other');
+    expect(await authenticateGame(req('das_inconnue'))).toBeNull();
   });
 });
 

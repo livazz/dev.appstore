@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import { getDashboard, requireAdminPermission } from '@/server/admin';
 import { parsePeriod } from '@/server/admin-logic';
 import { Card, PageHeader } from '@/components/admin/ui';

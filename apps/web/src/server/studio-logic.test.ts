@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, hashApiKey } from '@wolleen/core';
-import { createTestDb } from '@wolleen/db/testing';
-import { eq, games, items, orders, studioMembers, studios, user, type DB } from '@wolleen/db';
+import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, hashApiKey } from '@devappstore/core';
+import { createTestDb } from '@devappstore/db/testing';
+import { eq, games, items, orders, studioMembers, studios, user, type DB } from '@devappstore/db';
 import {
   StudioError,
   createGameFor,
@@ -68,10 +68,10 @@ describe('createGameFor', () => {
     expect(a.game.currency).toBe('USD');
     expect(a.game.theme).toEqual(DEFAULT_THEME);
     expect(a.game.webhookSecret).toMatch(/^whsec_/);
-    expect(a.apiKey).toMatch(/^wk_secret_/);
+    expect(a.apiKey).toMatch(/^das_secret_/);
     // Clé publique générée dès la création (SDK client sans serveur), distincte d'un jeu à l'autre.
-    expect(a.game.publishableKey).toMatch(/^wk_pub_/);
-    expect(b.game.publishableKey).toMatch(/^wk_pub_/);
+    expect(a.game.publishableKey).toMatch(/^das_pub_/);
+    expect(b.game.publishableKey).toMatch(/^das_pub_/);
     expect(a.game.publishableKey).not.toBe(b.game.publishableKey);
     // La clé en clair n'est pas stockée.
     expect(a.game.apiKeyHash).toBe(hashApiKey(a.apiKey));

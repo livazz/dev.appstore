@@ -20,7 +20,7 @@ import { StudioEditeur } from '../pages/StudioEditeur';
 import { demoGameAvailable } from './env';
 import { fixmeReason, missingRoutes } from './routes';
 
-export interface PagesWolleen {
+export interface PagesDevAppStore {
   connexion: Connexion;
   catalogue: Catalogue;
   pageJeu: PageJeu;
@@ -31,7 +31,7 @@ export interface PagesWolleen {
   integration: Integration;
 }
 
-export const test = base.extend<PagesWolleen>({
+export const test = base.extend<PagesDevAppStore>({
   connexion: async ({ page }, use) => use(new Connexion(page)),
   catalogue: async ({ page }, use) => use(new Catalogue(page)),
   pageJeu: async ({ page }, use) => use(new PageJeu(page)),

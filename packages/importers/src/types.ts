@@ -1,17 +1,17 @@
-import type { Currency, ItemType, Period } from '@wolleen/core';
+import type { Currency, ItemType, Period } from '@devappstore/core';
 
 /** Store d'origine d'un produit importé. */
 export type ImportSource = 'app_store' | 'google_play';
 
 /**
- * Produit in-app importé depuis un store, normalisé au modèle Wolleen (montants en centimes).
+ * Produit in-app importé depuis un store, normalisé au modèle Dev AppStore (montants en centimes).
  * `priceCents` est le prix public TTC constaté sur le store pour le territoire demandé.
  */
 export interface ImportedProduct {
   source: ImportSource;
   /**
    * Identifiant produit tel que le jeu le connaît (product id du store).
-   * Google Play, abonnements : `<productId>:<basePlanId>` (un article Wolleen par forfait de base).
+   * Google Play, abonnements : `<productId>:<basePlanId>` (un article Dev AppStore par forfait de base).
    */
   productId: string;
   type: ItemType;

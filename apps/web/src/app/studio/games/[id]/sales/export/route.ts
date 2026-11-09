@@ -1,4 +1,4 @@
-import { db, eq, games } from '@wolleen/db';
+import { db, eq, games } from '@devappstore/db';
 import { requireGameAccess } from '@/server/session';
 import { SALES_ROLES, getTransactions, localDay, transactionsToCsv } from '@/server/analytics';
 import { parseSalesPeriod } from '@/lib/analytics-format';
@@ -20,7 +20,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const days = parseSalesPeriod(new URL(req.url).searchParams.get('days'));
   const rows = await getTransactions(id, { days });
-  const filename = `wolleen-ventes-${game.slug}-${days}j-${localDay(new Date())}.csv`;
+  const filename = `devappstore-ventes-${game.slug}-${days}j-${localDay(new Date())}.csv`;
   return new Response(transactionsToCsv(rows), {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',

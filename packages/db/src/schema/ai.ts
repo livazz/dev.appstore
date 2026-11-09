@@ -6,7 +6,7 @@ import { games, studios } from './studio';
 export type AiGenerationStatus = 'pending' | 'ok' | 'error';
 
 /**
- * Journal des générations « style de carte depuis une capture du jeu » (@wolleen/ai-style).
+ * Journal des générations « style de carte depuis une capture du jeu » (@devappstore/ai-style).
  * Sert à la limite de débit par studio (générations `pending` + `ok` sur 24 h glissantes)
  * et au suivi du coût réel (jetons, coût estimé en millionièmes de dollar).
  */

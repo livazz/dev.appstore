@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { db } from '@wolleen/db';
-import { formatMoney } from '@wolleen/core';
+import { db } from '@devappstore/db';
+import { formatMoney } from '@devappstore/core';
 import { getUserStudios, requireUser } from '@/server/session';
 import { listStudioGames } from '@/server/studio-logic';
 import { GAME_STATUS_LABELS } from '@/lib/studio-types';

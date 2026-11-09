@@ -67,7 +67,7 @@ describe('recherche côté client', () => {
 
   it('trouve par mot-clé technique', () => {
     expect(searchDocs('hmac', index).some((r) => r.href === '/docs/webhooks#signature')).toBe(true);
-    expect(searchDocs('Wolleen-Signature', index).length).toBeGreaterThan(0);
+    expect(searchDocs('DevAppStore-Signature', index).length).toBeGreaterThan(0);
     expect(searchDocs('acknowledged', index)[0].href).toBe('/docs/concepts#statuts');
     expect(searchDocs('python', index).some((r) => r.href === '/docs/webhooks#verification')).toBe(true);
   });

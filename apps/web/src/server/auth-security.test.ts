@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestDb } from '@wolleen/db/testing';
-import type { DB } from '@wolleen/db';
+import { createTestDb } from '@devappstore/db/testing';
+import type { DB } from '@devappstore/db';
 
 /*
  * Revue de sécurité (vague 2) — authentification : secret obligatoire en production (CHK-CFG-02), attributs des
@@ -38,7 +38,7 @@ let RL: typeof import('./auth-rate-limit');
 let cfg: typeof import('./auth-config');
 
 beforeAll(async () => {
-  (globalThis as unknown as { __wolleenDb?: DB }).__wolleenDb = await createTestDb();
+  (globalThis as unknown as { __devAppStoreDb?: DB }).__devAppStoreDb = await createTestDb();
   cfg = await import('./auth-config');
   RL = await import('./auth-rate-limit');
   flows = await import('./auth-flows');
@@ -86,8 +86,8 @@ describe('CHK-CFG-02 / T-AUTH-02 : AUTH_SECRET obligatoire en production', () =>
     const prod: Record<string, string> = {
       NEXT_RUNTIME: 'nodejs',
       NODE_ENV: 'production',
-      DATABASE_URL: 'postgresql://wolleen:pw@db.example/wolleen',
-      APP_URL: 'https://wolleen.example',
+      DATABASE_URL: 'postgresql://devappstore:pw@db.example/devappstore',
+      APP_URL: 'https://devappstore.example',
       STRIPE_SECRET_KEY: 'sk_live_fake000',
       STRIPE_WEBHOOK_SECRET: 'whsec_fake',
       CRON_SECRET: 'c'.repeat(32),

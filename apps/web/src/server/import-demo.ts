@@ -1,13 +1,13 @@
 import 'server-only';
 import { generateKeyPairSync } from 'node:crypto';
-import type { AppStoreImportOptions, FetchLike, GooglePlayImportOptions } from '@wolleen/importers';
+import type { AppStoreImportOptions, FetchLike, GooglePlayImportOptions } from '@devappstore/importers';
 
 /*
  * Mode démo de la page « Importer depuis les stores ».
  *
  * Plutôt que de renvoyer une liste toute faite, on simule les API d'App Store Connect et de Google Play
  * (mêmes chemins, même forme JSON:API / androidpublisher v3) et on fait passer l'import par le vrai code de
- * @wolleen/importers : signature des JWT avec des clés éphémères, échange de jeton OAuth, pagination, choix du prix
+ * @devappstore/importers : signature des JWT avec des clés éphémères, échange de jeton OAuth, pagination, choix du prix
  * en vigueur, avertissements… Le studio voit exactement ce qu'il verrait avec ses vraies clés.
  *
  * Le catalogue est celui d'un jeu mobile type (gemmes, packs, pass) ; certains identifiants recoupent ceux du jeu
@@ -227,7 +227,7 @@ export function createDemoFetch(regionCode: string): FetchLike {
     if (process.env.VITEST !== 'true') await new Promise((r) => setTimeout(r, 15));
     if (url.origin === ASC) return appleRoute(url);
     if (url.origin === 'https://oauth2.googleapis.com' && url.pathname === '/token') {
-      return json({ access_token: 'ya29.demo-wolleen', expires_in: 3599, token_type: 'Bearer' });
+      return json({ access_token: 'ya29.demo-devappstore', expires_in: 3599, token_type: 'Bearer' });
     }
     if (url.origin === 'https://androidpublisher.googleapis.com') return googleRoute(url, regionCode);
     return json({ error: 'demo: hôte inconnu' }, 404);
@@ -248,7 +248,7 @@ export function demoImportOptions(regionCode: string): { appStore: AppStoreImpor
     googlePlay: {
       serviceAccount: {
         type: 'service_account',
-        client_email: 'wolleen-import@demo-project.iam.gserviceaccount.com',
+        client_email: 'devappstore-import@demo-project.iam.gserviceaccount.com',
         private_key: k.rsa,
         token_uri: 'https://oauth2.googleapis.com/token',
       },

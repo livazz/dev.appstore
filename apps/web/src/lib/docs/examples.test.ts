@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LINK_CODE_TTL_MS, SIGNATURE_HEADER, SIGNATURE_TOLERANCE_S, WEBHOOK_RETRY_SCHEDULE_MS, signPayload, verifySignature } from '@wolleen/core';
+import { LINK_CODE_TTL_MS, SIGNATURE_HEADER, SIGNATURE_TOLERANCE_S, WEBHOOK_RETRY_SCHEDULE_MS, signPayload, verifySignature } from '@devappstore/core';
 import {
   EXAMPLE_BODY,
   EXAMPLE_LOOKUP_PLAYER_ID,
@@ -16,7 +16,7 @@ import {
 import { DOCS_FACTS, RETRY_SCHEDULE_TEXT, formatDelay } from './facts';
 
 describe('vecteur de test de signature affiché dans la doc', () => {
-  it('correspond à signPayload de @wolleen/core', () => {
+  it('correspond à signPayload de @devappstore/core', () => {
     expect(signPayload(EXAMPLE_BODY, EXAMPLE_SECRET, EXAMPLE_TIMESTAMP)).toBe(EXAMPLE_SIGNATURE_HEADER);
   });
 
@@ -67,7 +67,7 @@ describe('vecteur de test de signature affiché dans la doc', () => {
 });
 
 describe('faits techniques repris dans la doc', () => {
-  it('restent alignés sur les constantes de @wolleen/core', () => {
+  it('restent alignés sur les constantes de @devappstore/core', () => {
     expect(DOCS_FACTS.signatureHeader).toBe(SIGNATURE_HEADER);
     expect(DOCS_FACTS.toleranceS).toBe(SIGNATURE_TOLERANCE_S);
     expect(DOCS_FACTS.linkCodeTtlMin * 60_000).toBe(LINK_CODE_TTL_MS);

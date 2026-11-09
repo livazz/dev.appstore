@@ -1,11 +1,11 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { db, eq, orders } from '@wolleen/db';
+import { db, eq, orders } from '@devappstore/db';
 import { clearPendingOrders, FX, getOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
 import { GET, POST } from './route';
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const { createTestDb } = await import('@wolleen/db/testing');
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const { createTestDb } = await import('@devappstore/db/testing');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
   return importOriginal();
 });
 
@@ -37,7 +37,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.stubEnv('STRIPE_SECRET_KEY', '');
   vi.stubEnv('APP_URL', '');
-  vi.stubEnv('WOLLEEN_ALLOW_TEST_PAYMENTS', '');
+  vi.stubEnv('DEVAPPSTORE_ALLOW_TEST_PAYMENTS', '');
   session.user = FX.buyer;
   await clearPendingOrders();
 });
@@ -107,7 +107,7 @@ describe('POST /api/checkout', () => {
   });
 
   it('stocke la preuve du consentement : horodatage, version des CGV, IP tronquée', async () => {
-    vi.stubEnv('WOLLEEN_CGV_VERSION', 'cgv-test-v3');
+    vi.stubEnv('DEVAPPSTORE_CGV_VERSION', 'cgv-test-v3');
     const before = Date.now();
     const res = await post(OK_BODY, { headers: { 'x-forwarded-for': '203.0.113.77, 10.0.0.1' } });
     expect(res.status).toBe(200);
@@ -124,14 +124,14 @@ describe('POST /api/checkout', () => {
     expect((await post(OK_BODY, { headers: { origin: 'https://evil.tld' } })).status).toBe(403);
     expect((await post(OK_BODY, { headers: { 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
     expect(await buyerOrderCount()).toBe(before);
-    vi.stubEnv('APP_URL', 'https://wolleen.example');
-    expect((await post(OK_BODY, { headers: { origin: 'https://wolleen.example' } })).status).toBe(200);
+    vi.stubEnv('APP_URL', 'https://devappstore.example');
+    expect((await post(OK_BODY, { headers: { origin: 'https://devappstore.example' } })).status).toBe(200);
   });
 
   // CHK-PAY-10 : jamais de simulation en production.
   it('production sans clé Stripe → 503 explicite', async () => {
     vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('APP_URL', 'https://wolleen.example');
+    vi.stubEnv('APP_URL', 'https://devappstore.example');
     const before = await buyerOrderCount();
     const res = await post(OK_BODY);
     expect(res.status).toBe(503);
@@ -139,16 +139,16 @@ describe('POST /api/checkout', () => {
     expect(await buyerOrderCount()).toBe(before);
   });
 
-  it('production avec une clé sk_test_ → 503, sauf WOLLEEN_ALLOW_TEST_PAYMENTS=1', async () => {
+  it('production avec une clé sk_test_ → 503, sauf DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1', async () => {
     vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('APP_URL', 'https://wolleen.example');
+    vi.stubEnv('APP_URL', 'https://devappstore.example');
     vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_fake');
     const res = await post(OK_BODY);
     expect(res.status).toBe(503);
     expect((await res.json()).error.code).toBe('payments_unavailable');
 
     // Préproduction explicite : la configuration passe (le studio de test n'a pas de compte Connect → 409).
-    vi.stubEnv('WOLLEEN_ALLOW_TEST_PAYMENTS', '1');
+    vi.stubEnv('DEVAPPSTORE_ALLOW_TEST_PAYMENTS', '1');
     const allowed = await post(OK_BODY);
     expect(allowed.status).toBe(409);
     expect((await allowed.json()).error.code).toBe('seller_not_ready');

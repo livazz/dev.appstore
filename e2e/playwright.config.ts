@@ -11,7 +11,7 @@ import {
 } from './support/env';
 
 /*
- * Tests de bout en bout de Wolleen — voir e2e/README.md.
+ * Tests de bout en bout de Dev AppStore — voir e2e/README.md.
  *
  *   npm run test:e2e                    # depuis la racine
  *   npm run test:e2e -- --trace on      # avec traces (désactivées par défaut)
@@ -20,9 +20,9 @@ import {
 
 const webServer: NonNullable<PlaywrightTestConfig['webServer']> = [
   {
-    name: 'wolleen',
+    name: 'devappstore',
     // Port 3000 par défaut ; E2E_WEB_PORT=… si 3000 est déjà pris (le dernier -p passé à `next dev` l'emporte).
-    command: WEB_PORT === 3000 ? 'npm run dev' : `npm run dev -w @wolleen/web -- -p ${WEB_PORT}`,
+    command: WEB_PORT === 3000 ? 'npm run dev' : `npm run dev -w @devappstore/web -- -p ${WEB_PORT}`,
     cwd: REPO_ROOT,
     // Sonde qui ne touche pas la base (cf. global-setup.ts).
     url: `${BASE_URL}/favicon.ico`,
@@ -40,8 +40,8 @@ if (demoGameAvailable()) {
     command: 'npm run demo',
     cwd: REPO_ROOT,
     url: `${DEMO_GAME_URL}/api/config`,
-    env: { PORT: String(DEMO_PORT), WOLLEEN_URL: BASE_URL },
-    // E2E_REUSE_DEMO=1 : réutilise un jeu de démo déjà lancé (il doit viser la même URL Wolleen pour ses ack).
+    env: { PORT: String(DEMO_PORT), DEVAPPSTORE_URL: BASE_URL },
+    // E2E_REUSE_DEMO=1 : réutilise un jeu de démo déjà lancé (il doit viser la même URL Dev AppStore pour ses ack).
     reuseExistingServer: REUSE_SERVER || process.env.E2E_REUSE_DEMO === '1',
     timeout: 60_000,
     stdout: process.env.E2E_SERVER_LOGS === '1' ? 'pipe' : 'ignore',

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Wolleen, WolleenError, type EventSourceLike, type PurchaseEvent, type PurchaseSubscription, type SseMessage } from './index';
+import { DevAppStore, DevAppStoreError, type EventSourceLike, type PurchaseEvent, type PurchaseSubscription, type SseMessage } from './index';
 
-const BASE = 'http://wolleen.test';
+const BASE = 'http://devappstore.test';
 
 function purchase(id: string, over: Partial<PurchaseEvent> = {}): PurchaseEvent {
   return {
@@ -35,8 +35,8 @@ function controllableStream() {
 
 type Call = { method: string; url: string; headers: Record<string, string>; body?: string };
 
-/** Faux serveur Wolleen : livraisons en attente, acks, flux. */
-function fakeWolleen(opts: { pending?: PurchaseEvent[]; streamStatus?: number } = {}) {
+/** Faux serveur Dev AppStore : livraisons en attente, acks, flux. */
+function fakeDevAppStore(opts: { pending?: PurchaseEvent[]; streamStatus?: number } = {}) {
   const calls: Call[] = [];
   const pending = new Map((opts.pending ?? []).map((e) => [e.delivery_id, e]));
   const streams: ReturnType<typeof controllableStream>[] = [];
@@ -47,7 +47,7 @@ function fakeWolleen(opts: { pending?: PurchaseEvent[]; streamStatus?: number } 
     const headers = Object.fromEntries(Object.entries((init?.headers ?? {}) as Record<string, string>).map(([k, v]) => [k.toLowerCase(), v]));
     calls.push({ method, url, headers, body: init?.body as string | undefined });
     const path = url.slice(BASE.length);
-    if (headers.authorization !== 'Bearer wk_test') return Response.json({ error: { code: 'unauthorized', message: 'Clé invalide' } }, { status: 401 });
+    if (headers.authorization !== 'Bearer das_test') return Response.json({ error: { code: 'unauthorized', message: 'Clé invalide' } }, { status: 401 });
     if (path.startsWith('/api/v1/deliveries/stream')) {
       if (opts.streamStatus) return Response.json({ error: { code: 'nope', message: 'non' } }, { status: opts.streamStatus });
       const s = controllableStream();
@@ -80,56 +80,56 @@ afterEach(() => {
   while (subs.length) subs.pop()!.unsubscribe();
 });
 
-function client(srv: ReturnType<typeof fakeWolleen>, extra: Partial<ConstructorParameters<typeof Wolleen>[0]> = {}) {
-  return new Wolleen({ apiKey: 'wk_test', baseUrl: `${BASE}/`, fetch: srv.fetch, reconnectDelayMs: 5, maxReconnectDelayMs: 20, ...extra });
+function client(srv: ReturnType<typeof fakeDevAppStore>, extra: Partial<ConstructorParameters<typeof DevAppStore>[0]> = {}) {
+  return new DevAppStore({ apiKey: 'das_test', baseUrl: `${BASE}/`, fetch: srv.fetch, reconnectDelayMs: 5, maxReconnectDelayMs: 20, ...extra });
 }
 
 describe('API REST', () => {
   it('demande un code de liaison', async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const res = await client(srv).requestLinkCode('#2PP8QL9', 'Ali');
     expect(res).toEqual({ code: 'K7QF-M2XA', expires_at: '2026-11-09T10:10:00.000Z' });
     const c = srv.calls[0]!;
     expect(c.method).toBe('POST');
     expect(c.url).toBe(`${BASE}/api/v1/link-codes`);
-    expect(c.headers.authorization).toBe('Bearer wk_test');
+    expect(c.headers.authorization).toBe('Bearer das_test');
     expect(JSON.parse(c.body!)).toEqual({ player_id: '#2PP8QL9', player_name: 'Ali' });
   });
 
   it('récupère les achats en attente (player_id encodé)', async () => {
-    const srv = fakeWolleen({ pending: [purchase('dlv_1')] });
+    const srv = fakeDevAppStore({ pending: [purchase('dlv_1')] });
     const list = await client(srv).getPendingPurchases('#2PP8QL9');
     expect(list.map((e) => e.delivery_id)).toEqual(['dlv_1']);
     expect(srv.calls[0]!.url).toBe(`${BASE}/api/v1/deliveries?player_id=%232PP8QL9`);
   });
 
   it('acquitte une livraison', async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     await expect(client(srv).ack('dlv/1')).resolves.toEqual({ ok: true });
     expect(srv.calls[0]!.url).toBe(`${BASE}/api/v1/deliveries/dlv%2F1/ack`);
   });
 
-  it('transforme les erreurs API en WolleenError', async () => {
-    const srv = fakeWolleen();
-    const w = new Wolleen({ apiKey: 'mauvaise', baseUrl: BASE, fetch: srv.fetch });
+  it('transforme les erreurs API en DevAppStoreError', async () => {
+    const srv = fakeDevAppStore();
+    const w = new DevAppStore({ apiKey: 'mauvaise', baseUrl: BASE, fetch: srv.fetch });
     const err = await w.getPendingPurchases('p1').catch((e) => e);
-    expect(err).toBeInstanceOf(WolleenError);
+    expect(err).toBeInstanceOf(DevAppStoreError);
     expect(err).toMatchObject({ status: 401, code: 'unauthorized', message: 'Clé invalide' });
   });
 
   it('signale une erreur réseau', async () => {
-    const w = new Wolleen({ apiKey: 'k', baseUrl: BASE, fetch: (async () => { throw new TypeError('fetch failed'); }) as typeof fetch });
+    const w = new DevAppStore({ apiKey: 'k', baseUrl: BASE, fetch: (async () => { throw new TypeError('fetch failed'); }) as typeof fetch });
     await expect(w.ack('x')).rejects.toMatchObject({ code: 'network_error', status: 0 });
   });
 
   it('exige une clé API', () => {
-    expect(() => new Wolleen({ apiKey: '' })).toThrow();
+    expect(() => new DevAppStore({ apiKey: '' })).toThrow();
   });
 });
 
 describe('onPurchase', () => {
   it('rattrape les achats au démarrage, appelle le handler puis acquitte', async () => {
-    const srv = fakeWolleen({ pending: [purchase('dlv_1')] });
+    const srv = fakeDevAppStore({ pending: [purchase('dlv_1')] });
     const order: string[] = [];
     const sub = client(srv).onPurchase('p1', async (e) => {
       order.push(`handler:${e.delivery_id}`);
@@ -142,7 +142,7 @@ describe('onPurchase', () => {
   });
 
   it('reçoit les achats en direct par le flux et dédoublonne par delivery_id', async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const handler = vi.fn();
     const sub = client(srv).onPurchase('p1', handler);
     subs.push(sub);
@@ -160,7 +160,7 @@ describe('onPurchase', () => {
   });
 
   it("n'acquitte pas si le handler échoue et retente au rattrapage suivant", async () => {
-    const srv = fakeWolleen({ pending: [purchase('dlv_3')] });
+    const srv = fakeDevAppStore({ pending: [purchase('dlv_3')] });
     const onError = vi.fn();
     let fail = true;
     const handler = vi.fn(async () => {
@@ -177,7 +177,7 @@ describe('onPurchase', () => {
   });
 
   it('autoAck: false laisse le jeu acquitter lui-même', async () => {
-    const srv = fakeWolleen({ pending: [purchase('dlv_4')] });
+    const srv = fakeDevAppStore({ pending: [purchase('dlv_4')] });
     const handler = vi.fn();
     subs.push(client(srv, { autoAck: false }).onPurchase('p1', handler));
     await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
@@ -186,7 +186,7 @@ describe('onPurchase', () => {
   });
 
   it('traite les achats en série', async () => {
-    const srv = fakeWolleen({ pending: [purchase('a'), purchase('b'), purchase('c')] });
+    const srv = fakeDevAppStore({ pending: [purchase('a'), purchase('b'), purchase('c')] });
     let running = 0;
     let max = 0;
     const seen: string[] = [];
@@ -205,7 +205,7 @@ describe('onPurchase', () => {
   });
 
   it('se reconnecte quand le flux se coupe et rattrape les achats manqués', async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const handler = vi.fn();
     const sub = client(srv).onPurchase('p1', handler);
     subs.push(sub);
@@ -231,7 +231,7 @@ describe('onPurchase', () => {
         return Response.json({ data: [] });
       }) as typeof globalThis.fetch;
       vi.spyOn(Math, 'random').mockReturnValue(0.999999);
-      const sub = new Wolleen({ apiKey: 'k', baseUrl: BASE, fetch, reconnectDelayMs: 100, maxReconnectDelayMs: 400 }).onPurchase('p1', () => {});
+      const sub = new DevAppStore({ apiKey: 'k', baseUrl: BASE, fetch, reconnectDelayMs: 100, maxReconnectDelayMs: 400 }).onPurchase('p1', () => {});
       subs.push(sub);
       await vi.advanceTimersByTimeAsync(0);
       expect(streamCalls).toBe(1);
@@ -254,7 +254,7 @@ describe('onPurchase', () => {
   });
 
   it("abandonne la connexion si la clé est refusée (pas de boucle infinie)", async () => {
-    const srv = fakeWolleen({ streamStatus: 401 });
+    const srv = fakeDevAppStore({ streamStatus: 401 });
     const onError = vi.fn();
     const sub = client(srv, { onError }).onPurchase('p1', () => {});
     subs.push(sub);
@@ -267,18 +267,18 @@ describe('onPurchase', () => {
     const mem = new Map<string, string>();
     const storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
     // 1re session : crédit OK mais l'ack échoue (réseau coupé).
-    const srv1 = fakeWolleen({ pending: [purchase('dlv_6')] });
+    const srv1 = fakeDevAppStore({ pending: [purchase('dlv_6')] });
     const failingAck = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith('/ack')) throw new TypeError('coupé');
       return srv1.fetch(input, init);
     }) as typeof fetch;
     const h1 = vi.fn();
-    const s1 = new Wolleen({ apiKey: 'wk_test', baseUrl: BASE, fetch: failingAck, storage, onError: () => {} }).onPurchase('p1', h1);
+    const s1 = new DevAppStore({ apiKey: 'das_test', baseUrl: BASE, fetch: failingAck, storage, onError: () => {} }).onPurchase('p1', h1);
     subs.push(s1);
-    await vi.waitFor(() => expect(mem.get('wolleen:processed:p1')).toContain('dlv_6'));
+    await vi.waitFor(() => expect(mem.get('devappstore:processed:p1')).toContain('dlv_6'));
     s1.unsubscribe();
     // 2e session : l'achat est renvoyé, il n'est pas recrédité mais l'ack est renvoyé.
-    const srv2 = fakeWolleen({ pending: [purchase('dlv_6')] });
+    const srv2 = fakeDevAppStore({ pending: [purchase('dlv_6')] });
     const h2 = vi.fn();
     subs.push(client(srv2, { storage }).onPurchase('p1', h2));
     await vi.waitFor(() => expect(srv2.acked).toEqual(['dlv_6']));
@@ -287,7 +287,7 @@ describe('onPurchase', () => {
   });
 
   it("n'appelle plus le handler après unsubscribe", async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const handler = vi.fn();
     const sub = client(srv).onPurchase('p1', handler);
     await vi.waitFor(() => expect(sub.connected).toBe(true));
@@ -303,7 +303,7 @@ describe('onPurchase', () => {
     const fakeDoc = { visibilityState: 'visible', addEventListener: (t: string, f: () => void) => (listeners[t] = f), removeEventListener: () => {} };
     vi.stubGlobal('document', fakeDoc);
     try {
-      const srv = fakeWolleen();
+      const srv = fakeDevAppStore();
       const handler = vi.fn();
       const sub = client(srv).onPurchase('p1', handler);
       subs.push(sub);
@@ -317,7 +317,7 @@ describe('onPurchase', () => {
   });
 
   it('utilise un EventSource fourni (avec en-têtes) si demandé', async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const instances: FakeES[] = [];
     class FakeES implements EventSourceLike {
       onopen: ((ev: unknown) => void) | null = null;
@@ -342,7 +342,7 @@ describe('onPurchase', () => {
     subs.push(sub);
     const es = instances[0]!;
     expect(es.url).toBe(`${BASE}/api/v1/deliveries/stream?player_id=p1`);
-    expect(es.init?.headers?.authorization).toBe('Bearer wk_test');
+    expect(es.init?.headers?.authorization).toBe('Bearer das_test');
     es.onopen!({});
     expect(sub.connected).toBe(true);
     es.listeners.purchase!({ data: JSON.stringify(purchase('dlv_8')) });

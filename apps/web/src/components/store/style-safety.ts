@@ -1,18 +1,18 @@
 /*
  * Sûreté et lisibilité du style des boutiques (rendu joueur + aperçu de l'éditeur).
- * Module pur, importable côté client : seulement des imports de types depuis @wolleen/core/client.
+ * Module pur, importable côté client : seulement des imports de types depuis @devappstore/core/client.
  *
  * - Défense en profondeur (D-18, T-UPL-06, CHK-UPL-08) : les couleurs `ItemStyle` / `GameTheme` sont validées par zod
  *   à l'écriture, mais une ligne ancienne, importée ou modifiée à la main pourrait contenir `red, url(https://…)`.
  *   Au rendu, toute valeur qui n'est pas `#rgb` / `#rrggbb` / `transparent` est remplacée par une valeur par défaut :
  *   aucune requête tierce ne peut partir du navigateur du joueur via `background`.
- * - Images (T-UPL-05, CHK-UPL-07) : seules les images servies par Wolleen (chemin relatif), les uploads du stockage
+ * - Images (T-UPL-05, CHK-UPL-07) : seules les images servies par Dev AppStore (chemin relatif), les uploads du stockage
  *   objet (`https://<NEXT_PUBLIC_S3_PUBLIC_URL>/<kind>/<uploadeur>/<id>.webp`) ou les `data:image/` de démo sont rendues ;
  *   une URL tierce (pistage d'IP) ou `javascript:` est ignorée.
  * - Contraste (WCAG 2.x, 1.4.3) : les boutons de filtre reprennent le style des articles, mais le texte doit rester
  *   lisible (≥ 4,5:1), même si le studio a choisi un titre blanc sur un fond clair.
  */
-import type { GameTheme, ItemStyle } from '@wolleen/core/client';
+import type { GameTheme, ItemStyle } from '@devappstore/core/client';
 
 export const MIN_TEXT_CONTRAST = 4.5;
 
@@ -93,7 +93,7 @@ export function publicS3Base(raw: string | undefined = process.env.NEXT_PUBLIC_S
 }
 
 /**
- * URL d'image affichable aux joueurs : chemin relatif servi par Wolleen (`/api/uploads/…`, `/…`), upload du stockage
+ * URL d'image affichable aux joueurs : chemin relatif servi par Dev AppStore (`/api/uploads/…`, `/…`), upload du stockage
  * objet (`<base S3 publique>/<kind>/<uploadeur>/<id>.webp`, https, cf. `publicS3Base`) ou `data:image/` (visuels de
  * démo du seed ; un SVG dans `<img>` n'exécute pas de script). Sinon `null`.
  *

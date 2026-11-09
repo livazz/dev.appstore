@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Jetons de design Wolleen (repris des maquettes : fond gris clair, logo jaune, boutons violet/bleu). */
+/* Jetons de design Dev AppStore (repris des maquettes : fond gris clair, logo jaune, boutons violet/bleu). */
 :root {
   --bg: #f5f5f7;
   --surface: #ffffff;

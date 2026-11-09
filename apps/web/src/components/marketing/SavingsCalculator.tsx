@@ -11,7 +11,7 @@ const STORE_FEE_HINTS: Record<number, string> = {
 
 /**
  * Calculateur interactif : revenu mensuel IAP × part basculée sur le web → gain annuel.
- * Les taux viennent de la page serveur (STORE_FEE_OPTIONS_BPS, STORE_FEE_BPS, DEFAULT_PLATFORM_FEE_BPS de @wolleen/core) ;
+ * Les taux viennent de la page serveur (STORE_FEE_OPTIONS_BPS, STORE_FEE_BPS, DEFAULT_PLATFORM_FEE_BPS de @devappstore/core) ;
  * le studio choisit la commission store qui le concerne (15 % ou 30 %), 30 % par défaut.
  */
 export function SavingsCalculator({
@@ -117,7 +117,7 @@ export function SavingsCalculator({
         <p className="text-xs leading-relaxed text-ink-2">
           Hypothèses : commission des stores de {bpsToPercentLabel(storeFeeBps)} (à adapter à votre programme et à votre région :
           Apple et Google appliquent 15 % aux petits studios et aux abonnements après un an, d’autres taux existent dans l’UE),
-          commission Wolleen de {bpsToPercentLabel(platformFeeBps)}. Estimation indicative, hors taxes et hors frais de change
+          commission Dev AppStore de {bpsToPercentLabel(platformFeeBps)}. Estimation indicative, hors taxes et hors frais de change
           éventuels.
         </p>
       </form>
@@ -139,7 +139,7 @@ export function SavingsCalculator({
             <dd className="mt-1 font-semibold tabular-nums">{formatEurosRounded(result.annualStoreFeeCents)}</dd>
           </div>
           <div className="rounded-lg bg-surface p-3">
-            <dt className="text-ink-2">Commission Wolleen</dt>
+            <dt className="text-ink-2">Commission Dev AppStore</dt>
             <dd className="mt-1 font-semibold tabular-nums">{formatEurosRounded(result.annualPlatformFeeCents)}</dd>
           </div>
         </dl>

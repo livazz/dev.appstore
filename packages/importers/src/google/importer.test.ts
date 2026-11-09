@@ -11,7 +11,7 @@ const serviceAccount = JSON.stringify({
   project_id: 'nova-games-play',
   private_key_id: '8f3c2b1a0d9e8f7c6b5a4d3c2b1a0f9e8d7c6b5a',
   private_key: rsa.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
-  client_email: 'wolleen-import@nova-games-play.iam.gserviceaccount.com',
+  client_email: 'devappstore-import@nova-games-play.iam.gserviceaccount.com',
   client_id: '109876543210987654321',
   auth_uri: 'https://accounts.google.com/o/oauth2/auth',
   token_uri: 'https://oauth2.googleapis.com/token',

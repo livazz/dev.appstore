@@ -2,7 +2,7 @@
 
 > **Note de recherche, pas un avis fiscal.** État au **9 novembre 2026**. À faire valider par un
 > expert-comptable / avocat fiscaliste avant l'ouverture des ventes réelles ; envisager un **rescrit fiscal**
-> (art. L80 B LPF) sur la qualification de Wolleen (§2.3).
+> (art. L80 B LPF) sur la qualification de Dev AppStore (§2.3).
 
 ## 1. Qualification des ventes
 
@@ -17,15 +17,15 @@ Conséquences de principe pour une vente **B2C** :
   quelle que soit la localisation du vendeur.
 - Le pays du client se détermine par des présomptions (règl. 282/2011 art. 24 bis–24 *quinquies*) : au moins
   **deux éléments de preuve non contradictoires** (adresse de facturation, pays de la carte / BIN, adresse IP,
-  pays de la banque…). Stripe fournit pays de la carte et adresse de facturation ; Wolleen doit conserver
+  pays de la banque…). Stripe fournit pays de la carte et adresse de facturation ; Dev AppStore doit conserver
   l'IP de commande (voir `rgpd.md`).
 - **Prix affichés TTC** au consommateur (art. L112-1 C. conso ; directive 98/6/CE).
 
-## 2. Les deux modèles Wolleen
+## 2. Les deux modèles Dev AppStore
 
 ### 2.1 Phase 1 — « studio vendeur via Stripe Connect » (intention actuelle)
 
-Schéma voulu : le studio vend l'objet au joueur ; Wolleen est un intermédiaire technique qui prélève une
+Schéma voulu : le studio vend l'objet au joueur ; Dev AppStore est un intermédiaire technique qui prélève une
 commission (~5 %, `DEFAULT_PLATFORM_FEE_BPS = 500`) via `application_fee_amount`.
 
 - **TVA sur la vente de l'objet** : due par le studio, au taux du pays du joueur.
@@ -34,21 +34,21 @@ commission (~5 %, `DEFAULT_PLATFORM_FEE_BPS = 500`) via `application_fee_amount`
     OSS, régime de l'Union**.
   - Studio établi hors UE : **aucun seuil**, TVA du pays du client dès le premier euro, via **OSS régime non
     Union** (immatriculation dans un seul État membre).
-- **TVA sur la commission Wolleen** : prestation B2B de Wolleen au studio (art. 44 de la directive ;
+- **TVA sur la commission Dev AppStore** : prestation B2B de Dev AppStore au studio (art. 44 de la directive ;
   art. 259 CGI) :
-  - studio français : TVA française 20 % facturée par Wolleen ;
+  - studio français : TVA française 20 % facturée par Dev AppStore ;
   - studio UE hors France : autoliquidation par le studio (mention « Autoliquidation ») ;
   - studio hors UE : hors champ de la TVA française.
 
-### 2.2 Phase 3 — « Wolleen marchand de référence » (MoR)
+### 2.2 Phase 3 — « Dev AppStore marchand de référence » (MoR)
 
-Wolleen achète l'objet au studio et le revend au joueur en son nom (modèle Steam / Xsolla / app stores).
+Dev AppStore achète l'objet au studio et le revend au joueur en son nom (modèle Steam / Xsolla / app stores).
 
-- Wolleen collecte et reverse la TVA de **toutes** les ventes B2C, au taux du pays du joueur, via son OSS
-  (régime de l'Union si Wolleen est établie en France), et l'équivalent hors UE (UK, Suisse, Norvège, Canada,
+- Dev AppStore collecte et reverse la TVA de **toutes** les ventes B2C, au taux du pays du joueur, via son OSS
+  (régime de l'Union si Dev AppStore est établie en France), et l'équivalent hors UE (UK, Suisse, Norvège, Canada,
   Australie, Japon, Inde, États américains…).
-- Le studio facture à Wolleen une prestation B2B (autoliquidation / hors champ selon son pays).
-- Wolleen porte : immatriculations, déclarations, conservation des preuves de localisation, remboursements,
+- Le studio facture à Dev AppStore une prestation B2B (autoliquidation / hors champ selon son pays).
+- Dev AppStore porte : immatriculations, déclarations, conservation des preuves de localisation, remboursements,
   risque de contrôle — mais simplifie radicalement la vie des studios (argument commercial fort).
 
 ### 2.3 Attention : le « studio vendeur » risque d'être requalifié dès la phase 1 (UE)
@@ -67,39 +67,39 @@ l'opérateur, pour la vente concernée :
 - **autorise la livraison**, **ou**
 - **fixe les conditions générales** de la vente.
 
-Or, dans l'architecture actuelle, Wolleen crée la session Stripe Checkout, déclenche la livraison
-(`enqueueDelivery`) et propose des CGV de place de marché. **Il existe donc un risque sérieux que Wolleen soit
+Or, dans l'architecture actuelle, Dev AppStore crée la session Stripe Checkout, déclenche la livraison
+(`enqueueDelivery`) et propose des CGV de place de marché. **Il existe donc un risque sérieux que Dev AppStore soit
 considérée comme fournisseur réputé dès la phase 1**, et redevable de la TVA sur 100 % des ventes B2C dans
 l'UE (et, par des règles analogues, au Royaume-Uni).
 
 **Options** :
 
-1. **Assumer dès la phase 1 le statut de fournisseur réputé** pour la TVA (Wolleen collecte la TVA via
+1. **Assumer dès la phase 1 le statut de fournisseur réputé** pour la TVA (Dev AppStore collecte la TVA via
    Stripe Tax, `liability: self`), tout en laissant le studio vendeur au regard du droit de la consommation
    (désignation du vendeur dans la fiche et le reçu). C'est la voie la plus sûre fiscalement, et elle
    prépare la phase 3.
 2. **Rendre le studio réellement maître de la vente** : paiements en *direct charges* sur le compte Connect
-   du studio, CGV du studio, prix fixés par le studio, Wolleen limité à un rôle de prestataire technique ou
+   du studio, CGV du studio, prix fixés par le studio, Dev AppStore limité à un rôle de prestataire technique ou
    de traitement des paiements (les simples prestataires de paiement sont exclus de l'art. 9 bis). Plus
-   difficile à défendre si Wolleen garde la main sur le checkout et la livraison.
+   difficile à défendre si Dev AppStore garde la main sur le checkout et la livraison.
 3. **Rescrit** auprès de la DGFiP pour sécuriser le choix.
 
 > Lien avec le code : le choix entre *destination charges* (paiement sur le compte plateforme) et *direct
 > charges* (paiement sur le compte du studio) a aussi des effets juridiques (qui apparaît sur le relevé
 > bancaire, qui supporte les litiges et remboursements). Les destination charges sans `on_behalf_of` font
-> apparaître **Wolleen** comme marchand côté carte, ce qui contredit le discours « studio vendeur ». À
+> apparaître **Dev AppStore** comme marchand côté carte, ce qui contredit le discours « studio vendeur ». À
 > arbitrer avec la tâche *payments*.
 
 ### 2.4 Tableau comparatif
 
 | | Phase 1 « studio vendeur » (si la présomption est renversée) | Phase 1 avec fournisseur réputé / Phase 3 MoR |
 |---|---|---|
-| Redevable de la TVA B2C UE | Studio (OSS) | **Wolleen** (OSS) |
-| Redevable TVA UK | Studio (immatriculation UK, pas de seuil pour non-résident) | **Wolleen** (règle UK analogue sur les plateformes) |
-| Sales tax US | Studio (nexus économique par État) ; Wolleen si « marketplace facilitator » et État visant les biens numériques | **Wolleen** |
-| Facturation au joueur | Au nom du studio | Au nom de Wolleen |
-| Flux B2B | Wolleen → studio : commission | Studio → Wolleen : vente en gros / prestation |
-| Charge de conformité | Répartie sur chaque studio (lourd pour un petit studio) | Centralisée chez Wolleen |
+| Redevable de la TVA B2C UE | Studio (OSS) | **Dev AppStore** (OSS) |
+| Redevable TVA UK | Studio (immatriculation UK, pas de seuil pour non-résident) | **Dev AppStore** (règle UK analogue sur les plateformes) |
+| Sales tax US | Studio (nexus économique par État) ; Dev AppStore si « marketplace facilitator » et État visant les biens numériques | **Dev AppStore** |
+| Facturation au joueur | Au nom du studio | Au nom de Dev AppStore |
+| Flux B2B | Dev AppStore → studio : commission | Studio → Dev AppStore : vente en gros / prestation |
+| Charge de conformité | Répartie sur chaque studio (lourd pour un petit studio) | Centralisée chez Dev AppStore |
 | Stripe Tax | `automatic_tax.liability = { type: 'account', account }` | `automatic_tax.liability = { type: 'self' }` |
 
 ## 3. Royaume-Uni
@@ -121,7 +121,7 @@ l'UE (et, par des règles analogues, au Royaume-Uni).
   par un nombre croissant d'États).
 - **Marketplace facilitator** : les 45 États à sales tax + DC ont des lois imposant à la place de marché de
   collecter pour les vendeurs tiers ; **mais beaucoup ne visent que les biens corporels**, et la couverture
-  des produits numériques est hétérogène et en évolution. Il faut une analyse État par État si Wolleen
+  des produits numériques est hétérogène et en évolution. Il faut une analyse État par État si Dev AppStore
   facilite des ventes aux États-Unis.
 - **Reporting** : formulaires 1099-K émis par Stripe pour les comptes Connect américains éligibles (Stripe
   « platform tax reporting »).
@@ -140,9 +140,9 @@ UK) est une mesure de maîtrise du risque simple et efficace.
 DAC7 (directive 2021/514) et l'art. 242 *bis* CGI imposent aux opérateurs de plateforme de déclarer les
 revenus de vendeurs pour des **activités limitativement énumérées** : location immobilière, services
 personnels, **vente de biens**, location de moyens de transport. La vente de **contenus numériques** n'est
-a priori **pas une « vente de biens »** au sens de DAC7 — Wolleen ne serait pas concernée pour ces flux,
+a priori **pas une « vente de biens »** au sens de DAC7 — Dev AppStore ne serait pas concernée pour ces flux,
 *à confirmer*. L'obligation d'information des utilisateurs sur leurs obligations fiscales (art. 242 *bis*,
-I) reste à vérifier pour Wolleen en tant qu'opérateur de plateforme mettant en relation.
+I) reste à vérifier pour Dev AppStore en tant qu'opérateur de plateforme mettant en relation.
 
 ## 7. Rôle de Stripe Tax
 
@@ -156,13 +156,13 @@ Ce que Stripe Tax fait :
 - **rapports** exportables par juridiction pour les déclarations (OSS, VAT UK, sales tax) ;
 - avec Connect : choix du redevable via `automatic_tax.liability` (`self` = plateforme, `account` = compte
   connecté) ; composants embarqués *Tax settings* / *Tax registrations* pour que les studios configurent leur
-  propre fiscalité dans l'espace studio Wolleen (adresse du siège, code fiscal par défaut,
+  propre fiscalité dans l'espace studio Dev AppStore (adresse du siège, code fiscal par défaut,
   immatriculations).
 
 Ce que Stripe Tax **ne fait pas** (ou pas seul) :
 
 - il **ne décide pas qui est redevable** : la qualification (studio vendeur vs fournisseur réputé) relève de
-  Wolleen et de son conseil ; Stripe décline toute responsabilité ;
+  Dev AppStore et de son conseil ; Stripe décline toute responsabilité ;
 - il **n'immatricule pas** automatiquement et **ne dépose pas** les déclarations partout (offre de dépôt via
   partenaires, couverture variable, *à vérifier*) ;
 - il ne gère pas la **facturation** conforme au droit local (mentions obligatoires de la facture/reçu) sans

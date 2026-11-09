@@ -47,10 +47,10 @@ export function demoKeys(): Record<DemoGameKey, DemoKey> {
 
 export const DEMO_PASSWORD = parseDemoPassword(seedSource());
 
-/** Comptes Wolleen de démo. */
+/** Comptes Dev AppStore de démo. */
 export const COMPTES = {
-  joueur: { email: 'joueur@wolleen.test', password: DEMO_PASSWORD, nom: 'Joueur Démo' },
-  dev: { email: 'dev@wolleen.test', password: DEMO_PASSWORD, nom: 'Développeur Démo' },
+  joueur: { email: 'joueur@devappstore.test', password: DEMO_PASSWORD, nom: 'Joueur Démo' },
+  dev: { email: 'dev@devappstore.test', password: DEMO_PASSWORD, nom: 'Développeur Démo' },
 } as const;
 export type Compte = (typeof COMPTES)[keyof typeof COMPTES];
 

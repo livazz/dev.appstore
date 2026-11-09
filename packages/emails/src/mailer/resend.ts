@@ -2,7 +2,7 @@ import { assertEmailAddress, validateMessage, type Mailer, type MailMessage, typ
 
 export interface ResendMailerOptions {
   apiKey: string;
-  /** Expéditeur, ex. `Wolleen <no-reply@wolleen.com>` (domaine vérifié chez Resend). */
+  /** Expéditeur, ex. `Dev AppStore <no-reply@devappstore.com>` (domaine vérifié chez Resend). */
   from: string;
   /** Adresse de réponse par défaut (support). */
   replyTo?: string;

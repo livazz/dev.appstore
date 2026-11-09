@@ -1,5 +1,5 @@
 import 'server-only';
-import { db, desc, eq, gameModerationNotices, games, type DB } from '@wolleen/db';
+import { db, desc, eq, gameModerationNotices, games, type DB } from '@devappstore/db';
 
 /*
  * Lecture, côté espace studio, des décisions de modération de l'équipe Dev AppStore (exigence P2B : le motif d'une

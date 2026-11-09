@@ -12,7 +12,7 @@ import {
   type ItemStyle,
   type LayoutId,
   type Period,
-} from '@wolleen/core';
+} from '@devappstore/core';
 import { ItemCard } from '@/components/store/ItemCard';
 import { createItem, deleteItem, updateItem } from '@/server/studio';
 import type { EditorItem } from '@/lib/studio-types';

@@ -1,5 +1,5 @@
 import 'server-only';
-import { db, eq, userSuspensions, type DB } from '@wolleen/db';
+import { db, eq, userSuspensions, type DB } from '@devappstore/db';
 
 /*
  * Comptes désactivés par l'équipe Dev AppStore (back-office /admin/users).

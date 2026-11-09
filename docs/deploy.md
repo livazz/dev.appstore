@@ -1,4 +1,4 @@
-# Déployer Wolleen
+# Déployer Dev AppStore
 
 Ce guide décrit la mise en production de référence (**Vercel + Neon + Cloudflare R2, tout en UE**), l'alternative
 Docker, les migrations, Stripe, les variables, les sauvegardes et la check-list de mise en production.
@@ -22,7 +22,7 @@ Fichiers fournis :
 | `apps/web/src/env.ts` | Validation zod des variables serveur, échec au démarrage si la configuration est dangereuse |
 | `apps/web/vercel.json` | Région `fra1`, cron des livraisons, en-têtes de sécurité de base |
 | `Dockerfile`, `.dockerignore` | Image de production (standalone), image de migrations, image de dev |
-| `docker-compose.yml` | Dev local complet : Postgres 16 + Wolleen + jeu de démo |
+| `docker-compose.yml` | Dev local complet : Postgres 16 + Dev AppStore + jeu de démo |
 | `packages/db` : scripts `db:generate`, `db:migrate` | Migrations versionnées Drizzle |
 
 ---
@@ -47,10 +47,10 @@ Fichiers fournis :
      `isProduction()` → `env.isProduction`, `isSimulationAllowed()` → `env.paymentsMode === 'simulation'` ;
    - `src/server/payments.ts` : `platformFeeBps()` → `env.PLATFORM_FEE_BPS` (déjà un entier validé 0–3000) ;
    - `src/server/delivery-http.ts` : `CRON_SECRET` ;
-   - `src/server/storage.ts` : `WOLLEEN_STORAGE`, `WOLLEEN_DATA_DIR`, `S3_*` ;
+   - `src/server/storage.ts` : `DEVAPPSTORE_STORAGE`, `DEVAPPSTORE_DATA_DIR`, `S3_*` ;
    - configuration Better Auth (tâche auth) : `secret: env.AUTH_SECRET, baseURL: env.APP_URL` — Better Auth lit sinon
      `BETTER_AUTH_SECRET` par défaut, qui ne serait pas validé.
-3. Compléter `.env.example` avec `WOLLEEN_ALLOW_TEST_PAYMENTS`, `WOLLEEN_STORAGE`, `S3_*`, `RESEND_API_KEY`,
+3. Compléter `.env.example` avec `DEVAPPSTORE_ALLOW_TEST_PAYMENTS`, `DEVAPPSTORE_STORAGE`, `S3_*`, `RESEND_API_KEY`,
    `ANTHROPIC_API_KEY` (CHK-CFG-03).
 
 `packages/db` lit `DATABASE_URL` lui-même (il est partagé avec les scripts) ; `env.ts` refuse déjà de démarrer sans
@@ -66,14 +66,14 @@ Règles appliquées par `env.ts` (les messages d'erreur listent les variables fa
 | `DATABASE_URL` | vide → PGlite | **obligatoire** | `postgres://` ou `postgresql://` |
 | `AUTH_SECRET` | libre | **obligatoire**, ≥ 32 caractères, ≠ `change-me` | `openssl rand -hex 32` |
 | `APP_URL` | `http://localhost:3000` | **obligatoire**, `https://` | origine publique (retours Stripe, cookies) |
-| `STRIPE_SECRET_KEY` | vide → mode simulation | **obligatoire** (simulation interdite), `sk_live_…` (ou `rk_live_…`) | `sk_test_` refusée sauf `WOLLEEN_ALLOW_TEST_PAYMENTS=1` |
-| `WOLLEEN_ALLOW_TEST_PAYMENTS` | — | `1` **uniquement en préproduction** | autorise `sk_test_` avec `NODE_ENV=production` ; n'autorise jamais la simulation |
+| `STRIPE_SECRET_KEY` | vide → mode simulation | **obligatoire** (simulation interdite), `sk_live_…` (ou `rk_live_…`) | `sk_test_` refusée sauf `DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1` |
+| `DEVAPPSTORE_ALLOW_TEST_PAYMENTS` | — | `1` **uniquement en préproduction** | autorise `sk_test_` avec `NODE_ENV=production` ; n'autorise jamais la simulation |
 | `STRIPE_WEBHOOK_SECRET` | optionnel | **obligatoire** si clé Stripe | `whsec_…` |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | optionnel | recommandé | `whsec_…` (endpoint « comptes connectés ») |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | optionnel | `pk_live_…` si clé live | figée **au build** (variable publique) |
 | `PLATFORM_FEE_BPS` | 500 | 0–3000 | commission en points de base (500 = 5 %) |
 | `CRON_SECRET` | vide = cron ouvert | **obligatoire**, ≥ 16 caractères | `openssl rand -hex 32` ; Vercel l'envoie en `Authorization: Bearer` |
-| `WOLLEEN_STORAGE` | `local` | `s3` (voir § 5) | `local` \| `s3` |
+| `DEVAPPSTORE_STORAGE` | `local` | `s3` (voir § 5) | `local` \| `s3` |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | — | obligatoires si `s3` | R2 : `https://<compte>.eu.r2.cloudflarestorage.com` |
 | `NEXT_PUBLIC_S3_PUBLIC_URL` | — | obligatoire si `s3`, **= `S3_PUBLIC_URL`** | lue par le rendu client des boutiques (`safeImageUrl`) ; injectée au build |
 | `RESEND_API_KEY` | optionnel | optionnel | `re_…` (e-mails, phase 2) |
@@ -83,7 +83,7 @@ Règles appliquées par `env.ts` (les messages d'erreur listent les variables fa
 > n'importe qui peut déclencher les relances de webhooks.
 
 Sur Vercel : *Settings → Environment Variables*. Renseigner **Production** et **Preview** séparément : les previews
-utilisent une branche Neon et des clés Stripe de test avec `WOLLEEN_ALLOW_TEST_PAYMENTS=1`. Ne jamais donner aux
+utilisent une branche Neon et des clés Stripe de test avec `DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1`. Ne jamais donner aux
 previews la base ou la clé Stripe de production. Marquer les secrets comme *Sensitive*.
 
 ## 3. Vercel
@@ -103,7 +103,7 @@ Quatre routes `GET`, déclarées dans `apps/web/vercel.json` :
 |---|---|---|
 | `/api/cron/deliveries` | `* * * * *` (chaque minute) | relance les webhooks dus (`WEBHOOK_RETRY_SCHEDULE_MS`), achats et remboursements ; e-mails « livré » / « échec définitif » |
 | `/api/checkout/expire` | `17 * * * *` (toutes les heures) | passe à `failed` les commandes `pending` de plus de 24 h |
-| `/api/cron/loyalty` | `40 3 * * *` (chaque nuit) | Points Wolleen : inscrit les expirations de points et de bons, rattrape la livraison des objets bonus |
+| `/api/cron/loyalty` | `40 3 * * *` (chaque nuit) | Points Dev AppStore : inscrit les expirations de points et de bons, rattrape la livraison des objets bonus |
 | `/api/cron/weekly-reports` | `0 6 * * 1` (lundi 6 h UTC) | rapport hebdomadaire de chaque studio (semaine complète précédente ; `?week=AAAA-MM-JJ` pour rejouer) |
 
 Toutes sont idempotentes et protégées de la même façon (`cronGuard`, `src/server/delivery-http.ts`) :
@@ -132,7 +132,7 @@ déjà les livraisons ; les autres routes s'appellent à la main (sans en-tête 
   sur une instance n'est poussé en temps réel qu'aux flux ouverts sur cette instance. Rien n'est perdu (rattrapage à la
   reconnexion + webhook serveur + cron), mais le « temps réel » n'est garanti qu'après passage à Postgres
   `LISTEN/NOTIFY` ou Redis (phase 2).
-- **Disque** : le système de fichiers des fonctions est éphémère → `WOLLEEN_STORAGE=local` ne convient pas en
+- **Disque** : le système de fichiers des fonctions est éphémère → `DEVAPPSTORE_STORAGE=local` ne convient pas en
   production (voir § 5).
 - **Connexions Postgres** : utiliser l'URL **poolée** de Neon pour l'application (voir § 4).
 
@@ -161,11 +161,11 @@ déjà les livraisons ; les autres routes s'appellent à la main (sans en-tête 
 
 ```bash
 # Après une modification de packages/db/src/schema/* :
-npm run db:generate -w @wolleen/db          # écrit packages/db/drizzle/NNNN_*.sql (+ meta/) — à committer
+npm run db:generate -w @devappstore/db          # écrit packages/db/drizzle/NNNN_*.sql (+ meta/) — à committer
 # Appliquer (CI ou poste d'admin), sur l'URL DIRECTE :
-DATABASE_URL="postgresql://…directe…?sslmode=require" npm run db:migrate -w @wolleen/db
+DATABASE_URL="postgresql://…directe…?sslmode=require" npm run db:migrate -w @devappstore/db
 # ou via l'image Docker :
-docker build --target migrator -t wolleen-migrate . && docker run --rm -e DATABASE_URL=… wolleen-migrate
+docker build --target migrator -t devappstore-migrate . && docker run --rm -e DATABASE_URL=… devappstore-migrate
 ```
 
 - **Première migration** : après fusion de toutes les branches, générer `0000_*.sql` à partir du schéma final et le
@@ -175,17 +175,17 @@ docker build --target migrator -t wolleen-migrate . && docker run --rm -e DATABA
   qui lui est attribuée au moment du build, sans contrôle.
 - **Sans interruption** : migrations « expand / contract » — ajouter une colonne nullable, déployer le code qui
   l'écrit, remplir, puis rendre `NOT NULL` / supprimer l'ancienne colonne dans une migration suivante.
-- `npm run db:seed` ne doit **jamais** viser la production (clés `wk_secret_demo_*` / `wk_pub_demo_*`, CHK-CFG-04).
+- `npm run db:seed` ne doit **jamais** viser la production (clés `das_secret_demo_*` / `das_pub_demo_*`, CHK-CFG-04).
 
 ## 5. Fichiers : Cloudflare R2
 
 État actuel : seul l'adaptateur `local` existe (`src/server/storage.ts`) ; `s3` est prévu (phase 2, compatible R2).
 **Tant qu'il n'est pas livré, les uploads ne sont pas persistants sur Vercel.** Préparation :
 
-1. Créer un bucket R2 avec la **juridiction EU** (`wolleen-uploads`).
+1. Créer un bucket R2 avec la **juridiction EU** (`devappstore-uploads`).
 2. Domaine public personnalisé (ex. `cdn.<domaine>`) branché sur le bucket → `S3_PUBLIC_URL`.
 3. Jeton d'API R2 limité à ce bucket, droits *Object Read & Write* → `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`.
-4. `S3_ENDPOINT=https://<account_id>.eu.r2.cloudflarestorage.com`, `S3_BUCKET=wolleen-uploads`, `WOLLEEN_STORAGE=s3`.
+4. `S3_ENDPOINT=https://<account_id>.eu.r2.cloudflarestorage.com`, `S3_BUCKET=devappstore-uploads`, `DEVAPPSTORE_STORAGE=s3`.
 5. Servir les images avec les en-têtes de CHK-UPL-06 (`Content-Type` forcé, `nosniff`, `Cache-Control` immuable) —
    à poser lors du `PutObject`.
 
@@ -202,7 +202,7 @@ docker build --target migrator -t wolleen-migrate . && docker run --rm -e DATABA
 
    Version d'API : celle de `STRIPE_API_VERSION` (`src/server/stripe.ts`).
 3. Clés : `sk_live_…` (ou mieux une clé restreinte `rk_live_…` limitée à Checkout, Connect, Webhooks) et `pk_live_…`.
-4. Préproduction : mêmes endpoints en mode test vers l'URL de preview, `sk_test_…` + `WOLLEEN_ALLOW_TEST_PAYMENTS=1`.
+4. Préproduction : mêmes endpoints en mode test vers l'URL de preview, `sk_test_…` + `DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1`.
 5. Local : `stripe listen --forward-to localhost:3000/api/stripe/webhook` et copier le `whsec_…` affiché dans `.env`.
 6. Rotation : en cas de fuite, *Roll key* dans Stripe, mettre à jour Vercel, redéployer.
 
@@ -215,7 +215,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // Monorepo : trace les dépendances depuis la racine du dépôt (packages/*, node_modules hoistés).
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
-  transpilePackages: ['@wolleen/core', '@wolleen/db'],
+  transpilePackages: ['@devappstore/core', '@devappstore/db'],
   // … reste inchangé
 };
 ```
@@ -227,11 +227,11 @@ avec un message explicite.
 ### Construire et lancer
 
 ```bash
-docker build -t wolleen-web --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_… .
-docker build --target migrator -t wolleen-migrate .
+docker build -t devappstore-web --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_… .
+docker build --target migrator -t devappstore-migrate .
 
-docker run --rm --env-file prod.env wolleen-migrate            # migrations
-docker run -d -p 3000:3000 --env-file prod.env wolleen-web     # application (utilisateur non root, HEALTHCHECK sur /)
+docker run --rm --env-file prod.env devappstore-migrate            # migrations
+docker run -d -p 3000:3000 --env-file prod.env devappstore-web     # application (utilisateur non root, HEALTHCHECK sur /)
 ```
 
 Le cron doit être fourni par l'hébergeur (CronJob Kubernetes, tâche planifiée, `curl` ci-dessus chaque minute).
@@ -241,7 +241,7 @@ Placer un reverse proxy TLS devant (HSTS, en-têtes du § 3) et désactiver la m
 ### Développement local avec Docker
 
 ```bash
-docker compose up --build      # Postgres 16 + schéma + seed, Wolleen :3000, jeu de démo :4100
+docker compose up --build      # Postgres 16 + schéma + seed, Dev AppStore :3000, jeu de démo :4100
 docker compose down -v         # tout supprimer
 ```
 
@@ -253,15 +253,15 @@ du seed fonctionnent sans modification. Paiements en mode simulation, sauf si un
 | Donnée | Mécanisme | Rétention |
 |---|---|---|
 | Postgres (Neon) | **PITR** natif (historique WAL, restauration à la seconde) | fenêtre selon l'offre : viser ≥ 7 jours |
-| Postgres (export logique) | `pg_dump -Fc` quotidien sur l'URL directe → bucket R2 **distinct** `wolleen-backups` (juridiction EU, règle de verrouillage / *bucket lock*) | 35 jours glissants + 1 mensuel 12 mois |
-| Fichiers R2 | copie quotidienne `rclone sync` vers `wolleen-backups/uploads/` | 35 jours |
+| Postgres (export logique) | `pg_dump -Fc` quotidien sur l'URL directe → bucket R2 **distinct** `devappstore-backups` (juridiction EU, règle de verrouillage / *bucket lock*) | 35 jours glissants + 1 mensuel 12 mois |
+| Fichiers R2 | copie quotidienne `rclone sync` vers `devappstore-backups/uploads/` | 35 jours |
 | Configuration | variables Vercel exportées dans un coffre (1Password, Bitwarden…), jamais dans Git | — |
 
 Exemple de job (GitHub Actions planifié, secrets `DATABASE_URL_DIRECT`, accès R2) :
 
 ```bash
-pg_dump --format=custom --no-owner "$DATABASE_URL_DIRECT" > wolleen-$(date +%F).dump
-aws s3 cp wolleen-$(date +%F).dump s3://wolleen-backups/pg/ --endpoint-url "$R2_BACKUP_ENDPOINT"
+pg_dump --format=custom --no-owner "$DATABASE_URL_DIRECT" > devappstore-$(date +%F).dump
+aws s3 cp devappstore-$(date +%F).dump s3://devappstore-backups/pg/ --endpoint-url "$R2_BACKUP_ENDPOINT"
 ```
 
 - **Tester la restauration chaque mois** : `pg_restore` dans une branche Neon jetable, puis `npm run test` de fumée.
@@ -285,7 +285,7 @@ mise en production**, un P1 en KO bloque l'ouverture publique. Cocher dans l'ord
 - [ ] `allowPrivateTargets()` faux en production : les URL webhook/lookup des studios en `localhost`/IP privées sont refusées.
 - [ ] CI verte (`typecheck`, `test`, `build`) ; `npm audit --omit=dev` sans vulnérabilité haute exploitable (CHK-DEP-01) ;
       Next.js à une version corrigée (avis de sécurité du 11/12/2025 sur 15.5.7).
-- [ ] `git log -p | rg "sk_live_|rk_live_|whsec_[A-Za-z0-9]{20,}|wk_live_"` vide (CHK-CFG-05).
+- [ ] `git log -p | rg "sk_live_|rk_live_|whsec_[A-Za-z0-9]{20,}|das_live_"` vide (CHK-CFG-05).
 - [ ] Adaptateur de stockage `s3` (R2) livré, ou uploads désactivés au lancement (§ 5).
 - [ ] CSP et en-têtes globaux (CHK-HDR-01) en place.
 
@@ -302,7 +302,7 @@ mise en production**, un P1 en KO bloque l'ouverture publique. Cocher dans l'ord
 
 ### Paiements
 
-- [ ] `STRIPE_SECRET_KEY` live (`/^(sk|rk)_live_/`), `WOLLEEN_ALLOW_TEST_PAYMENTS` **absent** en production.
+- [ ] `STRIPE_SECRET_KEY` live (`/^(sk|rk)_live_/`), `DEVAPPSTORE_ALLOW_TEST_PAYMENTS` **absent** en production.
 - [ ] Deux endpoints webhook configurés (§ 6), signatures vérifiées : `curl -X POST https://<domaine>/api/stripe/webhook -d '{}'` → `400`.
 - [ ] `/checkout/mock` inaccessible en production (CHK-PAY-11).
 - [ ] Achat réel de bout en bout sur un jeu pilote (petit montant, remboursé ensuite) : commande `paid`, livraison

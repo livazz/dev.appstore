@@ -1,7 +1,7 @@
 import 'server-only';
 import type Stripe from 'stripe';
-import type { Currency, StudioRole } from '@wolleen/core';
-import { and, count, db, desc, eq, games, inArray, isNull, orders, studioMembers, studios, sum } from '@wolleen/db';
+import type { Currency, StudioRole } from '@devappstore/core';
+import { and, count, db, desc, eq, games, inArray, isNull, orders, studioMembers, studios, sum } from '@devappstore/db';
 import { getStripe, isStripeEnabled } from '@/server/stripe';
 
 /*
@@ -47,7 +47,7 @@ export interface RevenueLine {
   netCents: number;
 }
 
-/** Revenus des commandes payées du studio, par devise : brut, commission Wolleen, net reversé. */
+/** Revenus des commandes payées du studio, par devise : brut, commission Dev AppStore, net reversé. */
 export async function getStudioRevenue(studioId: string): Promise<RevenueLine[]> {
   const rows = await db
     .select({ currency: orders.currency, n: count(), gross: sum(orders.amountCents), fee: sum(orders.platformFeeCents) })
@@ -141,7 +141,7 @@ export async function ensureConnectAccount(studio: Pick<PayoutStudio, 'id' | 'na
       capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
       metadata: { studio_id: studio.id },
     },
-    { idempotencyKey: `wolleen_connect_${studio.id}` },
+    { idempotencyKey: `devappstore_connect_${studio.id}` },
   );
   // Ne remplace jamais un compte enregistré entre-temps par une requête concurrente.
   const [saved] = await db

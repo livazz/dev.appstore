@@ -22,12 +22,12 @@ export function verifyEmailEmail(data: AuthLinkData, context?: Partial<EmailCont
   return renderEmail({
     ctx,
     subject: 'Confirmez votre adresse e-mail',
-    preheader: 'Un clic pour activer votre compte Wolleen.',
-    reason: 'Vous recevez cet e-mail car cette adresse a été utilisée pour créer un compte Wolleen.',
+    preheader: 'Un clic pour activer votre compte Dev AppStore.',
+    reason: 'Vous recevez cet e-mail car cette adresse a été utilisée pour créer un compte Dev AppStore.',
     blocks: [
       heading('Confirmez votre adresse e-mail'),
       para(data.name ? `Bonjour ${data.name},` : 'Bonjour,'),
-      para(`Pour activer votre compte Wolleen, confirmez votre adresse e-mail en cliquant sur le bouton ci-dessous.${validity(data.expiresInMinutes)}`),
+      para(`Pour activer votre compte Dev AppStore, confirmez votre adresse e-mail en cliquant sur le bouton ci-dessous.${validity(data.expiresInMinutes)}`),
       button('Confirmer mon adresse', data.url),
       para('Vous n’êtes pas à l’origine de cette inscription ? Ignorez simplement ce message : aucun compte ne sera activé.', { muted: true }),
     ],
@@ -38,9 +38,9 @@ export function passwordResetEmail(data: AuthLinkData, context?: Partial<EmailCo
   const ctx = resolveContext(context);
   return renderEmail({
     ctx,
-    subject: 'Réinitialisation de votre mot de passe Wolleen',
+    subject: 'Réinitialisation de votre mot de passe Dev AppStore',
     preheader: 'Choisissez un nouveau mot de passe pour votre compte.',
-    reason: 'Vous recevez cet e-mail car une réinitialisation de mot de passe a été demandée pour votre compte Wolleen.',
+    reason: 'Vous recevez cet e-mail car une réinitialisation de mot de passe a été demandée pour votre compte Dev AppStore.',
     blocks: [
       heading('Réinitialisez votre mot de passe'),
       para(data.name ? `Bonjour ${data.name},` : 'Bonjour,'),

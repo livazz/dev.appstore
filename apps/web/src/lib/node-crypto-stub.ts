@@ -1,6 +1,6 @@
 /*
  * Remplace `node:crypto` dans le bundle navigateur (voir next.config.ts).
- * @wolleen/core réexporte des helpers crypto réservés au serveur ; les composants client n'en
+ * @devappstore/core réexporte des helpers crypto réservés au serveur ; les composants client n'en
  * utilisent aucun. Si l'un d'eux était appelé côté navigateur, il échouerait explicitement.
  */
 const serverOnly = (name: string) => () => {

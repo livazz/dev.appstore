@@ -1,12 +1,12 @@
 import { boolean, check, index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import type { Currency } from '@wolleen/core';
+import type { Currency } from '@devappstore/core';
 import { user } from './auth';
 import { games, items } from './studio';
 import { orders } from './commerce';
 
 /*
- * Programme de fidélité « Points Wolleen » (phase 3) — voir docs/product/loyalty.md.
+ * Programme de fidélité « Points Dev AppStore » (phase 3) — voir docs/product/loyalty.md.
  * Les points ne sont PAS une monnaie : jamais achetés, jamais convertibles en argent, non transférables, expirables.
  */
 
@@ -51,7 +51,7 @@ export const loyaltyEntries = pgTable(
   ],
 );
 
-/** Catalogue des avantages. `discount` : financé par Wolleen sur sa commission ; `bonus_item` : offert par le studio. */
+/** Catalogue des avantages. `discount` : financé par Dev AppStore sur sa commission ; `bonus_item` : offert par le studio. */
 export const loyaltyRewards = pgTable(
   'loyalty_rewards',
   {

@@ -16,18 +16,18 @@ const RESPONSE_TS = `interface PlayerLookupResponse {
 const REQUEST_SAMPLE = `GET /players/${EXAMPLE_LOOKUP_PLAYER_ID} HTTP/1.1
 Host: api.monjeu.com
 Accept: application/json
-User-Agent: Wolleen-PlayerLookup/1.0
+User-Agent: DevAppStore-PlayerLookup/1.0
 ${DOCS_FACTS.signatureHeader}: t=${EXAMPLE_TIMESTAMP},v1=${EXAMPLE_LOOKUP_V1}`;
 
 const NODE_IMPL = `import express from 'express';
-import { verifyWebhookSignature } from '@wolleen/sdk/server';
+import { verifyWebhookSignature } from '@devappstore/sdk/server';
 
 const app = express();
 
 app.get('/players/:playerId', async (req, res) => {
   const playerId = req.params.playerId; // déjà décodé par Express
   // Le corps signé est l'identifiant joueur brut (pas d'URL, pas de JSON).
-  if (!verifyWebhookSignature(playerId, req.get('Wolleen-Signature'), process.env.WEBHOOK_SECRET)) {
+  if (!verifyWebhookSignature(playerId, req.get('DevAppStore-Signature'), process.env.WEBHOOK_SECRET)) {
     return res.sendStatus(401);
   }
   const player = await db.players.findById(playerId);
@@ -61,7 +61,7 @@ def signed(body: str, header: str | None) -> bool:
 
 @app.get("/players/<player_id>")
 def lookup(player_id: str):
-    if not signed(player_id, request.headers.get("Wolleen-Signature")):
+    if not signed(player_id, request.headers.get("DevAppStore-Signature")):
         abort(401)
     player = find_player(player_id)
     if player is None:
@@ -98,7 +98,7 @@ export default function PlayerLookupPage() {
       <H2 id="signature-lookup">Signature</H2>
       <P>
         L’appel est signé avec le <strong>secret webhook du jeu</strong> et le même algorithme que les{' '}
-        <A href="/docs/webhooks#signature">webhooks</A> : <C>{'Wolleen-Signature: t=<t>,v1=<hmac>'}</C>, où <C>v1</C> est le HMAC-SHA256
+        <A href="/docs/webhooks#signature">webhooks</A> : <C>{'DevAppStore-Signature: t=<t>,v1=<hmac>'}</C>, où <C>v1</C> est le HMAC-SHA256
         hexadécimal de <C>{'`${t}.${player_id}`'}</C>. Ici, le « corps » signé est l’<strong>identifiant joueur brut</strong> (non encodé),
         tel que vous le lisez après décodage de l’URL. Même tolérance de {DOCS_FACTS.toleranceS} secondes.
       </P>

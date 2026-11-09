@@ -1,4 +1,4 @@
-import type { ItemStyle, LayoutId } from '@wolleen/core';
+import type { ItemStyle, LayoutId } from '@devappstore/core';
 
 /** Seuils de contraste minimal (ratio WCAG) par élément de texte de la carte. */
 export interface ContrastThresholds {

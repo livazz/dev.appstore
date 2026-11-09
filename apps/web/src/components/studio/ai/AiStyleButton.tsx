@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState, useTransition, type DragEvent } from 'react';
-import type { Currency } from '@wolleen/core/client';
+import type { Currency } from '@devappstore/core/client';
 import { ItemCard, type CardItem } from '@/components/store/ItemCard';
 import { generateStyleFromScreenshot } from '@/server/ai-style-action';
 import { AI_STYLE_ACCEPTED_TYPES, AI_STYLE_MAX_UPLOAD_BYTES, type AiStyleResult } from '@/lib/ai-style-types';

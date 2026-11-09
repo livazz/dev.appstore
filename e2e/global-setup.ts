@@ -21,7 +21,7 @@ export default async function globalSetup() {
 
   const env = { ...process.env, ...webServerEnv() };
   for (const script of ['db:push', 'db:seed']) {
-    console.log(`[e2e] npm run ${script} (WOLLEEN_DATA_DIR=${DATA_DIR})`);
+    console.log(`[e2e] npm run ${script} (DEVAPPSTORE_DATA_DIR=${DATA_DIR})`);
     execFileSync(npm, ['run', script], { cwd: REPO_ROOT, env, stdio: 'inherit' });
   }
 }

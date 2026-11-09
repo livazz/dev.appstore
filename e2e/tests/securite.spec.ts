@@ -19,7 +19,7 @@ async function attendreRefus(page: Page, res: Response | null) {
   const versLogin = new URL(page.url()).pathname === '/login';
   expect(versLogin || [401, 403, 404].includes(status), `statut ${status} sur ${page.url()}`).toBe(true);
   await expect(new StudioEditeur(page).boutonAjouterArticle).toHaveCount(0);
-  await expect(page.getByText(/wk_secret_|wk_test_|whsec_/)).toHaveCount(0);
+  await expect(page.getByText(/das_secret_|das_test_|whsec_/)).toHaveCount(0);
 }
 
 test.describe('Sécurité — espace studio', () => {
@@ -38,7 +38,7 @@ test.describe('Sécurité — espace studio', () => {
   test('un cookie de session forgé ne donne pas accès au studio (CHK-AUTH-02)', async ({ page, context }) => {
     exigeRoutes('/login', '/studio/games/[id]');
     await context.addCookies([
-      { name: 'wolleen_demo_user', value: 'usr_demo_dev', url: BASE_URL },
+      { name: 'devappstore_demo_user', value: 'usr_demo_dev', url: BASE_URL },
       { name: 'better-auth.session_token', value: 'jeton-aleatoire-forge', url: BASE_URL },
     ]);
     await attendreRefus(page, await page.goto(`/studio/games/${JEUX.crystal.id}`));
@@ -55,7 +55,7 @@ test.describe('Sécurité — API v1 sans clé valide → 401 (CHK-API-01, CHK-A
 
   const variantes: { nom: string; headers: () => Record<string, string>; query?: () => string }[] = [
     { nom: 'sans en-tête Authorization', headers: () => ({}) },
-    { nom: 'clé inconnue', headers: () => ({ authorization: 'Bearer wk_faux_0000000000000000' }) },
+    { nom: 'clé inconnue', headers: () => ({ authorization: 'Bearer das_faux_0000000000000000' }) },
     { nom: 'schéma autre que Bearer', headers: () => ({ authorization: `Basic ${demoKeys().crystal.apiKey}` }) },
     { nom: 'clé valide passée en query string', headers: () => ({}), query: () => `api_key=${demoKeys().crystal.apiKey}` },
   ];
@@ -86,14 +86,14 @@ test.describe('Sécurité — codes de liaison', () => {
     const api = new ApiJeu(request, 'farm');
     const { code } = await api.creerCodeLiaison(`E2E-REUSE-${Date.now()}`, 'Testeur e2e');
 
-    await test.step('premier usage (joueur@wolleen.test) : accepté', async () => {
+    await test.step('premier usage (joueur@devappstore.test) : accepté', async () => {
       await new Connexion(page).seConnecter(COMPTES.joueur);
       const liaison = new Liaison(page);
       await liaison.ouvrir(JEUX.farm.slug, { changer: true });
       await liaison.lierParCode(code);
     });
 
-    await test.step('second usage (dev@wolleen.test) : refusé', async () => {
+    await test.step('second usage (dev@devappstore.test) : refusé', async () => {
       const autre = await browser.newContext({ baseURL: BASE_URL, locale: 'fr-FR' });
       try {
         const p = await autre.newPage();

@@ -2,10 +2,10 @@
 	"FileVersion": 3,
 	"Version": 2,
 	"VersionName": "0.2.0",
-	"FriendlyName": "Wolleen",
-	"Description": "Livraison automatique des achats Wolleen : polling, accusé de réception (ack) et codes de liaison.",
+	"FriendlyName": "DevAppStore",
+	"Description": "Livraison automatique des achats Dev AppStore : polling, accusé de réception (ack) et codes de liaison.",
 	"Category": "Online Platform",
-	"CreatedBy": "Wolleen",
+	"CreatedBy": "DevAppStore",
 	"CreatedByURL": "",
 	"DocsURL": "",
 	"MarketplaceURL": "",
@@ -16,7 +16,7 @@
 	"Installed": false,
 	"Modules": [
 		{
-			"Name": "Wolleen",
+			"Name": "DevAppStore",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
 		}

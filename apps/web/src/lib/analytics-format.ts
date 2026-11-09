@@ -1,8 +1,8 @@
 /* Helpers purs (client + serveur) pour les ventes et l'historique d'achats. */
-import type { Currency, DeliveryStatus, OrderStatus } from '@wolleen/core';
+import type { Currency, DeliveryStatus, OrderStatus } from '@devappstore/core';
 
 /**
- * Identique à formatMoney de @wolleen/core, mais utilisable dans un composant client
+ * Identique à formatMoney de @devappstore/core, mais utilisable dans un composant client
  * (l'index de core embarque node:crypto).
  */
 export function formatCents(cents: number, currency: Currency = 'EUR') {

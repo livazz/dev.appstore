@@ -1,4 +1,4 @@
-import type { PurchaseEvent } from '@wolleen/core';
+import type { PurchaseEvent } from '@devappstore/core';
 import { STREAM_LIMITS, acquireStreamSlot, guardApi } from '@/server/api-rate-limit';
 import { ensureDevRetryLoop, markFetchedBySdk, takeOpenDeliveries } from '@/server/delivery';
 import { CORS_HEADERS, corsPreflight, resolvePlayerScope } from '@/server/delivery-http';
@@ -11,8 +11,8 @@ const HEARTBEAT_MS = 15_000;
 
 /**
  * GET /api/v1/deliveries/stream — Server-Sent Events.
- * Clé secrète : `?player_id=` obligatoire. Clé publique : jeton joueur obligatoire (`Wolleen-Player-Token`),
- * le flux ne porte que les achats du joueur du jeton faits par son compte Wolleen.
+ * Clé secrète : `?player_id=` obligatoire. Clé publique : jeton joueur obligatoire (`DevAppStore-Player-Token`),
+ * le flux ne porte que les achats du joueur du jeton faits par son compte Dev AppStore.
  * Envoie d'abord l'arriéré (pending + delivered non acquittées), puis chaque nouvel événement en direct
  * (`event: purchase`, `id: <delivery_id>`, `data: <PurchaseEvent>` — achat ou remboursement), et `: ping` toutes les 15 s.
  * La clé n'est jamais acceptée dans l'URL (EventSource natif : utiliser le SDK, qui lit le flux via fetch).

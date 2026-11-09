@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
-import { db } from '@wolleen/db';
+import { db } from '@devappstore/db';
 import { requireGameAccess } from '@/server/session';
 import { getGame, listItems, StudioError } from '@/server/studio-logic';
 import { toEditorGame, toEditorItem } from '@/lib/studio-types';

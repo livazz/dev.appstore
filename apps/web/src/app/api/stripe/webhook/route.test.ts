@@ -1,12 +1,12 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Stripe from 'stripe';
-import { db, eq, stripeEvents } from '@wolleen/db';
+import { db, eq, stripeEvents } from '@devappstore/db';
 import { FX, getOrder, insertPendingOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
 import { POST } from './route';
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const { createTestDb } = await import('@wolleen/db/testing');
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const { createTestDb } = await import('@devappstore/db/testing');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
   return importOriginal();
 });
 
@@ -16,7 +16,7 @@ const delivery = vi.hoisted(() => ({
 }));
 vi.mock('@/server/delivery', () => delivery);
 
-const SECRET = 'whsec_test_wolleen';
+const SECRET = 'whsec_test_devappstore';
 
 let evtSeq = 0;
 
@@ -181,7 +181,7 @@ describe('POST /api/stripe/webhook', () => {
     expect(row?.alert).toMatch(/incohérents/);
   });
 
-  it('production : événement du mode test ignoré, sauf WOLLEEN_ALLOW_TEST_PAYMENTS=1', async () => {
+  it('production : événement du mode test ignoré, sauf DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     const o = await insertPendingOrder({ stripeCheckoutSessionId: 'cs_testmode' });
     const payload = completedEvent(o.id, 'cs_testmode', { livemode: false });
@@ -189,7 +189,7 @@ describe('POST /api/stripe/webhook', () => {
     expect(await (await POST(webhookRequest(payload, signature))).json()).toEqual({ received: true, handled: false });
     expect((await getOrder(o.id))?.status).toBe('pending');
 
-    vi.stubEnv('WOLLEEN_ALLOW_TEST_PAYMENTS', '1');
+    vi.stubEnv('DEVAPPSTORE_ALLOW_TEST_PAYMENTS', '1');
     const payload2 = completedEvent(o.id, 'cs_testmode', { livemode: false });
     const signature2 = Stripe.webhooks.generateTestHeaderString({ payload: payload2, secret: SECRET });
     expect(await (await POST(webhookRequest(payload2, signature2))).json()).toEqual({ received: true, handled: true });

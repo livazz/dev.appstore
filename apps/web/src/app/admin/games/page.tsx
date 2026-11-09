@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { GameStatus } from '@wolleen/core';
+import type { GameStatus } from '@devappstore/core';
 import { listGamesForAdmin, requireAdminPermission } from '@/server/admin';
 import { normalizeQuery } from '@/server/admin-logic';
 import { Empty, GAME_STATUS, GameStatusBadge, PageHeader, SearchForm, Time } from '@/components/admin/ui';

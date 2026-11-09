@@ -309,7 +309,7 @@ export function WebhookUrlControl({ gameId, initialUrl, canEdit }: { gameId: str
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           disabled={!canEdit}
-          placeholder="https://api.monjeu.com/wolleen/webhook"
+          placeholder="https://api.monjeu.com/devappstore/webhook"
           className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm outline-none focus:border-primary"
         />
         {canEdit && dirty && (
@@ -330,7 +330,7 @@ export function WebhookUrlControl({ gameId, initialUrl, canEdit }: { gameId: str
       </form>
       <p className="mt-2 text-xs text-ink-3">
         Laissez vide si votre jeu reçoit les achats uniquement via le SDK. En production, l&apos;URL doit être en https:// et publique
-        (aucune adresse interne ; les redirections ne sont pas suivies). Les réponses 2xx valent livraison ; sinon Wolleen réessaie
+        (aucune adresse interne ; les redirections ne sont pas suivies). Les réponses 2xx valent livraison ; sinon Dev AppStore réessaie
         (10 s, 1 min, 5 min, 30 min, 2 h, 6 h, 24 h).
       </p>
       {info && <p className="mt-2 text-sm text-ok">{info}</p>}

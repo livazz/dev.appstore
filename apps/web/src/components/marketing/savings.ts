@@ -1,10 +1,10 @@
 /*
- * Logique pure du calculateur, importable côté client : PAS d'import de « @wolleen/core » ici, car son point
+ * Logique pure du calculateur, importable côté client : PAS d'import de « @devappstore/core » ici, car son point
  * d'entrée unique réexporte crypto.ts (node:crypto), ce qui casse le bundle navigateur. Les taux
  * STORE_FEE_BPS / DEFAULT_PLATFORM_FEE_BPS sont passés en props depuis la page serveur.
  */
 
-/** Commission arrondie au centime le plus proche (même règle que feeCents de @wolleen/core). */
+/** Commission arrondie au centime le plus proche (même règle que feeCents de @devappstore/core). */
 function feeCents(amountCents: number, bps: number) {
   return Math.round((amountCents * bps) / 10_000);
 }
@@ -16,7 +16,7 @@ export interface SavingsInput {
   webSharePct: number;
   /** Commission des stores (points de base), ex. STORE_FEE_BPS. */
   storeFeeBps: number;
-  /** Commission Wolleen (points de base), ex. DEFAULT_PLATFORM_FEE_BPS. */
+  /** Commission Dev AppStore (points de base), ex. DEFAULT_PLATFORM_FEE_BPS. */
   platformFeeBps: number;
 }
 
@@ -25,13 +25,13 @@ export interface SavingsResult {
   annualWebCents: number;
   /** Commission annuelle qu'auraient prise les stores sur ce volume (centimes). */
   annualStoreFeeCents: number;
-  /** Commission annuelle Wolleen sur ce volume (centimes). */
+  /** Commission annuelle Dev AppStore sur ce volume (centimes). */
   annualPlatformFeeCents: number;
   /** Gain annuel net pour le studio (centimes). */
   annualGainCents: number;
 }
 
-/** Estimation du gain annuel quand une part des achats in-app passe des stores au web via Wolleen. */
+/** Estimation du gain annuel quand une part des achats in-app passe des stores au web via Dev AppStore. */
 export function estimateSavings({
   monthlyRevenueCents,
   webSharePct,
@@ -76,7 +76,7 @@ export function parseStoreFeeBps(value: unknown, options: readonly number[], fal
 
 /**
  * Gain réel d'une période par rapport aux stores au taux `storeFeeBps` : commission store évitée moins la
- * commission Wolleen réellement prélevée (jamais négatif). Même arrondi que `feeCents` de @wolleen/core.
+ * commission Dev AppStore réellement prélevée (jamais négatif). Même arrondi que `feeCents` de @devappstore/core.
  */
 export function savingsVsStoreCents(grossCents: number, platformFeeCents: number, storeFeeBps: number) {
   return Math.max(0, feeCents(grossCents, storeFeeBps) - platformFeeCents);

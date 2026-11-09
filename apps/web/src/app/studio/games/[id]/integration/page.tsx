@@ -2,8 +2,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { SIGNATURE_HEADER, formatMoney, type DeliveryStatus, type PurchaseEvent } from '@wolleen/core';
-import { db, eq, games } from '@wolleen/db';
+import { SIGNATURE_HEADER, formatMoney, type DeliveryStatus, type PurchaseEvent } from '@devappstore/core';
+import { db, eq, games } from '@devappstore/db';
 import { PLAYER_TOKEN_HEADER, ensurePublishableKey } from '@/server/api-key';
 import { listDeliveryLog } from '@/server/delivery';
 import { playerTokenSummary } from '@/server/player-tokens';
@@ -20,7 +20,7 @@ import {
 import { LinkSettings } from '@/components/studio/LinkSettings';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Intégration — Wolleen Studio' };
+export const metadata: Metadata = { title: 'Intégration — Dev AppStore Studio' };
 
 const STATUS: Record<DeliveryStatus, { label: string; className: string }> = {
   pending: { label: 'En attente', className: 'bg-warn/10 text-warn' },
@@ -102,9 +102,9 @@ import crypto from 'node:crypto';
 import express from 'express';
 
 const app = express();
-const SECRET = process.env.WOLLEEN_WEBHOOK_SECRET; // whsec_…
+const SECRET = process.env.DEVAPPSTORE_WEBHOOK_SECRET; // whsec_…
 
-app.post('/wolleen/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+app.post('/devappstore/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const body = req.body.toString('utf8'); // corps BRUT, avant JSON.parse
   const header = req.get('${SIGNATURE_HEADER}') ?? ''; // "t=1731160992,v1=5f2c…"
   const { t, v1 } = Object.fromEntries(header.split(',').map((p) => p.split('=')));
@@ -116,48 +116,48 @@ app.post('/wolleen/webhook', express.raw({ type: 'application/json' }), async (r
   }
 
   const event = JSON.parse(body);
-  // Idempotence : ne créditez qu'une fois par delivery_id (Wolleen peut renvoyer le même événement).
+  // Idempotence : ne créditez qu'une fois par delivery_id (Dev AppStore peut renvoyer le même événement).
   if (!(await alreadyCredited(event.delivery_id))) {
     await creditPlayer(event.player_id, event.product_id, event.quantity);
   }
   res.sendStatus(200); // toute réponse 2xx vaut livraison
 });`;
 
-  const serverExample = `# Depuis VOTRE SERVEUR uniquement : clé secrète (wk_secret_…), accès à tous les joueurs du jeu.
+  const serverExample = `# Depuis VOTRE SERVEUR uniquement : clé secrète (das_secret_…), accès à tous les joueurs du jeu.
 # Code de liaison à afficher dans le jeu (le serveur connaît l'identité du joueur connecté)
-curl -X POST -H "Authorization: Bearer $WOLLEEN_SECRET_KEY" -H "Content-Type: application/json" \\
+curl -X POST -H "Authorization: Bearer $DEVAPPSTORE_SECRET_KEY" -H "Content-Type: application/json" \\
   -d '{"player_id":"player_42","player_name":"Ali"}' "${origin}/api/v1/link-codes"
 
 # Achats en attente d'un joueur, puis accusé de réception après crédit (idempotent)
-curl -H "Authorization: Bearer $WOLLEEN_SECRET_KEY" "${origin}/api/v1/deliveries?player_id=player_42"
-curl -X POST -H "Authorization: Bearer $WOLLEEN_SECRET_KEY" "${origin}/api/v1/deliveries/dlv_…/ack"`;
+curl -H "Authorization: Bearer $DEVAPPSTORE_SECRET_KEY" "${origin}/api/v1/deliveries?player_id=player_42"
+curl -X POST -H "Authorization: Bearer $DEVAPPSTORE_SECRET_KEY" "${origin}/api/v1/deliveries/dlv_…/ack"`;
 
-  const sdkExample = `# Jeu SANS serveur (le SDK Wolleen encapsule ces appels) : clé publique ${publishableKey ?? 'wk_pub_…'}
+  const sdkExample = `# Jeu SANS serveur (le SDK Dev AppStore encapsule ces appels) : clé publique ${publishableKey ?? 'das_pub_…'}
 # 1. Liaison (une fois par appareil) : code à afficher + identifiant de la demande
-curl -X POST -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" -H "Content-Type: application/json" \\
+curl -X POST -H "Authorization: Bearer $DEVAPPSTORE_PUBLISHABLE_KEY" -H "Content-Type: application/json" \\
   -d '{"player_id":"player_42"}' "${origin}/api/v1/link-codes"
 #    → { "code": "K7QF-M2XA", "expires_at": "…", "link_request_id": "lnc_…" }
 
 # 2. Le joueur saisit le code sur ${storeUrl}/link ; le jeu interroge la demande (toutes les 3 s)
-curl -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" "${origin}/api/v1/link-requests/lnc_…"
-#    → { "status": "linked", "player_token": "wk_pt_…" }  (délivré une seule fois : à conserver sur l'appareil)
+curl -H "Authorization: Bearer $DEVAPPSTORE_PUBLISHABLE_KEY" "${origin}/api/v1/link-requests/lnc_…"
+#    → { "status": "linked", "player_token": "das_pt_…" }  (délivré une seule fois : à conserver sur l'appareil)
 
 # 3. Achats du joueur (liste, flux temps réel SSE, accusé de réception) avec le jeton joueur
-curl -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries"
-curl -N -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries/stream"
-curl -X POST -H "Authorization: Bearer $WOLLEEN_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries/dlv_…/ack"`;
+curl -H "Authorization: Bearer $DEVAPPSTORE_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries"
+curl -N -H "Authorization: Bearer $DEVAPPSTORE_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries/stream"
+curl -X POST -H "Authorization: Bearer $DEVAPPSTORE_PUBLISHABLE_KEY" -H "${PLAYER_TOKEN_HEADER}: $PLAYER_TOKEN" "${origin}/api/v1/deliveries/dlv_…/ack"`;
 
-  const jsSdkExample = `import { Wolleen } from '@wolleen/sdk';
+  const jsSdkExample = `import { DevAppStore } from '@devappstore/sdk';
 
-const wolleen = new Wolleen({ publishableKey: '${publishableKey ?? 'wk_pub_…'}', baseUrl: '${origin}', storage: localStorage });
+const devappstore = new DevAppStore({ publishableKey: '${publishableKey ?? 'das_pub_…'}', baseUrl: '${origin}', storage: localStorage });
 
 // Paramètres → « Lier mon compte web » (une fois par appareil)
-const link = await wolleen.requestLinkCode(player.id, player.name);
-showCode(link.code);                 // le joueur le saisit sur Wolleen
-await wolleen.waitForLink(link);     // jeton joueur reçu et mémorisé (storage)
+const link = await devappstore.requestLinkCode(player.id, player.name);
+showCode(link.code);                 // le joueur le saisit sur Dev AppStore
+await devappstore.waitForLink(link);     // jeton joueur reçu et mémorisé (storage)
 
 // Achats (et remboursements) : chaque delivery_id une seule fois, ack après le handler
-wolleen.onPurchase(player.id, async (e) => {
+devappstore.onPurchase(player.id, async (e) => {
   if (e.event === 'purchase.refunded') await inventory.revoke(e.order_id);
   else await inventory.grant(e.order_id, e.product_id, e.quantity);
 });`;
@@ -167,7 +167,7 @@ wolleen.onPurchase(player.id, async (e) => {
       <div>
         <h1 className="text-2xl font-semibold text-ink">Intégration</h1>
         <p className="mt-1 text-sm text-ink-2">
-          Connectez {game.name} à Wolleen : chaque achat est livré automatiquement à votre jeu, par webhook signé vers votre serveur (clé
+          Connectez {game.name} à Dev AppStore : chaque achat est livré automatiquement à votre jeu, par webhook signé vers votre serveur (clé
           secrète) ou en temps réel via le SDK embarqué (clé publique + jeton joueur).
         </p>
         <p className="mt-1 text-sm text-ink-2">
@@ -228,12 +228,12 @@ wolleen.onPurchase(player.id, async (e) => {
               <tbody className="divide-y divide-line text-ink-2">
                 <tr>
                   <td className="px-5 py-2.5">a un serveur (jeu en ligne, comptes joueurs)</td>
-                  <td className="px-2 py-2.5 font-mono text-xs">wk_secret_…</td>
+                  <td className="px-2 py-2.5 font-mono text-xs">das_secret_…</td>
                   <td className="px-5 py-2.5">Webhook signé vers votre serveur (recommandé) ; codes de liaison demandés par votre serveur.</td>
                 </tr>
                 <tr>
                   <td className="px-5 py-2.5">n&apos;a pas de serveur (hors ligne, HTML5, prototype)</td>
-                  <td className="px-2 py-2.5 font-mono text-xs">wk_pub_…</td>
+                  <td className="px-2 py-2.5 font-mono text-xs">das_pub_…</td>
                   <td className="px-5 py-2.5">SDK dans le jeu : liaison par code → jeton joueur → flux temps réel et accusés de réception.</td>
                 </tr>
               </tbody>
@@ -246,7 +246,7 @@ wolleen.onPurchase(player.id, async (e) => {
         title="Webhook"
         description={
           <>
-            Wolleen envoie un <code className="font-mono">POST</code> JSON à chaque achat, signé avec l&apos;en-tête{' '}
+            Dev AppStore envoie un <code className="font-mono">POST</code> JSON à chaque achat, signé avec l&apos;en-tête{' '}
             <code className="font-mono">{SIGNATURE_HEADER}</code> (HMAC-SHA256 du secret ci-dessous).
           </>
         }
@@ -268,7 +268,7 @@ wolleen.onPurchase(player.id, async (e) => {
         description={
           <>
             Chaque appareil lié par le SDK avec la clé publique reçoit un jeton (<code className="font-mono">{PLAYER_TOKEN_HEADER}</code>), lié au
-            joueur et au compte Wolleen qui a saisi le code. Révoquez-les si un appareil est perdu ou un compte compromis : le jeu devra
+            joueur et au compte Dev AppStore qui a saisi le code. Révoquez-les si un appareil est perdu ou un compte compromis : le jeu devra
             refaire la liaison.
           </>
         }
@@ -292,7 +292,7 @@ wolleen.onPurchase(player.id, async (e) => {
         {canEdit && <RevokePlayerTokensControl gameId={game.id} />}
       </Section>
 
-      <Section title="Liaison des comptes" description="Comment vos joueurs relient leur compte Wolleen à leur compte de jeu.">
+      <Section title="Liaison des comptes" description="Comment vos joueurs relient leur compte Dev AppStore à leur compte de jeu.">
         <LinkSettings gameId={game.id} />
       </Section>
 

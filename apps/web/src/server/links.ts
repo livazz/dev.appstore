@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, db, eq, gameLinks } from '@wolleen/db';
+import { and, db, eq, gameLinks } from '@devappstore/db';
 
 /** CONTRAT PARTAGÉ — compte de jeu lié par l'utilisateur pour un jeu (ou null). Propriétaire : tâche « linking ». */
 export async function getGameLink(userId: string, gameId: string) {

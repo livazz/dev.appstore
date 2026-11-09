@@ -9,9 +9,9 @@ export const metadata = docMetadata('demarrage-rapide');
 const LINK_TABS = [
   {
     label: 'JavaScript',
-    code: `import { Wolleen } from '@wolleen/sdk';
+    code: `import { DevAppStore } from '@devappstore/sdk';
 
-const client = new Wolleen({ apiKey: process.env.API_KEY, baseUrl: process.env.BASE_URL });
+const client = new DevAppStore({ apiKey: process.env.API_KEY, baseUrl: process.env.BASE_URL });
 
 // Écran « Lier un compte web » de votre jeu
 const { code, expires_at } = await client.requestLinkCode(player.id, player.name);
@@ -28,7 +28,7 @@ showLinkCode(code); // ex. « K7QF-M2XA », valable ${DOCS_FACTS.linkCodeTtlMin}
   },
   {
     label: 'Unity',
-    code: `wolleen.RequestLinkCode(PlayerAccount.Name,
+    code: `devappstore.RequestLinkCode(PlayerAccount.Name,
     code => linkLabel.text = $"Code de liaison : {code.code}",
     err => linkLabel.text = "Réessayez plus tard");`,
   },
@@ -39,12 +39,12 @@ const RECEIVE_TABS = [
     label: 'Webhook (Node)',
     title: 'server.js — votre serveur de jeu',
     code: `import express from 'express';
-import { verifyWebhookSignature } from '@wolleen/sdk/server';
+import { verifyWebhookSignature } from '@devappstore/sdk/server';
 
 const app = express();
 app.post('/webhooks/purchases', express.raw({ type: 'application/json' }), async (req, res) => {
   const raw = req.body.toString('utf8');
-  if (!verifyWebhookSignature(raw, req.get('Wolleen-Signature'), process.env.WEBHOOK_SECRET)) {
+  if (!verifyWebhookSignature(raw, req.get('DevAppStore-Signature'), process.env.WEBHOOK_SECRET)) {
     return res.sendStatus(401);
   }
   const event = JSON.parse(raw);
@@ -63,14 +63,14 @@ app.post('/webhooks/purchases', express.raw({ type: 'application/json' }), async
   },
   {
     label: 'Unity',
-    code: `wolleen = WolleenClient.Create(apiKey, baseUrl, pollIntervalSeconds: 30);
-wolleen.OnPurchase += e =>
+    code: `devappstore = DevAppStoreClient.Create(apiKey, baseUrl, pollIntervalSeconds: 30);
+devappstore.OnPurchase += e =>
 {
     if (e.IsRefund) Inventory.Remove(e.product_id, e.quantity);
     else Inventory.Add(e.product_id, e.quantity);
     SaveGame(); // persistez AVANT de rendre la main : l'ack part juste après
 };
-wolleen.SetPlayer(PlayerAccount.Id);`,
+devappstore.SetPlayer(PlayerAccount.Id);`,
   },
   {
     label: 'curl',
@@ -97,7 +97,7 @@ await client.ack(event.delivery_id);`,
   {
     label: 'Godot',
     code: `Save.write()                  # 1. crédit persisté
-Wolleen.ack(p.delivery_id)    # 2. puis seulement l'accusé de réception`,
+DevAppStore.ack(p.delivery_id)    # 2. puis seulement l'accusé de réception`,
   },
 ];
 
@@ -118,7 +118,7 @@ export default function QuickstartPage() {
       <P>Deux secrets s’affichent alors :</P>
       <UL>
         <li>
-          la <strong>clé API</strong> (<C>wk_…</C>) : elle authentifie vos appels à l’API v1 et au SDK ;
+          la <strong>clé API</strong> (<C>das_…</C>) : elle authentifie vos appels à l’API v1 et au SDK ;
         </li>
         <li>
           le <strong>secret de signature webhook</strong> (<C>whsec_…</C>) : il permet de vérifier que les webhooks et les appels

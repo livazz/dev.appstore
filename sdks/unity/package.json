@@ -1,19 +1,19 @@
 {
-  "name": "com.wolleen.sdk",
+  "name": "com.devappstore.sdk",
   "version": "0.2.0",
-  "displayName": "Wolleen SDK",
-  "description": "Reçoit automatiquement dans le jeu les achats (et remboursements) faits sur la boutique web Wolleen : clé publique + jeton joueur obtenu par liaison de compte, interrogation au lancement, périodique et au retour au premier plan, accusés de réception.",
+  "displayName": "Dev AppStore SDK",
+  "description": "Reçoit automatiquement dans le jeu les achats (et remboursements) faits sur la boutique web Dev AppStore : clé publique + jeton joueur obtenu par liaison de compte, interrogation au lancement, périodique et au retour au premier plan, accusés de réception.",
   "unity": "2021.3",
   "keywords": [
-    "wolleen",
+    "devappstore",
     "iap",
     "store",
     "purchases",
     "webshop"
   ],
   "author": {
-    "name": "Wolleen",
-    "url": "https://wolleen.com"
+    "name": "DevAppStore",
+    "url": "https://devappstore.com"
   },
   "license": "UNLICENSED"
 }

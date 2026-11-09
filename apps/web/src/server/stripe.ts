@@ -8,21 +8,21 @@ import { env } from '@/env';
  * - STRIPE_SECRET_KEY défini → vrais paiements (Stripe Checkout + Connect).
  * - STRIPE_SECRET_KEY vide → MODE SIMULATION (/checkout/mock), **impossible en production** :
  *   en NODE_ENV=production, l'absence de clé rend le paiement indisponible (503), jamais gratuit.
- * - En production, une clé de test (sk_test_ / rk_test_) est refusée, sauf WOLLEEN_ALLOW_TEST_PAYMENTS=1
+ * - En production, une clé de test (sk_test_ / rk_test_) est refusée, sauf DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1
  *   (préproduction explicite). Sans ce drapeau, les événements webhook `livemode: false` sont aussi ignorés.
  *
  * Modèle de charge (choix TVA non tranché — NE PAS changer le défaut sans décision du fondateur) :
  * - CHARGE_MODEL=destination (défaut) : la session Checkout est créée sur le compte plateforme, l'argent est
  *   transféré au compte Connect du studio (`transfer_data.destination`) moins `application_fee_amount`.
- *   Wolleen apparaît sur le relevé et porte les litiges en premier.
+ *   Dev AppStore apparaît sur le relevé et porte les litiges en premier.
  * - CHARGE_MODEL=direct : la session est créée SUR le compte Connect du studio (en-tête `Stripe-Account`),
- *   Wolleen prélève `application_fee_amount`. Le studio est le marchand (relevé, litiges, TVA à sa charge).
+ *   Dev AppStore prélève `application_fee_amount`. Le studio est le marchand (relevé, litiges, TVA à sa charge).
  * - STRIPE_AUTOMATIC_TAX=1 active Stripe Tax (`automatic_tax.enabled`) : désactivé par défaut. À n'activer
  *   qu'après la décision TVA (docs/legal/tax.md) et la configuration de Stripe Tax sur le compte qui encaisse
  *   (plateforme en destination, studio en direct). Le prix est alors traité TTC (`tax_behavior: inclusive`) :
  *   le montant payé reste égal au prix affiché « Payer X € » et au montant contrôlé par le webhook.
  *
- * Autres variables : WOLLEEN_CGV_VERSION (version des CGV acceptées, stockée sur la commande),
+ * Autres variables : DEVAPPSTORE_CGV_VERSION (version des CGV acceptées, stockée sur la commande),
  * APP_URL (obligatoire en production : origine des URL de retour Stripe, jamais l'en-tête Host).
  * Toutes les variables sont lues dans `env` (src/env.ts, validé au démarrage par instrumentation.ts).
  */
@@ -46,7 +46,7 @@ export function isProduction(): boolean {
 
 /** Clé de test explicitement autorisée en production (préproduction). */
 export function testPaymentsAllowed(): boolean {
-  return env.WOLLEEN_ALLOW_TEST_PAYMENTS === '1';
+  return env.DEVAPPSTORE_ALLOW_TEST_PAYMENTS === '1';
 }
 
 const isTestKey = (key: string) => /^(sk|rk)_test_/.test(key);
@@ -69,7 +69,7 @@ export function paymentsConfigProblem(): PaymentsConfigProblem | null {
 export function paymentsConfigMessage(problem: PaymentsConfigProblem): string {
   return problem === 'missing_key'
     ? 'STRIPE_SECRET_KEY manquant en production : paiements désactivés (le mode simulation est interdit en production).'
-    : 'Clé Stripe de test en production : paiements désactivés (définir une clé sk_live_ ou WOLLEEN_ALLOW_TEST_PAYMENTS=1 en préproduction).';
+    : 'Clé Stripe de test en production : paiements désactivés (définir une clé sk_live_ ou DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1 en préproduction).';
 }
 
 /** Le mode simulation n'est possible que sans clé Stripe et hors production. */
@@ -93,7 +93,7 @@ export function getStripe(): Stripe {
   if (!cached || cached.key !== key) {
     cached = {
       key,
-      client: new Stripe(key, { apiVersion: STRIPE_API_VERSION, appInfo: { name: 'Wolleen' }, maxNetworkRetries: 2 }),
+      client: new Stripe(key, { apiVersion: STRIPE_API_VERSION, appInfo: { name: 'Dev AppStore' }, maxNetworkRetries: 2 }),
     };
   }
   return cached.client;

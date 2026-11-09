@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { DeliveryStatus, GameStatus, OrderStatus } from '@wolleen/core';
+import type { DeliveryStatus, GameStatus, OrderStatus } from '@devappstore/core';
 
 /* Briques d'interface du back-office Dev AppStore (Server Components). */
 

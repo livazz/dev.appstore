@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatMoney, type DeliveryStatus } from '@wolleen/core';
+import { formatMoney, type DeliveryStatus } from '@devappstore/core';
 import { requireAdminPermission, searchOrdersForAdmin } from '@/server/admin';
 import { normalizeQuery } from '@/server/admin-logic';
 import { DELIVERY_STATUS, DeliveryStatusBadge, Empty, OrderStatusBadge, PageHeader, SearchForm, Time } from '@/components/admin/ui';

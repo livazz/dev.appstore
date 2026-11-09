@@ -2,23 +2,23 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
-#include "WolleenSettings.generated.h"
+#include "DevAppStoreSettings.generated.h"
 
-/** Réglages du SDK : Paramètres du projet > Plugins > Wolleen (enregistrés dans DefaultGame.ini). */
-UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "Wolleen"))
-class WOLLEEN_API UWolleenSettings : public UDeveloperSettings
+/** Réglages du SDK : Paramètres du projet > Plugins > Dev AppStore (enregistrés dans DefaultGame.ini). */
+UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "DevAppStore"))
+class DEVAPPSTORE_API UDevAppStoreSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
 public:
-	/** URL de Wolleen, sans / final (en dev : http://localhost:3000). */
+	/** URL de Dev AppStore, sans / final (en dev : http://localhost:3000). */
 	UPROPERTY(Config, EditAnywhere, Category = "API")
-	FString BaseUrl = TEXT("https://wolleen.example");
+	FString BaseUrl = TEXT("https://devappstore.example");
 
 	/**
-	 * Clé PUBLIQUE du jeu (wk_pub_…), page Intégration de l'espace studio. Elle n'est pas secrète : seule, elle permet
+	 * Clé PUBLIQUE du jeu (das_pub_…), page Intégration de l'espace studio. Elle n'est pas secrète : seule, elle permet
 	 * de demander un code de liaison ; le jeton joueur obtenu après la saisie du code donne accès aux achats de ce joueur.
-	 * N'utilisez JAMAIS la clé secrète (wk_secret_…) dans le jeu.
+	 * N'utilisez JAMAIS la clé secrète (das_secret_…) dans le jeu.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "API")
 	FString PublishableKey;

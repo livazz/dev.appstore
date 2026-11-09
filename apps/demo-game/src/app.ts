@@ -3,8 +3,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { fileURLToPath } from 'node:url';
-import { Wolleen, WolleenError, type PlayerLookupResponse, type PurchaseEvent } from '@wolleen/sdk';
-import { SIGNATURE_HEADER, signWebhookPayload, verifyWebhookSignature } from '@wolleen/sdk/server';
+import { DevAppStore, DevAppStoreError, type PlayerLookupResponse, type PurchaseEvent } from '@devappstore/sdk';
+import { SIGNATURE_HEADER, signWebhookPayload, verifyWebhookSignature } from '@devappstore/sdk/server';
 import { findPlayer, GRANTS, PLAYERS, STARTING_INVENTORY } from './catalog';
 import type { DemoConfig, DemoGame, GameKey } from './config';
 import { sdkModule } from './sdk-bundle';
@@ -23,7 +23,7 @@ const MAX_BODY = 64 * 1024;
 export interface DemoAppOptions {
   config: DemoConfig;
   store?: InventoryStore;
-  /** fetch utilisé pour parler à Wolleen (proxy, codes de liaison, acks). */
+  /** fetch utilisé pour parler à Dev AppStore (proxy, codes de liaison, acks). */
   fetch?: typeof fetch;
   /** Après un webhook crédité, le serveur confirme aussi via l'API (statut « acknowledged »). Défaut : true. */
   ackWebhooks?: boolean;
@@ -103,11 +103,11 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
     return g;
   };
   /** Client SDK côté serveur (mode webhook) : codes de liaison et acks. */
-  const sdkClients = new Map<GameKey, Wolleen>();
+  const sdkClients = new Map<GameKey, DevAppStore>();
   const serverSdk = (g: DemoGame) => {
     let c = sdkClients.get(g.key);
     if (!c) {
-      c = new Wolleen({ apiKey: g.apiKey, baseUrl: config.wolleenUrl, fetch: fetchImpl });
+      c = new DevAppStore({ apiKey: g.apiKey, baseUrl: config.devAppStoreUrl, fetch: fetchImpl });
       sdkClients.set(g.key, c);
     }
     return c;
@@ -120,7 +120,7 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
     const game = games.find((g) => verifyWebhookSignature(raw, signature, g.webhookSecret));
     if (!game) {
       log('webhook refusé : signature invalide ou absente');
-      return { status: 401, body: { error: { code: 'invalid_signature', message: 'Signature Wolleen invalide.' } } };
+      return { status: 401, body: { error: { code: 'invalid_signature', message: 'Signature Dev AppStore invalide.' } } };
     }
     let event: unknown;
     try {
@@ -155,10 +155,10 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
     }
     const sig = req.headers[SIGNATURE_HEADER.toLowerCase()];
     if (sig !== undefined) {
-      // Wolleen signe l'ID brut saisi (espaces de bord retirés) avec le secret webhook du jeu.
+      // Dev AppStore signe l'ID brut saisi (espaces de bord retirés) avec le secret webhook du jeu.
       const header = Array.isArray(sig) ? sig[0] : sig;
       const ok = games.some((g) => verifyWebhookSignature(input.trim(), header, g.webhookSecret));
-      if (!ok) throw new HttpError(401, 'invalid_signature', 'Signature Wolleen invalide.');
+      if (!ok) throw new HttpError(401, 'invalid_signature', 'Signature Dev AppStore invalide.');
     }
     const p = findPlayer(input);
     if (!p) throw new HttpError(404, 'player_not_found', 'Joueur introuvable.');
@@ -194,16 +194,16 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
       log(`${game.name} : code de liaison ${code.code} pour ${p.id}`);
       json(res, 200, code);
     } catch (e) {
-      const status = e instanceof WolleenError && e.status ? e.status : 502;
+      const status = e instanceof DevAppStoreError && e.status ? e.status : 502;
       const message =
-        e instanceof WolleenError && e.status
+        e instanceof DevAppStoreError && e.status
           ? e.message
-          : `Wolleen injoignable sur ${config.wolleenUrl} (lancez « npm run dev » dans le dépôt).`;
-      json(res, status, { error: { code: e instanceof WolleenError ? e.code : 'wolleen_unreachable', message } });
+          : `Dev AppStore injoignable sur ${config.devAppStoreUrl} (lancez « npm run dev » dans le dépôt).`;
+      json(res, status, { error: { code: e instanceof DevAppStoreError ? e.code : 'devappstore_unreachable', message } });
     }
   }
 
-  /** Simule un achat Wolleen (webhook signé) sans passer par le site : utile hors ligne. */
+  /** Simule un achat Dev AppStore (webhook signé) sans passer par le site : utile hors ligne. */
   async function handleSimulate(req: IncomingMessage, res: ServerResponse) {
     const body = parseJson<{ player_id?: string; product_id?: string }>(await readBody(req));
     const p = findPlayer(body.player_id ?? '');
@@ -224,14 +224,14 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
       created_at: new Date().toISOString(),
     };
     const raw = JSON.stringify(event);
-    // Livraison fictive : rien à acquitter chez Wolleen.
+    // Livraison fictive : rien à acquitter chez Dev AppStore.
     const r = await handleWebhook(raw, signWebhookPayload(raw, game.webhookSecret), { ack: false });
     json(res, r.status, r.body);
   }
 
   function handleConfig(res: ServerResponse) {
     json(res, 200, {
-      wolleenUrl: config.wolleenUrl,
+      devAppStoreUrl: config.devAppStoreUrl,
       players: PLAYERS,
       grants: GRANTS,
       startingInventory: STARTING_INVENTORY,
@@ -245,17 +245,17 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
     });
   }
 
-  // -------------------------------------------------- Proxy vers Wolleen
+  // -------------------------------------------------- Proxy vers Dev AppStore
 
   /**
-   * /proxy/api/v1/* → WOLLEEN_URL/api/v1/* : relais même origine (facultatif — l'API v1 autorise CORS et la page du jeu
-   * appelle Wolleen directement). Utile derrière un réseau qui bloque l'origine de Wolleen. Le flux SSE est relayé tel quel.
+   * /proxy/api/v1/* → DEVAPPSTORE_URL/api/v1/* : relais même origine (facultatif — l'API v1 autorise CORS et la page du jeu
+   * appelle Dev AppStore directement). Utile derrière un réseau qui bloque l'origine de Dev AppStore. Le flux SSE est relayé tel quel.
    */
   async function handleProxy(req: IncomingMessage, res: ServerResponse, url: URL) {
     const path = url.pathname.slice('/proxy'.length);
     if (!path.startsWith('/api/v1/')) throw new HttpError(404, 'not_found', 'Introuvable.');
     const headers: Record<string, string> = {};
-    for (const h of ['authorization', 'content-type', 'accept', 'last-event-id', 'wolleen-player-token']) {
+    for (const h of ['authorization', 'content-type', 'accept', 'last-event-id', 'devappstore-player-token']) {
       const v = req.headers[h];
       if (typeof v === 'string') headers[h] = v;
     }
@@ -265,9 +265,9 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
     res.on('close', () => ctrl.abort());
     let upstream: Response;
     try {
-      upstream = await fetchImpl(config.wolleenUrl + path + url.search, { method, headers, body, signal: ctrl.signal });
+      upstream = await fetchImpl(config.devAppStoreUrl + path + url.search, { method, headers, body, signal: ctrl.signal });
     } catch {
-      return json(res, 502, { error: { code: 'wolleen_unreachable', message: `Wolleen injoignable sur ${config.wolleenUrl}.` } });
+      return json(res, 502, { error: { code: 'devappstore_unreachable', message: `Dev AppStore injoignable sur ${config.devAppStoreUrl}.` } });
     }
     const out: Record<string, string> = { 'cache-control': 'no-store' };
     const ct = upstream.headers.get('content-type');
@@ -299,8 +299,8 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
       res.writeHead(200, { 'content-type': MIME.js!, 'cache-control': 'no-cache' });
       return res.end(js);
     }
-    if (method === 'GET' && p.startsWith('/wolleen/players/')) return handleLookup(req, res, p.slice('/wolleen/players/'.length));
-    if (method === 'POST' && p === '/wolleen/webhook') {
+    if (method === 'GET' && p.startsWith('/devappstore/players/')) return handleLookup(req, res, p.slice('/devappstore/players/'.length));
+    if (method === 'POST' && p === '/devappstore/webhook') {
       const raw = await readBody(req);
       const sig = req.headers[SIGNATURE_HEADER.toLowerCase()];
       const r = await handleWebhook(raw, Array.isArray(sig) ? sig[0] : sig);

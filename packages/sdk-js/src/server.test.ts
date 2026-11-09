@@ -1,4 +1,4 @@
-import { signPayload, type PurchaseEvent as CorePurchaseEvent, type PlayerLookupResponse as CoreLookup } from '@wolleen/core';
+import { signPayload, type PurchaseEvent as CorePurchaseEvent, type PlayerLookupResponse as CoreLookup } from '@devappstore/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { constructWebhookEvent, signWebhookPayload, verifyWebhookSignature, WebhookSignatureError } from './server';
 import type { PlayerLookupResponse, PurchaseEvent } from './types';
@@ -6,7 +6,7 @@ import type { PlayerLookupResponse, PurchaseEvent } from './types';
 const body = JSON.stringify({ event: 'purchase.completed', delivery_id: 'dlv_1' });
 
 describe('verifyWebhookSignature', () => {
-  it('accepte une signature produite par Wolleen (@wolleen/core signPayload)', () => {
+  it('accepte une signature produite par Dev AppStore (@devappstore/core signPayload)', () => {
     const now = Math.floor(Date.now() / 1000);
     expect(verifyWebhookSignature(body, signPayload(body, 'whsec'), 'whsec')).toBe(true);
     expect(verifyWebhookSignature(new TextEncoder().encode(body), signPayload(body, 'whsec', now), 'whsec')).toBe(true);
@@ -41,7 +41,7 @@ describe('verifyWebhookSignature', () => {
 });
 
 describe('types', () => {
-  it('restent identiques à ceux de @wolleen/core', () => {
+  it('restent identiques à ceux de @devappstore/core', () => {
     expectTypeOf<PurchaseEvent>().toEqualTypeOf<CorePurchaseEvent>();
     expectTypeOf<PlayerLookupResponse>().toEqualTypeOf<CoreLookup>();
   });

@@ -7,7 +7,7 @@
  *
  * Cette fonction accepte n'importe quelle entrée (`unknown`) : elle ne lève jamais d'exception.
  */
-import { DEFAULT_ITEM_STYLE, type BgType, type ItemStyle, type LayoutId } from '@wolleen/core';
+import { DEFAULT_ITEM_STYLE, type BgType, type ItemStyle, type LayoutId } from '@devappstore/core';
 import { BLACK, INK, WHITE, contrastRatio, mix, normalizeHex, parseColor, shade, worstContrast } from './color';
 import {
   DEFAULT_CONTRAST,

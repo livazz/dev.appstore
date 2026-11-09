@@ -1,4 +1,4 @@
-import { DEFAULT_ITEM_STYLE, type ItemStyle } from '@wolleen/core';
+import { DEFAULT_ITEM_STYLE, type ItemStyle } from '@devappstore/core';
 import { describe, expect, it } from 'vitest';
 import { contrastRatio, isHexColor } from './color';
 import { cleanText, effectiveContrast, ensureReadable, normalizeCardStyle, textBackgrounds } from './normalize';

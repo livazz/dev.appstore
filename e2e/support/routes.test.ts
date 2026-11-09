@@ -31,7 +31,7 @@ describe('listAppRoutes / routeExists', () => {
   };
 
   beforeAll(() => {
-    app = mkdtempSync(join(tmpdir(), 'wolleen-e2e-routes-'));
+    app = mkdtempSync(join(tmpdir(), 'devappstore-e2e-routes-'));
     file('page.tsx');
     file('(player)/games/[slug]/page.tsx');
     file('(player)/games/[slug]/link/page.tsx');

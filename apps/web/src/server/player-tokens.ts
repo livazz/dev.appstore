@@ -1,6 +1,6 @@
 import 'server-only';
-import { newId } from '@wolleen/core';
-import { and, count, db, desc, eq, isNull, linkCodes, playerTokens, sql } from '@wolleen/db';
+import { newId } from '@devappstore/core';
+import { and, count, db, desc, eq, isNull, linkCodes, playerTokens, sql } from '@devappstore/db';
 import { generatePlayerToken, type ApiAuth } from './api-key';
 
 /*
@@ -8,10 +8,10 @@ import { generatePlayerToken, type ApiAuth } from './api-key';
  *
  * 1. Le SDK demande un code avec la clé publique : POST /api/v1/link-codes → { code, expires_at, link_request_id }
  *    (link_request_id = id de la ligne link_codes, aléatoire 96 bits, connu du seul client qui a demandé le code).
- * 2. Le joueur saisit le code sur /games/[slug]/link (connecté à son compte Wolleen) : la ligne est consommée et
+ * 2. Le joueur saisit le code sur /games/[slug]/link (connecté à son compte Dev AppStore) : la ligne est consommée et
  *    `consumedBy` reçoit son userId.
- * 3. Le SDK interroge GET /api/v1/link-requests/{id} : au premier appel après la saisie, un jeton opaque `wk_pt_…`
- *    est délivré UNE fois (échange atomique), lié à (jeu, player_id, compte Wolleen). Seule son empreinte est stockée.
+ * 3. Le SDK interroge GET /api/v1/link-requests/{id} : au premier appel après la saisie, un jeton opaque `das_pt_…`
+ *    est délivré UNE fois (échange atomique), lié à (jeu, player_id, compte Dev AppStore). Seule son empreinte est stockée.
  * 4. Avec la clé publique, deliveries / stream / ack exigent ce jeton et ne voient que les achats de ce joueur faits
  *    par ce compte : un tiers qui fabrique un code pour le player_id d'une victime n'obtient que ses propres achats.
  */

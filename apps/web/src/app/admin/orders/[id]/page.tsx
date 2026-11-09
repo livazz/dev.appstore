@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import { getOrderForAdmin, requireAdminPermission } from '@/server/admin';
 import { can } from '@/server/admin-logic';
 import { Card, DeliveryStatusBadge, Facts, Mono, OrderStatusBadge, PageHeader, TableWrap, Time, td, th } from '@/components/admin/ui';

@@ -1,5 +1,5 @@
 /*
- * Espace studio : dev@wolleen.test ouvre l'éditeur de Crystal Clash, ajoute un article,
+ * Espace studio : dev@devappstore.test ouvre l'éditeur de Crystal Clash, ajoute un article,
  * et l'article apparaît sur la boutique publique /games/crystal-clash.
  */
 import { COMPTES, JEUX } from '../support/demo-data';

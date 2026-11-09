@@ -1,5 +1,5 @@
-import { html, oneLine, safeUrl, type EmailContent, type ResolvedContext } from '@wolleen/emails';
-import type { ModerationAction } from '@wolleen/db';
+import { html, oneLine, safeUrl, type EmailContent, type ResolvedContext } from '@devappstore/emails';
+import type { ModerationAction } from '@devappstore/db';
 import { SUSPENSION_GROUNDS, type SuspensionGround } from './admin-logic';
 
 /*

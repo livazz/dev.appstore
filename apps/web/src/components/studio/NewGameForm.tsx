@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
-import { GAME_CATEGORIES, type Currency } from '@wolleen/core';
+import { GAME_CATEGORIES, type Currency } from '@devappstore/core';
 import { createGame } from '@/server/studio';
 import { IconCopy } from './icons';
 
@@ -58,7 +58,7 @@ export function NewGameForm({ studioName }: { studioName: string }) {
           </p>
         </div>
         <SecretRow label="Clé API" value={created.apiKey} hint="En-tête Authorization: Bearer … pour l'API /api/v1 et le SDK." />
-        <SecretRow label="Secret de signature webhook" value={created.webhookSecret} hint="Sert à vérifier l'en-tête Wolleen-Signature (aussi visible dans Intégration)." />
+        <SecretRow label="Secret de signature webhook" value={created.webhookSecret} hint="Sert à vérifier l'en-tête DevAppStore-Signature (aussi visible dans Intégration)." />
         <div className="flex justify-end gap-3">
           <Link href={`/studio/games/${created.id}/integration`} className="rounded-lg border border-line px-5 py-2 text-sm font-semibold hover:bg-bg">
             Configurer l&apos;intégration

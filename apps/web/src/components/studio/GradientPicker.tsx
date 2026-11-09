@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { GameTheme } from '@wolleen/core';
+import type { GameTheme } from '@devappstore/core';
 import { panelBackground } from '@/components/store/StorePanel';
 import { IconClose } from './icons';
 

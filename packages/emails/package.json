@@ -1,9 +1,9 @@
 {
-  "name": "@wolleen/emails",
+  "name": "@devappstore/emails",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Modèles d'e-mails transactionnels Wolleen (fonctions TS → { subject, html, text }) et interface d'envoi (console / Resend).",
+  "description": "Modèles d'e-mails transactionnels Dev AppStore (fonctions TS → { subject, html, text }) et interface d'envoi (console / Resend).",
   "exports": {
     ".": "./src/index.ts",
     "./mailer": "./src/mailer/index.ts"
@@ -14,7 +14,7 @@
     "preview": "tsx src/preview.ts"
   },
   "dependencies": {
-    "@wolleen/core": "*"
+    "@devappstore/core": "*"
   },
   "devDependencies": {
     "@types/node": "^20",

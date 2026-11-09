@@ -4,9 +4,9 @@ import { env, EnvValidationError, parseEnv, readEnv, validateEnv } from './env';
 /** Configuration de production complète et valide (valeurs factices). */
 const PROD = {
   NODE_ENV: 'production',
-  DATABASE_URL: 'postgresql://wolleen:pw@ep-test.eu-central-1.aws.neon.tech/wolleen?sslmode=require',
+  DATABASE_URL: 'postgresql://devappstore:pw@ep-test.eu-central-1.aws.neon.tech/devappstore?sslmode=require',
   AUTH_SECRET: 'a'.repeat(64),
-  APP_URL: 'https://wolleen.example',
+  APP_URL: 'https://devappstore.example',
   STRIPE_SECRET_KEY: 'sk_live_51Fake000000000000000000',
   STRIPE_WEBHOOK_SECRET: 'whsec_fake0000000000',
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: 'pk_live_fake',
@@ -31,7 +31,7 @@ describe('parseEnv — développement', () => {
     expect(env.paymentsMode).toBe('simulation');
     expect(env.PLATFORM_FEE_BPS).toBe(500);
     expect(env.DATABASE_URL).toBeUndefined();
-    expect(env.WOLLEEN_STORAGE).toBe('local');
+    expect(env.DEVAPPSTORE_STORAGE).toBe('local');
   });
 
   it('accepte le .env.example tel quel (valeurs vides, AUTH_SECRET=change-me)', () => {
@@ -95,37 +95,37 @@ describe('parseEnv — production', () => {
     expect(issues.STRIPE_SECRET_KEY).toMatch(/sk_live_/);
   });
 
-  it('accepte sk_test_ en préproduction avec WOLLEEN_ALLOW_TEST_PAYMENTS=1', () => {
+  it('accepte sk_test_ en préproduction avec DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1', () => {
     const env = parseEnv({
       ...PROD,
       STRIPE_SECRET_KEY: 'sk_test_abc',
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: 'pk_test_x',
-      WOLLEEN_ALLOW_TEST_PAYMENTS: '1',
+      DEVAPPSTORE_ALLOW_TEST_PAYMENTS: '1',
     });
     expect(env.paymentsMode).toBe('test');
   });
 
-  it('interdit le mode simulation en production, même avec WOLLEEN_ALLOW_TEST_PAYMENTS=1', () => {
-    const issues = issuesOf({ ...PROD, STRIPE_SECRET_KEY: '', WOLLEEN_ALLOW_TEST_PAYMENTS: '1' });
+  it('interdit le mode simulation en production, même avec DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1', () => {
+    const issues = issuesOf({ ...PROD, STRIPE_SECRET_KEY: '', DEVAPPSTORE_ALLOW_TEST_PAYMENTS: '1' });
     expect(issues.STRIPE_SECRET_KEY).toMatch(/simulation/);
   });
 
   it('exige le secret du webhook Stripe et une APP_URL en https', () => {
-    const issues = issuesOf({ ...PROD, STRIPE_WEBHOOK_SECRET: '', APP_URL: 'http://wolleen.example' });
+    const issues = issuesOf({ ...PROD, STRIPE_WEBHOOK_SECRET: '', APP_URL: 'http://devappstore.example' });
     expect(issues).toHaveProperty('STRIPE_WEBHOOK_SECRET');
     expect(issues.APP_URL).toMatch(/https/);
   });
 
-  it('exige la configuration S3/R2 quand WOLLEEN_STORAGE=s3', () => {
-    expect(issuesOf({ ...PROD, WOLLEEN_STORAGE: 's3' })).toHaveProperty('S3_BUCKET');
+  it('exige la configuration S3/R2 quand DEVAPPSTORE_STORAGE=s3', () => {
+    expect(issuesOf({ ...PROD, DEVAPPSTORE_STORAGE: 's3' })).toHaveProperty('S3_BUCKET');
     const s3 = {
-      ...PROD, WOLLEEN_STORAGE: 's3', S3_ENDPOINT: 'https://acc.eu.r2.cloudflarestorage.com', S3_BUCKET: 'b',
-      S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's', S3_PUBLIC_URL: 'https://cdn.wolleen.example',
+      ...PROD, DEVAPPSTORE_STORAGE: 's3', S3_ENDPOINT: 'https://acc.eu.r2.cloudflarestorage.com', S3_BUCKET: 'b',
+      S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's', S3_PUBLIC_URL: 'https://cdn.devappstore.example',
     };
     // Copie publique obligatoire (rendu client des images, safeImageUrl) et identique à S3_PUBLIC_URL.
     expect(issuesOf(s3)).toHaveProperty('NEXT_PUBLIC_S3_PUBLIC_URL');
     expect(issuesOf({ ...s3, NEXT_PUBLIC_S3_PUBLIC_URL: 'https://autre.example' })).toHaveProperty('NEXT_PUBLIC_S3_PUBLIC_URL');
-    expect(() => parseEnv({ ...s3, NEXT_PUBLIC_S3_PUBLIC_URL: 'https://cdn.wolleen.example/' })).not.toThrow();
+    expect(() => parseEnv({ ...s3, NEXT_PUBLIC_S3_PUBLIC_URL: 'https://cdn.devappstore.example/' })).not.toThrow();
   });
 
   it('produit un message clair qui ne divulgue aucune valeur secrète', () => {
@@ -154,7 +154,7 @@ describe('validateEnv — démarrage (instrumentation.ts)', () => {
   it('applique au secret de session les règles de Better Auth (BETTER_AUTH_SECRET prioritaire)', () => {
     expect(parseEnv({ ...PROD, AUTH_SECRET: '', BETTER_AUTH_SECRET: 'b'.repeat(40) }).isProduction).toBe(true);
     expect(issuesOf({ ...PROD, AUTH_SECRET: '', BETTER_AUTH_SECRET: 'court' })).toHaveProperty('BETTER_AUTH_SECRET');
-    expect(issuesOf({ ...PROD, AUTH_SECRET: 'wolleen-dev-secret-ne-pas-utiliser-en-production-0123456789' }).AUTH_SECRET).toMatch(/exemple/);
+    expect(issuesOf({ ...PROD, AUTH_SECRET: 'devappstore-dev-secret-ne-pas-utiliser-en-production-0123456789' }).AUTH_SECRET).toMatch(/exemple/);
   });
 });
 

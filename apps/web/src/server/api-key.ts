@@ -1,24 +1,24 @@
 import 'server-only';
-import { hashApiKey, randomToken } from '@wolleen/core';
-import { and, db, eq, games, isNull, lt, or, playerTokens } from '@wolleen/db';
+import { hashApiKey, randomToken } from '@devappstore/core';
+import { and, db, eq, games, isNull, lt, or, playerTokens } from '@devappstore/db';
 
 /*
  * Authentification de l'API publique /api/v1 (D-05 du modèle de menaces : séparation des clés).
  *
- * - Clé SECRÈTE `wk_secret_…` (anciennes clés `wk_live_…` / `wk_test_…` toujours acceptées) : serveur du studio
+ * - Clé SECRÈTE `das_secret_…` (anciennes clés `das_live_…` / `das_test_…` toujours acceptées) : serveur du studio
  *   uniquement. Seule son empreinte SHA-256 est stockée. Donne accès à tout le jeu : codes de liaison, livraisons de
  *   tous les joueurs (`player_id` en paramètre), flux, ack, révocation des jetons joueur.
- * - Clé PUBLIQUE `wk_pub_…` (non secrète, embarquée dans le client du jeu) : demande de codes de liaison et
+ * - Clé PUBLIQUE `das_pub_…` (non secrète, embarquée dans le client du jeu) : demande de codes de liaison et
  *   échange d'une demande de liaison contre un jeton joueur. Les livraisons, le flux et l'ack exigent en plus le
- *   jeton joueur (`Wolleen-Player-Token: wk_pt_…`) et sont restreints à SON joueur (et au compte Wolleen qui l'a lié).
+ *   jeton joueur (`DevAppStore-Player-Token: das_pt_…`) et sont restreints à SON joueur (et au compte Dev AppStore qui l'a lié).
  *
  * Aucune clé n'est jamais acceptée dans l'URL. Un jeu suspendu est refusé.
  */
 
-export const SECRET_KEY_PREFIX = 'wk_secret_';
-export const PUBLISHABLE_KEY_PREFIX = 'wk_pub_';
-export const PLAYER_TOKEN_PREFIX = 'wk_pt_';
-export const PLAYER_TOKEN_HEADER = 'Wolleen-Player-Token';
+export const SECRET_KEY_PREFIX = 'das_secret_';
+export const PUBLISHABLE_KEY_PREFIX = 'das_pub_';
+export const PLAYER_TOKEN_PREFIX = 'das_pt_';
+export const PLAYER_TOKEN_HEADER = 'DevAppStore-Player-Token';
 /** Longueur max d'une clé / d'un jeton acceptée avant toute requête en base. */
 const MAX_CREDENTIAL_LENGTH = 200;
 /** `lastUsedAt` d'un jeton n'est réécrit qu'au plus toutes les 5 min. */
@@ -123,7 +123,7 @@ export async function authenticateApi(req: Request): Promise<ApiAuth | null> {
 
 /**
  * CONTRAT PARTAGÉ (historique) — authentifie un appel par la clé SECRÈTE du jeu uniquement.
- * En-tête : `Authorization: Bearer wk_…`. Renvoie le jeu, ou null (→ répondre 401) : clé inconnue, clé publique,
+ * En-tête : `Authorization: Bearer das_…`. Renvoie le jeu, ou null (→ répondre 401) : clé inconnue, clé publique,
  * jeu suspendu. Préférez `authenticateApi`, qui ne renvoie aucun secret.
  */
 export async function authenticateGame(req: Request) {

@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: description.slice(0, 300),
     alternates: { canonical: `/games/${game.slug}` },
     openGraph: {
-      title: `${game.name} — boutique Wolleen`,
+      title: `${game.name} — boutique Dev AppStore`,
       description: description.slice(0, 300),
       url: `/games/${game.slug}`,
       images: image ? [{ url: image }] : undefined,

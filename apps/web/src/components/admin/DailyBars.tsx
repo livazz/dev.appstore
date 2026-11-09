@@ -1,4 +1,4 @@
-import { formatMoney, type Currency } from '@wolleen/core';
+import { formatMoney, type Currency } from '@devappstore/core';
 
 const dayFmt = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const label = (day: string) => dayFmt.format(new Date(`${day}T12:00:00Z`));

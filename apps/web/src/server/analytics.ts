@@ -1,7 +1,7 @@
 import 'server-only';
-import { REDUCED_STORE_FEE_BPS, STORE_FEE_OPTIONS_BPS, feeCents, type Currency, type DeliveryStatus, type OrderStatus } from '@wolleen/core';
+import { REDUCED_STORE_FEE_BPS, STORE_FEE_OPTIONS_BPS, feeCents, type Currency, type DeliveryStatus, type OrderStatus } from '@devappstore/core';
 import type { AnyColumn } from 'drizzle-orm';
-import { and, db, deliveries, desc, eq, games, gt, inArray, orders, sql, type DB } from '@wolleen/db';
+import { and, db, deliveries, desc, eq, games, gt, inArray, orders, sql, type DB } from '@devappstore/db';
 
 /*
  * Agrégations de ventes (espace studio) et historique d'achats (joueur). Tâche « analytics ».
@@ -90,7 +90,7 @@ export interface SalesTotals {
   currency: Currency;
   count: number;
   grossCents: number;
-  /** Commission Wolleen réellement prélevée (somme de platform_fee_cents). */
+  /** Commission Dev AppStore réellement prélevée (somme de platform_fee_cents). */
   platformFeeCents: number;
   netCents: number;
   /** Ce que le studio aurait payé en plus via l'App Store / Google Play au taux `storeFeeBps`. */
@@ -105,7 +105,7 @@ export function emptyTotals(currency: Currency, storeFeeBps = DEFAULT_SALES_STOR
 }
 
 function toTotals(currency: Currency, count: number, gross: number, fee: number, storeFeeBps: number): SalesTotals {
-  // Commission store évitée au taux choisi, moins la commission Wolleen réellement prélevée (jamais négatif).
+  // Commission store évitée au taux choisi, moins la commission Dev AppStore réellement prélevée (jamais négatif).
   const savings = feeCents(gross, storeFeeBps) - fee;
   return {
     currency,
@@ -242,7 +242,7 @@ const decimal = (cents: number) => (cents / 100).toFixed(2);
 
 /** Export CSV (RFC 4180, séparateur virgule, montants décimaux avec point). */
 export function transactionsToCsv(rows: Transaction[]) {
-  const header = ['date_utc', 'order_id', 'product_id', 'article', 'player_id', 'quantite', 'montant_brut', 'commission_wolleen', 'montant_net', 'devise', 'statut_commande', 'statut_livraison'];
+  const header = ['date_utc', 'order_id', 'product_id', 'article', 'player_id', 'quantite', 'montant_brut', 'commission_devappstore', 'montant_net', 'devise', 'statut_commande', 'statut_livraison'];
   const lines = rows.map((r) =>
     [
       csvCell(r.date.toISOString()),

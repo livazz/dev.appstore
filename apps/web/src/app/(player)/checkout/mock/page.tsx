@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import { OrderSummary } from '@/components/checkout/OrderSummary';
 import { SubmitButton } from '@/components/checkout/SubmitButton';
 import { gameItemPath, getOrderForUser, successPath } from '@/server/payments';
@@ -10,7 +10,7 @@ import { isSimulationAllowed } from '@/server/stripe';
 import { payMockOrderAction } from './actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Paiement (démo) — Wolleen', robots: { index: false } };
+export const metadata: Metadata = { title: 'Paiement (démo) — Dev AppStore', robots: { index: false } };
 
 const ERRORS: Record<string, string> = {
   simulation_forbidden: 'Le mode démo est désactivé sur ce serveur.',

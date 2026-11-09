@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import { getStudioForAdmin, requireAdminPermission } from '@/server/admin';
 import { can } from '@/server/admin-logic';
 import { Badge, Card, Facts, GameStatusBadge, Mono, PageHeader, StripeBadge, Time } from '@/components/admin/ui';

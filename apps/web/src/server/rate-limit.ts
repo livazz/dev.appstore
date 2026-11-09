@@ -141,22 +141,22 @@ export class MemoryConcurrencyLimiter implements ConcurrencyLimiter {
 /* Instances partagées (remplaçables, ex. Redis en phase 2)                                          */
 /* ------------------------------------------------------------------------------------------------ */
 
-const g = globalThis as { __wolleenRateStore?: RateLimitStore; __wolleenStreamSlots?: ConcurrencyLimiter };
+const g = globalThis as { __devAppStoreRateStore?: RateLimitStore; __devAppStoreStreamSlots?: ConcurrencyLimiter };
 
 /** Magasin partagé (survit au rechargement à chaud de Next en dev). */
 export function getRateLimitStore(): RateLimitStore {
-  return (g.__wolleenRateStore ??= new MemoryRateLimitStore());
+  return (g.__devAppStoreRateStore ??= new MemoryRateLimitStore());
 }
 
 /** Remplace le magasin (Redis en production multi-instance, ou magasin isolé dans les tests). */
 export function setRateLimitStore(store: RateLimitStore) {
-  g.__wolleenRateStore = store;
+  g.__devAppStoreRateStore = store;
 }
 
 export function getStreamSlots(): ConcurrencyLimiter {
-  return (g.__wolleenStreamSlots ??= new MemoryConcurrencyLimiter());
+  return (g.__devAppStoreStreamSlots ??= new MemoryConcurrencyLimiter());
 }
 
 export function setStreamSlots(limiter: ConcurrencyLimiter) {
-  g.__wolleenStreamSlots = limiter;
+  g.__devAppStoreStreamSlots = limiter;
 }

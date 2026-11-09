@@ -1,8 +1,8 @@
 import 'server-only';
 import { promises as dnsPromises } from 'node:dns';
 import { isIP } from 'node:net';
-import { SIGNATURE_HEADER, newId, nextAttemptAt, signPayload, type PurchaseEvent } from '@wolleen/core';
-import { and, asc, db, deliveries, desc, eq, games, inArray, isNull, lte, ne, or, orders, refundDeliveries, sql, webhookAttempts } from '@wolleen/db';
+import { SIGNATURE_HEADER, newId, nextAttemptAt, signPayload, type PurchaseEvent } from '@devappstore/core';
+import { and, asc, db, deliveries, desc, eq, games, inArray, isNull, lte, ne, or, orders, refundDeliveries, sql, webhookAttempts } from '@devappstore/db';
 import { env } from '@/env';
 import { publish } from './events';
 import { BlockedAddressError, checkOutboundUrl, isBlockedAddress, safeHttpRequest } from './linking';
@@ -246,7 +246,7 @@ export async function postSignedWebhook(url: string, secret: string, body: strin
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'user-agent': 'Wolleen-Webhooks/1.0',
+          'user-agent': 'DevAppStore-Webhooks/1.0',
           [SIGNATURE_HEADER]: signPayload(body, secret),
           ...extraHeaders,
         },
@@ -287,7 +287,7 @@ async function findKind(id: string): Promise<DeliveryKind | null> {
 
 /**
  * Envoie (ou ré-envoie) une livraison (achat ou remboursement).
- * - Jeu avec `webhookUrl` : bail atomique, POST signé (`Wolleen-Signature`), journal `webhook_attempts`.
+ * - Jeu avec `webhookUrl` : bail atomique, POST signé (`DevAppStore-Signature`), journal `webhook_attempts`.
  *   2xx → `delivered` ; échec → attempts+1 et relance planifiée (`nextAttemptAt` de core), `failed` quand le planning est épuisé.
  * - Jeu sans webhook : reste `pending`, retirée de la file de relance (le SDK la récupère via le flux SSE ou la liste).
  * Les flux SSE du joueur sont notifiés au premier envoi.
@@ -335,7 +335,7 @@ async function dispatch(kind: DeliveryKind, id: string, claimed: boolean): Promi
 
   if (attempts === 0) publish(row.gameId, row.playerId, row.payload, meta);
 
-  const result = await postSignedWebhook(game.webhookUrl, game.webhookSecret, JSON.stringify(row.payload), { 'Wolleen-Delivery': id });
+  const result = await postSignedWebhook(game.webhookUrl, game.webhookSecret, JSON.stringify(row.payload), { 'DevAppStore-Delivery': id });
   let purchaseDeliveryId = id;
   if (kind === 'refund') {
     const [r] = await db.select({ p: refundDeliveries.purchaseDeliveryId }).from(refundDeliveries).where(eq(refundDeliveries.id, id));
@@ -449,10 +449,10 @@ export async function retryDueDeliveries(
 /** En développement, une boucle légère relance les livraisons dues sans cron. Démarrée au premier usage. */
 export function ensureDevRetryLoop() {
   if (env.NODE_ENV !== 'development') return;
-  const g = globalThis as unknown as { __wolleenDeliveryLoop?: ReturnType<typeof setInterval> };
-  if (g.__wolleenDeliveryLoop) return;
+  const g = globalThis as unknown as { __devAppStoreDeliveryLoop?: ReturnType<typeof setInterval> };
+  if (g.__devAppStoreDeliveryLoop) return;
   let running = false;
-  g.__wolleenDeliveryLoop = setInterval(() => {
+  g.__devAppStoreDeliveryLoop = setInterval(() => {
     if (running) return;
     running = true;
     retryDueDeliveries()
@@ -461,7 +461,7 @@ export function ensureDevRetryLoop() {
         running = false;
       });
   }, DEV_RETRY_INTERVAL_MS);
-  g.__wolleenDeliveryLoop.unref?.();
+  g.__devAppStoreDeliveryLoop.unref?.();
 }
 
 /**
@@ -494,7 +494,7 @@ type GameRef = { id: string; webhookUrl: string | null };
 
 /**
  * Portée d'un appel fait avec un jeton joueur (clé publique) : seulement les livraisons de `playerId`
- * achetées par le compte Wolleen `userId` (celui qui a lié l'appareil). Absente = clé secrète (tout le jeu).
+ * achetées par le compte Dev AppStore `userId` (celui qui a lié l'appareil). Absente = clé secrète (tout le jeu).
  */
 export interface PlayerScope {
   playerId: string;
@@ -510,7 +510,7 @@ function buyerFilter(t: DeliveryTable, gameId: string, userId: string | undefine
 /**
  * Livraisons ouvertes d'un joueur (pending + delivered non acquittées, achats et remboursements), les plus anciennes
  * d'abord. Pour un jeu sans webhook, la récupération par le SDK vaut livraison : pending → delivered.
- * `opts.userId` (jeton joueur) : seulement les achats de ce compte Wolleen.
+ * `opts.userId` (jeton joueur) : seulement les achats de ce compte Dev AppStore.
  */
 export async function takeOpenDeliveries(game: GameRef, playerId: string, limit = 100, opts: { userId?: string } = {}): Promise<PurchaseEvent[]> {
   const rows: { id: string; status: string; payload: PurchaseEvent; createdAt: Date; kind: DeliveryKind }[] = [];
@@ -652,7 +652,7 @@ export async function sendTestWebhook(gameId: string): Promise<WebhookResult & {
     currency: game.currency,
     created_at: new Date().toISOString(),
   };
-  const result = await postSignedWebhook(game.webhookUrl, game.webhookSecret, JSON.stringify(payload), { 'Wolleen-Test': '1' });
+  const result = await postSignedWebhook(game.webhookUrl, game.webhookSecret, JSON.stringify(payload), { 'DevAppStore-Test': '1' });
   return { ...result, payload };
 }
 

@@ -1,8 +1,8 @@
 import 'server-only';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
-import { and, db, eq, games, studioMembers, type DB } from '@wolleen/db';
-import type { StudioRole } from '@wolleen/core';
+import { and, db, eq, games, studioMembers, type DB } from '@devappstore/db';
+import type { StudioRole } from '@devappstore/core';
 import { auth } from './auth';
 import { isUserDisabled } from './user-suspension';
 

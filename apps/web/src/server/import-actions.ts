@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import type { StudioRole } from '@wolleen/core';
-import { db, eq, games } from '@wolleen/db';
+import type { StudioRole } from '@devappstore/core';
+import { db, eq, games } from '@devappstore/db';
 import { requireGameAccess } from './session';
 import { StudioError } from './studio-logic';
 import {

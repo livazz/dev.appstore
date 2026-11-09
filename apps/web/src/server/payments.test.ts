@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type Stripe from 'stripe';
-import { DEFAULT_PLATFORM_FEE_BPS } from '@wolleen/core';
-import { db, eq, items, orders, studios } from '@wolleen/db';
+import { DEFAULT_PLATFORM_FEE_BPS } from '@devappstore/core';
+import { db, eq, items, orders, studios } from '@devappstore/db';
 import { clearPendingOrders, FX, getOrder, insertPendingOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
 import {
   applyCheckoutSession,
@@ -23,9 +23,9 @@ import {
 } from './payments';
 
 // Base en mémoire à la place de .data/pglite.
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const { createTestDb } = await import('@wolleen/db/testing');
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const { createTestDb } = await import('@devappstore/db/testing');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
   return importOriginal();
 });
 
@@ -46,7 +46,7 @@ vi.mock('@/server/stripe', async (importOriginal) => ({
   getStripe: () => fakeStripe,
 }));
 
-const ORIGIN = 'https://wolleen.test';
+const ORIGIN = 'https://devappstore.test';
 const CONSENT = { withdrawalWaiver: true, ip: '203.0.113.77' };
 
 beforeAll(async () => {
@@ -58,7 +58,7 @@ beforeEach(async () => {
   vi.stubEnv('PLATFORM_FEE_BPS', '');
   vi.stubEnv('CHARGE_MODEL', '');
   vi.stubEnv('STRIPE_AUTOMATIC_TAX', '');
-  vi.stubEnv('WOLLEEN_ALLOW_TEST_PAYMENTS', '');
+  vi.stubEnv('DEVAPPSTORE_ALLOW_TEST_PAYMENTS', '');
   delivery.enqueueDelivery.mockClear();
   delivery.enqueueRefund.mockClear();
   fakeStripe.checkout.sessions.create.mockReset();
@@ -192,7 +192,7 @@ describe('createCheckout — Stripe', () => {
     // Studio sans compte Connect → encaissement sur le compte plateforme.
     expect(params.payment_intent_data.transfer_data).toBeUndefined();
     expect(params.payment_intent_data.application_fee_amount).toBeUndefined();
-    expect(opts).toEqual({ idempotencyKey: `wolleen_checkout_${r.orderId}` });
+    expect(opts).toEqual({ idempotencyKey: `devappstore_checkout_${r.orderId}` });
     expect(await getOrder(r.orderId)).toMatchObject({ status: 'pending', stripeCheckoutSessionId: 'cs_test_1' });
   });
 
@@ -376,12 +376,12 @@ describe('sécurité — consentement et conditions d’achat', () => {
     expect(fakeStripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 
-  it('production : clé sk_test_ refusée (payments_unavailable) sauf WOLLEEN_ALLOW_TEST_PAYMENTS=1 (CHK-PAY-10)', async () => {
+  it('production : clé sk_test_ refusée (payments_unavailable) sauf DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1 (CHK-PAY-10)', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('STRIPE_SECRET_KEY', 'sk_test_fake');
     const err = await expectCheckoutError(createCheckout({ user: FX.buyer, itemId: FX.item, origin: ORIGIN, consent: CONSENT }), 'payments_unavailable');
     expect(err.status).toBe(503);
-    vi.stubEnv('WOLLEEN_ALLOW_TEST_PAYMENTS', '1');
+    vi.stubEnv('DEVAPPSTORE_ALLOW_TEST_PAYMENTS', '1');
     await expectCheckoutError(createCheckout({ user: FX.buyer, itemId: FX.item, origin: ORIGIN, consent: CONSENT }), 'seller_not_ready');
   });
 
@@ -395,7 +395,7 @@ describe('sécurité — consentement et conditions d’achat', () => {
       fakeStripe.checkout.sessions.create.mockResolvedValue({ id: 'cs_direct', url: 'https://checkout.stripe.com/c/pay/cs_direct' });
       const r = await createCheckout({ user: FX.buyer, itemId: FX.item, origin: ORIGIN, consent: CONSENT });
       const [params, opts] = fakeStripe.checkout.sessions.create.mock.calls[0]!;
-      expect(opts).toEqual({ idempotencyKey: `wolleen_checkout_${r.orderId}`, stripeAccount: 'acct_direct' });
+      expect(opts).toEqual({ idempotencyKey: `devappstore_checkout_${r.orderId}`, stripeAccount: 'acct_direct' });
       expect(params.payment_intent_data.application_fee_amount).toBe(40);
       expect(params.payment_intent_data.transfer_data).toBeUndefined();
       expect(params.automatic_tax).toEqual({ enabled: false });
@@ -594,14 +594,14 @@ describe('paramètres de la session Checkout (CHARGE_MODEL, TVA)', () => {
     expect(p.expires_at).toBe(Math.floor(now.getTime() / 1000) + CHECKOUT_SESSION_TTL_S);
     expect(CHECKOUT_SESSION_TTL_S * 1000).toBeLessThan(PENDING_ORDER_TTL_MS);
     expect(p.metadata).toMatchObject({ terms_version: 'cgv-v1', withdrawal_waiver: 'accepted', charge_model: 'destination' });
-    expect(checkoutRequestOptions('ord_p', studio, 'destination')).toEqual({ idempotencyKey: 'wolleen_checkout_ord_p' });
+    expect(checkoutRequestOptions('ord_p', studio, 'destination')).toEqual({ idempotencyKey: 'devappstore_checkout_ord_p' });
   });
 
   it('direct : commission seule, requête sur le compte du studio', () => {
     const p = buildCheckoutSessionParams({ order, game, studio, origin: ORIGIN }, { model: 'direct', now });
     expect(p.payment_intent_data?.application_fee_amount).toBe(40);
     expect(p.payment_intent_data?.transfer_data).toBeUndefined();
-    expect(checkoutRequestOptions('ord_p', studio, 'direct')).toEqual({ idempotencyKey: 'wolleen_checkout_ord_p', stripeAccount: 'acct_1' });
+    expect(checkoutRequestOptions('ord_p', studio, 'direct')).toEqual({ idempotencyKey: 'devappstore_checkout_ord_p', stripeAccount: 'acct_1' });
   });
 
   it('STRIPE_AUTOMATIC_TAX=1 : Stripe Tax activé, prix TTC (montant payé = prix affiché)', () => {

@@ -1,14 +1,14 @@
 /*
- * Points Wolleen — logique pure (sans base de données), testée par loyalty-logic.test.ts.
+ * Points Dev AppStore — logique pure (sans base de données), testée par loyalty-logic.test.ts.
  * Règles : docs/product/loyalty.md.
  */
 
 export interface LoyaltyConfig {
-  /** Centimes de commission Wolleen par point attribué (1 point par tranche entière). */
+  /** Centimes de commission Dev AppStore par point attribué (1 point par tranche entière). */
   feeCentsPerPoint: number;
   /** Durée de validité d'un lot de points (jours). */
   pointsTtlDays: number;
-  /** Coût maximal d'une récompense financée par Wolleen, en points de base de la commission qui a généré les points. */
+  /** Coût maximal d'une récompense financée par Dev AppStore, en points de base de la commission qui a généré les points. */
   maxCostBps: number;
   /** Fenêtre d'avertissement avant expiration (jours). */
   expiryNoticeDays: number;
@@ -59,7 +59,7 @@ const DAY_MS = 86_400_000;
 export const addDays = (d: Date, days: number) => new Date(d.getTime() + days * DAY_MS);
 
 /**
- * Coût minimal en points d'une réduction de `valueCents` financée par Wolleen pour respecter le plafond
+ * Coût minimal en points d'une réduction de `valueCents` financée par Dev AppStore pour respecter le plafond
  * « coût ≤ maxCostBps de la commission » : P ≥ V / (X · k).
  */
 export function minPointsForDiscount(valueCents: number, cfg: LoyaltyConfig = DEFAULT_LOYALTY_CONFIG): number {
@@ -73,7 +73,7 @@ export interface RewardEconomics {
   valueCents: number | null;
 }
 
-/** La récompense respecte-t-elle le budget ? (bonus_item : financé par le studio, aucun coût Wolleen). */
+/** La récompense respecte-t-elle le budget ? (bonus_item : financé par le studio, aucun coût Dev AppStore). */
 export function isRewardWithinBudget(r: RewardEconomics, cfg: LoyaltyConfig = DEFAULT_LOYALTY_CONFIG): boolean {
   if (!Number.isInteger(r.pointsCost) || r.pointsCost <= 0) return false;
   if (r.kind === 'bonus_item') return true;

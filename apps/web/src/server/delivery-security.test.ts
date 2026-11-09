@@ -7,13 +7,13 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_THEME, hashApiKey, verifySignature, type PurchaseEvent } from '@wolleen/core';
-import type { DB } from '@wolleen/db';
+import { DEFAULT_THEME, hashApiKey, verifySignature, type PurchaseEvent } from '@devappstore/core';
+import type { DB } from '@devappstore/db';
 
 vi.mock('server-only', () => ({}));
 
 // Noms « publics » résolus localement (aucun accès réseau) : l'un vers une IP publique, l'autre vers 127.0.0.1 (DNS rebinding).
-const { REBIND_HOST, PUBLIC_HOST } = vi.hoisted(() => ({ REBIND_HOST: 'rebind.wolleen.test', PUBLIC_HOST: 'hooks.studio.test' }));
+const { REBIND_HOST, PUBLIC_HOST } = vi.hoisted(() => ({ REBIND_HOST: 'rebind.devappstore.test', PUBLIC_HOST: 'hooks.studio.test' }));
 vi.mock('node:dns', async (importOriginal) => {
   const real = await importOriginal<typeof import('node:dns')>();
   type Addr = { address: string; family: number };
@@ -28,14 +28,14 @@ vi.mock('node:dns', async (importOriginal) => {
   return { ...real, default: { ...real, lookup, promises }, lookup, promises };
 });
 
-vi.mock('@wolleen/db', async () => {
-  const schema = await import('@wolleen/db/schema');
+vi.mock('@devappstore/db', async () => {
+  const schema = await import('@devappstore/db/schema');
   const orm = await import('drizzle-orm');
-  const { createTestDb } = await import('@wolleen/db/testing');
+  const { createTestDb } = await import('@devappstore/db/testing');
   return { ...schema, schema, ...orm, db: await createTestDb() };
 });
 
-const D = await import('@wolleen/db');
+const D = await import('@devappstore/db');
 const db = D.db as DB;
 const delivery = await import('./delivery');
 const events = await import('./events');
@@ -55,7 +55,7 @@ beforeAll(async () => {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', () => {
-      hits.push({ path: req.url ?? '', body, signature: req.headers['wolleen-signature'] as string | undefined });
+      hits.push({ path: req.url ?? '', body, signature: req.headers['devappstore-signature'] as string | undefined });
       const r = responder(req);
       res.writeHead(r.status, r.headers ?? {});
       res.end('ok');
@@ -72,7 +72,7 @@ beforeAll(async () => {
   await db.insert(D.studios).values({ id: 'std_t', name: 'T', slug: 't' });
   const game = (id: string, webhookUrl: string | null) => ({
     id, studioId: 'std_t', slug: id, name: id, theme: DEFAULT_THEME, webhookUrl,
-    webhookSecret: `whsec_${id}`, apiKeyHash: hashApiKey(`wk_${id}`), apiKeyPrefix: 'wk_test',
+    webhookSecret: `whsec_${id}`, apiKeyHash: hashApiKey(`das_${id}`), apiKeyPrefix: 'das_test',
   });
   await db.insert(D.games).values([game('gam_hook', `${base}/webhook`), game('gam_sdk', null), game('gam_late', null)]);
   await db.insert(D.items).values(
@@ -208,8 +208,8 @@ describe('webhook — anti-SSRF (CHK-SSRF-02/03/04/05/07)', () => {
   });
 
   it('production : accepte une URL https publique ; développement : localhost autorisé', () => {
-    expect(delivery.checkWebhookUrl('https://api.studio.com/wolleen/webhook', { production: true }).ok).toBe(true);
-    expect(delivery.checkWebhookUrl('http://localhost:4100/wolleen/webhook', { production: false }).ok).toBe(true);
+    expect(delivery.checkWebhookUrl('https://api.studio.com/devappstore/webhook', { production: true }).ok).toBe(true);
+    expect(delivery.checkWebhookUrl('http://localhost:4100/devappstore/webhook', { production: false }).ok).toBe(true);
   });
 
   it("à l'enregistrement, en production, résout le nom et refuse une adresse interne", async () => {

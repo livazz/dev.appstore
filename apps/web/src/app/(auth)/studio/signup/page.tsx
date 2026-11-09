@@ -5,7 +5,7 @@ import { StudioSignupForm } from '@/components/auth/forms';
 import { safeNext, withNext } from '@/lib/auth/next-url';
 import { getCurrentUser } from '@/server/session';
 
-export const metadata: Metadata = { title: 'Créer un studio — Wolleen' };
+export const metadata: Metadata = { title: 'Créer un studio — Dev AppStore' };
 
 /*
  * Placée dans le groupe (auth) — et non sous app/studio/ — pour ne pas hériter de la mise en page de l'espace studio

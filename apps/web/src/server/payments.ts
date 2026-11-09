@@ -1,7 +1,7 @@
 import 'server-only';
 import type Stripe from 'stripe';
-import { DEFAULT_PLATFORM_FEE_BPS, feeCents, newId, type Currency, type OrderStatus } from '@wolleen/core';
-import { and, count, db, eq, games, gt, inArray, isNull, items, lt, orders, stripeEvents, studios } from '@wolleen/db';
+import { DEFAULT_PLATFORM_FEE_BPS, feeCents, newId, type Currency, type OrderStatus } from '@devappstore/core';
+import { and, count, db, eq, games, gt, inArray, isNull, items, lt, orders, stripeEvents, studios } from '@devappstore/db';
 import { env } from '@/env';
 import * as delivery from '@/server/delivery';
 import { getGameLink } from '@/server/links';
@@ -25,7 +25,7 @@ import {
  * Paiement (tâche « payments ») — point critique.
  * Flux : POST /api/checkout → createCheckout() → Stripe Checkout (ou /checkout/mock en simulation)
  *        → webhook checkout.session.completed (ou bouton Payer de la simulation) → markOrderPaid() / payMockOrder()
- *        → reçu (sendPurchaseReceipt) → enqueueDelivery() → points Wolleen (awardPointsForOrder).
+ *        → reçu (sendPurchaseReceipt) → enqueueDelivery() → points Dev AppStore (awardPointsForOrder).
  * Remboursement / litige : markOrderRefunded() → reprise des points (revokePointsForOrder) → enqueueRefund().
  *
  * Garanties de sécurité (docs/security/review-checklist.md, section 7) :
@@ -44,7 +44,7 @@ import {
 export const MAX_PLATFORM_FEE_BPS = 3000;
 
 /**
- * Commission Wolleen en points de base : PLATFORM_FEE_BPS (entier 0–3000, validé par src/env.ts) sinon
+ * Commission Dev AppStore en points de base : PLATFORM_FEE_BPS (entier 0–3000, validé par src/env.ts) sinon
  * DEFAULT_PLATFORM_FEE_BPS. `raw` : valeur brute à interpréter (tests, outillage).
  */
 export function platformFeeBps(raw?: string): number {
@@ -108,11 +108,11 @@ async function countOpenPendingOrders(userId: string, now = new Date()): Promise
 // Consentement (droit de rétractation — docs/legal/consumer.md § 2.3)
 // ---------------------------------------------------------------------------------------------
 
-/** Version des CGV présentée au joueur (WOLLEEN_CGV_VERSION pour la surcharger au déploiement). */
+/** Version des CGV présentée au joueur (DEVAPPSTORE_CGV_VERSION pour la surcharger au déploiement). */
 export const DEFAULT_TERMS_VERSION = `cgv-${CGV_VERSION}`;
 
 export function currentTermsVersion(): string {
-  const v = env.WOLLEEN_CGV_VERSION;
+  const v = env.DEVAPPSTORE_CGV_VERSION;
   return v ? v.slice(0, 64) : DEFAULT_TERMS_VERSION;
 }
 
@@ -319,7 +319,7 @@ export function buildCheckoutSessionParams(input: CheckoutSessionInput, opts: Ch
     metadata,
     payment_intent_data: {
       metadata,
-      description: `Wolleen ${order.id} — ${game.name} — ${order.itemTitle}`.slice(0, 1000),
+      description: `Dev AppStore ${order.id} — ${game.name} — ${order.itemTitle}`.slice(0, 1000),
       ...transfer,
     },
     success_url: `${origin}${successPath(order.id)}`,
@@ -334,7 +334,7 @@ export function checkoutRequestOptions(
   model: ChargeModel = chargeModel(),
 ): Stripe.RequestOptions {
   const connect = connectAccountOf(studio);
-  return { idempotencyKey: `wolleen_checkout_${orderId}`, ...(model === 'direct' && connect ? { stripeAccount: connect } : {}) };
+  return { idempotencyKey: `devappstore_checkout_${orderId}`, ...(model === 'direct' && connect ? { stripeAccount: connect } : {}) };
 }
 
 /**
@@ -462,7 +462,7 @@ export interface MarkOrderPaidResult {
 
 /**
  * Suites d'une commande payée, dans l'ordre : reçu + preuve de consentement (e-mail, avant la livraison pour que le
- * joueur le reçoive en premier), livraison, points Wolleen. Chaque étape est idempotente (une fois par commande) :
+ * joueur le reçoive en premier), livraison, points Dev AppStore. Chaque étape est idempotente (une fois par commande) :
  * rappeler cette fonction rattrape une étape interrompue. Le reçu et les points ne lèvent jamais ; une erreur de
  * livraison remonte (le webhook Stripe sera rejoué).
  */
@@ -530,7 +530,7 @@ export interface MarkOrderRefundedResult {
 }
 
 /**
- * Suites d'un remboursement d'une commande payée : reprise des points Wolleen (ne lève jamais) puis révocation
+ * Suites d'un remboursement d'une commande payée : reprise des points Dev AppStore (ne lève jamais) puis révocation
  * `purchase.refunded` côté jeu (enqueueRefund, delivery.ts). Les deux sont idempotentes. Renvoie true si un
  * événement de révocation existe pour la commande.
  */
@@ -646,7 +646,7 @@ export async function applyCheckoutSession(session: Stripe.Checkout.Session): Pr
   let [order] = await db.select().from(orders).where(eq(orders.stripeCheckoutSessionId, session.id));
   if (!order) {
     const orderId = session.metadata?.order_id || session.client_reference_id;
-    if (!orderId) return { handled: false, detail: 'session sans order_id (pas une commande Wolleen)' };
+    if (!orderId) return { handled: false, detail: 'session sans order_id (pas une commande Dev AppStore)' };
     [order] = await db.select().from(orders).where(eq(orders.id, orderId));
     if (!order) return { handled: false, detail: `commande inconnue ${orderId}` };
     if (order.stripeCheckoutSessionId && order.stripeCheckoutSessionId !== session.id) {
@@ -700,7 +700,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<StripeEven
     case 'charge.refunded': {
       const charge = event.data.object;
       const orderId = await findOrderIdByPayment(refId(charge.payment_intent), charge.metadata?.order_id);
-      if (!orderId) return { handled: false, detail: 'remboursement d’un paiement inconnu', alert: `charge.refunded ${charge.id} sans commande Wolleen` };
+      if (!orderId) return { handled: false, detail: 'remboursement d’un paiement inconnu', alert: `charge.refunded ${charge.id} sans commande Dev AppStore` };
       if (!charge.refunded) {
         return {
           handled: false,
@@ -716,7 +716,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<StripeEven
     case 'charge.dispute.created': {
       const dispute = event.data.object;
       const orderId = await findOrderIdByPayment(refId(dispute.payment_intent), dispute.metadata?.order_id);
-      if (!orderId) return { handled: false, detail: 'litige sur un paiement inconnu', alert: `litige ${dispute.id} sans commande Wolleen` };
+      if (!orderId) return { handled: false, detail: 'litige sur un paiement inconnu', alert: `litige ${dispute.id} sans commande Dev AppStore` };
       const r = await markOrderRefunded(orderId);
       return {
         handled: true,

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import { getLoyaltyOverview, listHistory, listRewards, type HistoryRow, type RewardView } from '@/server/loyalty';
 import { minOrderForDiscount } from '@/server/loyalty-logic';
 import { platformFeeBps } from '@/server/payments';
@@ -8,7 +8,7 @@ import { requireUser } from '@/server/session';
 import { RedeemButton } from './RedeemButton';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Mes Points Wolleen — Wolleen' };
+export const metadata: Metadata = { title: 'Mes Points Dev AppStore — Dev AppStore' };
 
 const PAGE_SIZE = 20;
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' });
@@ -49,7 +49,7 @@ export default async function PointsPage({ searchParams }: { searchParams: Promi
   const { config } = overview;
   const ttlMonths = Math.round(config.pointsTtlDays / 30.4);
   const feeBps = platformFeeBps();
-  /** Montant minimum de commande pour utiliser un bon (la réduction ne dépasse jamais la commission Wolleen). */
+  /** Montant minimum de commande pour utiliser un bon (la réduction ne dépasse jamais la commission Dev AppStore). */
   const minOrder = (valueCents: number, currency: Parameters<typeof formatMoney>[1]) => {
     const m = minOrderForDiscount(valueCents, feeBps);
     return m == null ? null : formatMoney(m, currency);
@@ -70,13 +70,13 @@ export default async function PointsPage({ searchParams }: { searchParams: Promi
           Historique des achats
         </Link>
         <span aria-current="page" className="-mb-px border-b-2 border-ink pb-2 font-semibold text-ink">
-          Points Wolleen
+          Points Dev AppStore
         </span>
       </nav>
 
       {!overview.enabled && (
         <p className="mt-6 rounded-[var(--radius)] border border-line bg-surface px-4 py-3 text-sm text-ink-2">
-          Le programme Points Wolleen n’est pas encore ouvert. Vos achats ne rapportent pas encore de points.
+          Le programme Points Dev AppStore n’est pas encore ouvert. Vos achats ne rapportent pas encore de points.
         </p>
       )}
 
@@ -98,7 +98,7 @@ export default async function PointsPage({ searchParams }: { searchParams: Promi
           </ul>
         )}
         <p className="mt-3 text-sm text-ink-2">
-          Chaque achat payé sur Wolleen vous rapporte des points, dans tous les jeux. Les points sont valables {ttlMonths} mois.
+          Chaque achat payé sur Dev AppStore vous rapporte des points, dans tous les jeux. Les points sont valables {ttlMonths} mois.
         </p>
       </section>
 
@@ -147,13 +147,13 @@ export default async function PointsPage({ searchParams }: { searchParams: Promi
                     <img src={r.game.iconUrl} alt="" className="size-11 shrink-0 rounded-[22%] border border-line object-cover" />
                   ) : (
                     <div aria-hidden className="grid size-11 shrink-0 place-items-center rounded-[22%] bg-brand text-lg font-bold text-ink">
-                      {r.kind === 'discount' ? '%' : 'W'}
+                      {r.kind === 'discount' ? '%' : 'D'}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-ink">{r.title}</p>
                     <p className="text-xs text-ink-3">
-                      {r.kind === 'discount' ? 'Bon de réduction offert par Wolleen' : r.game ? `Offert par ${r.game.name}` : 'Objet offert par le studio'}
+                      {r.kind === 'discount' ? 'Bon de réduction offert par Dev AppStore' : r.game ? `Offert par ${r.game.name}` : 'Objet offert par le studio'}
                     </p>
                   </div>
                   <span className="shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums text-ink">{pts(r.pointsCost)}</span>
@@ -239,7 +239,7 @@ export default async function PointsPage({ searchParams }: { searchParams: Promi
           <li>Les points sont valables {ttlMonths} mois ; ceux qui expirent le plus tôt sont utilisés en premier.</li>
           <li>Si un achat est remboursé, les points qu’il a rapportés sont retirés (dans la limite de votre solde).</li>
           <li>
-            Les bons de réduction sont financés par Wolleen sur sa commission : le studio reçoit sa part en entier. C’est pourquoi un bon s’utilise à partir
+            Les bons de réduction sont financés par Dev AppStore sur sa commission : le studio reçoit sa part en entier. C’est pourquoi un bon s’utilise à partir
             d’un montant minimum de commande{minOrder(100, 'EUR') ? ` (par exemple ${minOrder(100, 'EUR')} pour un bon de 1 €)` : ''}.
           </li>
           <li>Les objets bonus sont offerts par les studios participants et livrés dans votre jeu lié.</li>

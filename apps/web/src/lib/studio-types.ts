@@ -1,4 +1,4 @@
-import type { Currency, GameStatus, GameTheme, ItemModel, ItemStyle, ItemType, LayoutId, Period } from '@wolleen/core';
+import type { Currency, GameStatus, GameTheme, ItemModel, ItemStyle, ItemType, LayoutId, Period } from '@devappstore/core';
 
 /*
  * Vues sérialisables envoyées à l'éditeur studio (composants client).

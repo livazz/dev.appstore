@@ -1,4 +1,4 @@
-import { DEFAULT_ITEM_STYLE, type ItemStyle } from '@wolleen/core';
+import { DEFAULT_ITEM_STYLE, type ItemStyle } from '@devappstore/core';
 import { ItemCard, type CardItem } from '@/components/store/ItemCard';
 
 const grid = { width: 180, height: 240 };

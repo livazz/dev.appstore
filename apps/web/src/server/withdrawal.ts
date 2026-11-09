@@ -1,7 +1,7 @@
 import 'server-only';
 import type Stripe from 'stripe';
-import type { DeliveryStatus, OrderStatus } from '@wolleen/core';
-import { and, db, deliveries, eq, games, gt, inArray, orders, studios } from '@wolleen/db';
+import type { DeliveryStatus, OrderStatus } from '@devappstore/core';
+import { and, db, deliveries, eq, games, gt, inArray, orders, studios } from '@devappstore/db';
 import { enqueueRefund, WITHDRAWAL_STOP_REASON } from './delivery';
 import { runInBackground, sendWithdrawalAcknowledgement } from './notifications';
 import { checkoutRequestOptions } from './payments';
@@ -222,7 +222,7 @@ async function refundOnStripe(
   const params: Stripe.RefundCreateParams = {
     payment_intent: paymentIntent,
     reason: 'requested_by_customer',
-    metadata: { order_id: order.id, wolleen_reason: 'withdrawal' },
+    metadata: { order_id: order.id, devappstore_reason: 'withdrawal' },
   };
   if (stripeAccount) params.refund_application_fee = true;
   else {
@@ -232,6 +232,6 @@ async function refundOnStripe(
       params.refund_application_fee = true;
     }
   }
-  const refund = await stripe.refunds.create(params, { ...accountOpts, idempotencyKey: `wolleen_withdrawal_${order.id}` });
+  const refund = await stripe.refunds.create(params, { ...accountOpts, idempotencyKey: `devappstore_withdrawal_${order.id}` });
   return refund.id;
 }

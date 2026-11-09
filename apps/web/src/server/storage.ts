@@ -7,8 +7,8 @@ import { s3StorageFromEnv } from './storage-s3';
 
 /*
  * Stockage des fichiers téléversés (tâche « uploads »).
- * WOLLEEN_STORAGE=local (défaut) : disque local (.data/uploads), servi par GET /api/uploads/….
- * WOLLEEN_STORAGE=s3 : Cloudflare R2 / S3 (storage-s3.ts), put → URL publique S3_PUBLIC_URL/<clé> (docs/deploy-storage.md).
+ * DEVAPPSTORE_STORAGE=local (défaut) : disque local (.data/uploads), servi par GET /api/uploads/….
+ * DEVAPPSTORE_STORAGE=s3 : Cloudflare R2 / S3 (storage-s3.ts), put → URL publique S3_PUBLIC_URL/<clé> (docs/deploy-storage.md).
  */
 
 export interface StoredFile {
@@ -60,11 +60,11 @@ export function contentTypeForKey(key: string): string {
 }
 
 function dataDir(): string {
-  if (env.WOLLEEN_DATA_DIR) return env.WOLLEEN_DATA_DIR;
+  if (env.DEVAPPSTORE_DATA_DIR) return env.DEVAPPSTORE_DATA_DIR;
   let dir = process.cwd();
   while (dir !== dirname(dir)) {
     const pkg = resolve(dir, 'package.json');
-    if (existsSync(pkg) && JSON.parse(readFileSync(pkg, 'utf8')).name === 'wolleen') return resolve(dir, '.data');
+    if (existsSync(pkg) && JSON.parse(readFileSync(pkg, 'utf8')).name === 'devappstore') return resolve(dir, '.data');
     dir = dirname(dir);
   }
   return resolve(process.cwd(), '.data');
@@ -104,10 +104,10 @@ export class LocalDiskStorage implements StorageAdapter {
 
 let instance: StorageAdapter | undefined;
 
-/** Adaptateur choisi par WOLLEEN_STORAGE (« local » par défaut, « s3 » pour Cloudflare R2 / S3). */
+/** Adaptateur choisi par DEVAPPSTORE_STORAGE (« local » par défaut, « s3 » pour Cloudflare R2 / S3). */
 export function getStorage(): StorageAdapter {
   if (instance) return instance;
-  const kind = env.WOLLEEN_STORAGE;
+  const kind = env.DEVAPPSTORE_STORAGE;
   if (kind === 'local') return (instance = new LocalDiskStorage());
   if (kind === 's3') {
     return (instance = s3StorageFromEnv({

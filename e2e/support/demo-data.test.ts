@@ -4,8 +4,8 @@ import { demoKeys, parseDemoKeys, parseDemoPassword } from './demo-data';
 describe('données de démo lues dans packages/db/src/seed.ts', () => {
   it('le seed réel expose les clés des deux jeux', () => {
     const k = demoKeys();
-    expect(k.crystal.apiKey).toMatch(/^wk_secret_/);
-    expect(k.farm.apiKey).toMatch(/^wk_secret_/);
+    expect(k.crystal.apiKey).toMatch(/^das_secret_/);
+    expect(k.farm.apiKey).toMatch(/^das_secret_/);
     expect(k.crystal.webhookSecret).toMatch(/^whsec_/);
   });
 

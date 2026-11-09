@@ -5,20 +5,20 @@
 
 ## 1. Qui est le « professionnel » face au joueur ?
 
-- **Phase 1** : le vendeur est le **studio** ; Wolleen est **opérateur de plateforme en ligne** (art.
+- **Phase 1** : le vendeur est le **studio** ; Dev AppStore est **opérateur de plateforme en ligne** (art.
   L111-7 C. conso) et **place de marché en ligne** (directive 2011/83 modifiée par la directive « Omnibus »
-  2019/2161, art. 6 *bis* ; art. L221-5 C. conso). Wolleen doit notamment indiquer avant l'achat :
+  2019/2161, art. 6 *bis* ; art. L221-5 C. conso). Dev AppStore doit notamment indiquer avant l'achat :
   - **l'identité et la qualité du vendeur** (professionnel ou non — ici toujours un professionnel) et le
     fait que le contrat est conclu avec lui ;
-  - **la répartition des obligations** entre Wolleen et le studio (qui livre, qui rembourse, qui répond au
+  - **la répartition des obligations** entre Dev AppStore et le studio (qui livre, qui rembourse, qui répond au
     support) ;
   - les **principaux paramètres de classement** des offres (catalogue, « à la une ») et l'existence
     d'éventuels placements payants (art. L111-7 II).
-- **Phase 3 (MoR)** : Wolleen devient le vendeur et porte seul toutes les obligations ci-dessous.
-- **Règlement sur les services numériques (DSA, règl. 2022/2065)** : en tant que place de marché, Wolleen
+- **Phase 3 (MoR)** : Dev AppStore devient le vendeur et porte seul toutes les obligations ci-dessous.
+- **Règlement sur les services numériques (DSA, règl. 2022/2065)** : en tant que place de marché, Dev AppStore
   aurait les obligations des art. 30 à 32 (traçabilité des professionnels / KYB des studios, conformité dès
   la conception de l'interface, information des acheteurs en cas de produit illicite), **sauf exemption
-  micro/petite entreprise** (art. 19 et 29) tant que Wolleen reste sous les seuils. À anticiper quand même :
+  micro/petite entreprise** (art. 19 et 29) tant que Dev AppStore reste sous les seuils. À anticiper quand même :
   Stripe Connect fournit déjà l'essentiel du KYB.
 
 ## 2. Droit de rétractation et contenu numérique
@@ -43,7 +43,7 @@ Si une condition manque : le consommateur **conserve** son droit de rétractatio
 contenu déjà fourni (art. L221-25 al. 3 / directive art. 14 §4 b) — il peut donc consommer les gemmes puis se
 faire rembourser intégralement.
 
-### 2.3 Mise en œuvre recommandée sur Wolleen
+### 2.3 Mise en œuvre recommandée sur Dev AppStore
 
 Avant le bouton de paiement (et non dans les CGV seulement), une case **non pré-cochée** et **obligatoire** :
 
@@ -64,14 +64,14 @@ rétractation** gratuite, facilement accessible et disponible pendant tout le d�
 ici »), avec accusé de réception sur support durable. Transposée en France par l'**ordonnance n° 2026-2 et le
 décret n° 2026-3 du 5 janvier 2026** (modification de l'art. L221-21) *(textes à relire sur Légifrance)*.
 
-Pour Wolleen : la renonciation valable (§2.3) fait disparaître le droit pour les achats livrés. Mais la
+Pour Dev AppStore : la renonciation valable (§2.3) fait disparaître le droit pour les achats livrés. Mais la
 fonction doit exister pour les cas où le droit subsiste : **livraison pas encore commencée** (jeu hors ligne,
 webhook en échec, relances en cours), case non cochée, ou futurs produits (abonnements, phase 2). Prévoir
 dans `/account/purchases` un bouton « Me rétracter » affiché tant que la commande est rétractable.
 
 ### 2.5 Quand l'exécution « commence »-t-elle ?
 
-Zone grise propre à Wolleen : l'objet est « livré » lorsque le jeu le crédite (webhook 2xx ou `ack` SDK). Une
+Zone grise propre à Dev AppStore : l'objet est « livré » lorsque le jeu le crédite (webhook 2xx ou `ack` SDK). Une
 commande `paid` mais **non livrée** (statut `pending`, relances) n'a pas commencé à être exécutée →
 rétractation possible jusqu'à la livraison. Recommandation : traiter la livraison effective (`delivered` /
 `acknowledged`) comme point de bascule et le montrer au joueur.
@@ -107,13 +107,13 @@ Une enquête CPC viserait plusieurs grands éditeurs. La **proposition de *Digit
 Commission (inscrite à l'ordre du jour indicatif du 11 novembre 2026) pourrait rendre obligatoire
 l'affichage du prix réel, encadrer les loot boxes et la conception addictive : **à suivre**.
 
-Pour Wolleen : la boutique web affiche déjà des prix en euros — c'est un **avantage de conformité** par
+Pour Dev AppStore : la boutique web affiche déjà des prix en euros — c'est un **avantage de conformité** par
 rapport aux boutiques in-app. Afficher aussi l'**équivalence « prix pour 100 gemmes »** et les
 **probabilités** de tout objet aléatoire. Ne jamais afficher de compte à rebours ou de « prix barré » non
 justifié (art. L112-1-1 sur les annonces de réduction : prix de référence = prix le plus bas des 30 derniers
 jours).
 
-**Phase 3 (fidélité multi-jeux)** : une monnaie Wolleen utilisable dans plusieurs jeux de studios différents
+**Phase 3 (fidélité multi-jeux)** : une monnaie Dev AppStore utilisable dans plusieurs jeux de studios différents
 pourrait sortir du « réseau limité » et relever de la **monnaie électronique** / des services de paiement
 (exclusion de réseau limité de la DSP2, art. 3 k, avec notification à l'ACPR au-delà de 1 M€). À analyser
 avant tout lancement.
@@ -133,7 +133,7 @@ avant tout lancement.
   l'affaire **FTC v. Epic Games** (2022, 245 M$ de remboursements pour achats non autorisés et *dark patterns*)
   est la référence de ce qu'il ne faut pas faire.
 - **Recommandations** :
-  - compte Wolleen réservé aux **majeurs** ou aux mineurs **avec autorisation parentale** (déclaration dans
+  - compte Dev AppStore réservé aux **majeurs** ou aux mineurs **avec autorisation parentale** (déclaration dans
     les CGV + case à l'inscription) ; âge minimal de 13 ans ;
   - **plafonds de dépenses** par défaut (par jour / mois) pour les comptes déclarés mineurs ;
   - **3-D Secure systématique** (SCA, DSP2) : limite les achats sur la carte d'un parent à son insu et
@@ -160,12 +160,12 @@ avant tout lancement.
 - Risque élevé : « friendly fraud » (le titulaire conteste un achat effectivement reçu), cartes volées,
   enfants utilisant la carte parentale.
 - Le **marchand côté carte** supporte le litige (montant + **frais de litige Stripe**, de l'ordre de 15–20 €
-  en Europe, *à vérifier*). En *destination charges*, c'est la plateforme (Wolleen) qui est débitée en
+  en Europe, *à vérifier*). En *destination charges*, c'est la plateforme (Dev AppStore) qui est débitée en
   premier ; en *direct charges*, le studio. Les conditions studio doivent organiser la **refacturation** au
   studio.
 - **Programmes des réseaux** : Visa (VAMP, programme unifié depuis 2025) et Mastercard (ECM/EFM) placent sous
   surveillance les marchands au-delà d'un ratio de litiges/fraude de l'ordre de 1–2 % *(seuils exacts à
-  vérifier)* — un studio ou Wolleen en dépassement risque amendes et coupure.
+  vérifier)* — un studio ou Dev AppStore en dépassement risque amendes et coupure.
 - **Preuves gagnantes** pour un bien numérique :
   - journal de livraison horodaté (création de la commande, webhook 2xx, `ack` SDK, `player_id`) — l'existant
     (`delivery_id`, statuts `delivered`/`acknowledged`) est précieux : le conserver ;
@@ -173,9 +173,9 @@ avant tout lancement.
   - historique d'achats non contestés antérieurs sur la même carte / même compte ; IP et appareil (Visa
     *Compelling Evidence 3.0* pour les litiges « fraude » 10.4) ;
   - authentification 3-D Secure réussie (transfert de responsabilité en cas de fraude).
-- **Mesures** : Stripe Radar ; 3-D Secure ; descripteur bancaire clair (« WOLLEEN* NOM DU JEU ») pour éviter
+- **Mesures** : Stripe Radar ; 3-D Secure ; descripteur bancaire clair (« DEVAPPSTORE* NOM DU JEU ») pour éviter
   les contestations par non-reconnaissance ; e-mail de reçu immédiat ; possibilité de **suspendre** le compte
-  Wolleen et de **révoquer** l'objet après un chargeback perdu (prévu au contrat, proportionné).
+  Dev AppStore et de **révoquer** l'objet après un chargeback perdu (prévu au contrat, proportionné).
 
 ## 8. Autres obligations transverses
 

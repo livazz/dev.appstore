@@ -1,5 +1,5 @@
 {
-  "name": "@wolleen/db",
+  "name": "@devappstore/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "./testing": "./src/testing.ts"
   },
   "scripts": {
-    "push": "node -e \"require('fs').mkdirSync(process.env.WOLLEEN_DATA_DIR ? process.env.WOLLEEN_DATA_DIR + '/pglite' : '../../.data/pglite', {recursive: true})\" && drizzle-kit push --force",
+    "push": "node -e \"require('fs').mkdirSync(process.env.DEVAPPSTORE_DATA_DIR ? process.env.DEVAPPSTORE_DATA_DIR + '/pglite' : '../../.data/pglite', {recursive: true})\" && drizzle-kit push --force",
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -17,7 +17,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@wolleen/core": "*",
+    "@devappstore/core": "*",
     "drizzle-orm": "^0.45.4",
     "@electric-sql/pglite": "^0.3.7",
     "postgres": "^3.4.7"

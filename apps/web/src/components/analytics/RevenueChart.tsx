@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Currency } from '@wolleen/core';
+import type { Currency } from '@devappstore/core';
 import { formatCents as formatMoney, formatDayShort } from '@/lib/analytics-format';
 
 export interface DayPoint {

@@ -9,7 +9,7 @@ export function safeNext(next: unknown, fallback = '/'): string {
   // Défense en profondeur : une fois résolu par un analyseur d'URL (comme le navigateur), le chemin doit rester
   // sur la même origine (couvre les variantes d'encodage et de normalisation non prévues ci-dessus).
   try {
-    const base = 'http://wolleen.invalid';
+    const base = 'http://devappstore.invalid';
     const u = new URL(next, base);
     if (u.origin !== base || u.username || u.password) return fallback;
     if (u.pathname.startsWith('//')) return fallback;

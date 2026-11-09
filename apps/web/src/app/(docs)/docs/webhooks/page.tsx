@@ -36,7 +36,7 @@ const PURCHASE_EVENT_TS = `interface PurchaseEvent {
 const REQUEST_SAMPLE = `POST /webhooks/purchases HTTP/1.1
 Host: api.monjeu.com
 Content-Type: application/json
-User-Agent: Wolleen-Webhooks/1.0
+User-Agent: DevAppStore-Webhooks/1.0
 ${DOCS_FACTS.signatureHeader}: ${EXAMPLE_SIGNATURE_HEADER}
 ${DOCS_FACTS.deliveryHeader}: ${EXAMPLE_PURCHASE.delivery_id}
 
@@ -67,14 +67,14 @@ export default function WebhooksPage() {
           [<C key="a">{DOCS_FACTS.signatureHeader}</C>, <>Signature <C>t=&lt;horodatage&gt;,v1=&lt;hmac&gt;</C> (voir ci-dessous)</>],
           [<C key="a">{DOCS_FACTS.deliveryHeader}</C>, <>Identifiant de la livraison (égal à <C>delivery_id</C> du corps)</>],
           [<C key="a">{DOCS_FACTS.testHeader}</C>, <>Présent (<C>1</C>) uniquement pour les événements de test</>],
-          [<C key="a">User-Agent</C>, <C key="b">Wolleen-Webhooks/1.0</C>],
+          [<C key="a">User-Agent</C>, <C key="b">DevAppStore-Webhooks/1.0</C>],
         ]}
       />
 
       <H2 id="purchase-event">Format PurchaseEvent</H2>
       <P>
         Le corps est un objet JSON compact (une seule ligne). Le même format est servi par l’API et les SDK, et vérifié par le type{' '}
-        <C>PurchaseEvent</C> de <C>@wolleen/sdk</C>.
+        <C>PurchaseEvent</C> de <C>@devappstore/sdk</C>.
       </P>
       <CodeTabs
         ariaLabel="Format"
@@ -137,7 +137,7 @@ export default function WebhooksPage() {
       <H2 id="verification">Vérifier la signature</H2>
       <P>
         Exemples complets, sans dépendance cryptographique externe. En Node, le SDK fournit aussi{' '}
-        <C>verifyWebhookSignature(rawBody, header, secret)</C> dans <C>@wolleen/sdk/server</C>.
+        <C>verifyWebhookSignature(rawBody, header, secret)</C> dans <C>@devappstore/sdk/server</C>.
       </P>
       <CodeTabs
         tabs={[

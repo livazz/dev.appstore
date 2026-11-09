@@ -8,5 +8,5 @@ export default url
       dialect: 'postgresql',
       driver: 'pglite',
       schema: './src/schema/index.ts',
-      dbCredentials: { url: process.env.WOLLEEN_DATA_DIR ? `${process.env.WOLLEEN_DATA_DIR}/pglite` : '../../.data/pglite' },
+      dbCredentials: { url: process.env.DEVAPPSTORE_DATA_DIR ? `${process.env.DEVAPPSTORE_DATA_DIR}/pglite` : '../../.data/pglite' },
     });

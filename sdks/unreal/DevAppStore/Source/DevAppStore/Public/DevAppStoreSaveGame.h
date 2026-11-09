@@ -2,11 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/SaveGame.h"
-#include "WolleenSaveGame.generated.h"
+#include "DevAppStoreSaveGame.generated.h"
 
 /** État persistant du SDK : jetons joueur, accusés de réception en attente d'envoi et derniers acks confirmés. */
 UCLASS()
-class WOLLEEN_API UWolleenSaveGame : public USaveGame
+class DEVAPPSTORE_API UDevAppStoreSaveGame : public USaveGame
 {
 	GENERATED_BODY()
 
@@ -19,7 +19,7 @@ public:
 	UPROPERTY()
 	TArray<FString> AckedIds;
 
-	/** Jeton joueur (wk_pt_…) de cet appareil, par PlayerId, obtenu après la saisie du code de liaison. */
+	/** Jeton joueur (das_pt_…) de cet appareil, par PlayerId, obtenu après la saisie du code de liaison. */
 	UPROPERTY()
 	TMap<FString, FString> PlayerTokens;
 };

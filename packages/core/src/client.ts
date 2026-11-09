@@ -1,2 +1,2 @@
-// Import explicite sûr pour les composants client : import { … } from '@wolleen/core/client'
+// Import explicite sûr pour les composants client : import { … } from '@devappstore/core/client'
 export * from './index.browser';

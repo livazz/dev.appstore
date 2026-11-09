@@ -1,4 +1,4 @@
-import type { ItemType } from '@wolleen/core';
+import type { ItemType } from '@devappstore/core';
 import { isoPeriod } from '../periods';
 import { microsToCents, moneyToCents, toCurrency } from '../pricing';
 import { pickLocale, requestJson, type HttpOptions } from '../http';
@@ -159,7 +159,7 @@ export interface GooglePlayImportOptions extends GooglePlayClientOptions {
 
 /**
  * Importe le catalogue Google Play d'une app : produits uniques (`monetization.onetimeproducts`
- * ou `inappproducts`) et abonnements (`monetization.subscriptions`, un produit Wolleen par forfait de base).
+ * ou `inappproducts`) et abonnements (`monetization.subscriptions`, un produit Dev AppStore par forfait de base).
  */
 export async function importGooglePlayCatalog(opts: GooglePlayImportOptions): Promise<ImportResult> {
   const client = new GooglePlayClient(opts.serviceAccount, opts);
@@ -240,7 +240,7 @@ export async function importGooglePlayCatalog(opts: GooglePlayImportOptions): Pr
         bp.installmentsBasePlanType?.billingPeriodDuration;
       const period = isoPeriod(duration);
       if (!period) {
-        warn({ productId, code: 'unsupported_period', message: `Période ${duration} non gérée par Wolleen (semaine, mois, an) : à ajuster.` });
+        warn({ productId, code: 'unsupported_period', message: `Période ${duration} non gérée par Dev AppStore (semaine, mois, an) : à ajuster.` });
       }
       if (bp.installmentsBasePlanType) {
         warn({

@@ -1,4 +1,4 @@
-# Wolleen
+# Dev AppStore
 
 Vendez vos achats in-app sur le web, sans la commission de 30 % des stores. Voir [ARCHITECTURE.md](ARCHITECTURE.md).
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { GAME_CATEGORIES } from '@wolleen/core';
+import { GAME_CATEGORIES } from '@devappstore/core';
 
 /** Champ « Rechercher » + menu « Toutes catégories », prérempli depuis l'URL. */
 export function SearchBar() {

@@ -1,4 +1,4 @@
-import type { ItemStyle, LayoutId } from '@wolleen/core/client';
+import type { ItemStyle, LayoutId } from '@devappstore/core/client';
 
 /*
  * Types partagés serveur / client de la génération de style par IA (sans dépendance d'exécution :

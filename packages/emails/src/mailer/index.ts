@@ -7,7 +7,7 @@ export * from './types';
 export { createConsoleMailer, type ConsoleMailerOptions } from './console';
 export { createResendMailer, MailerError, type ResendMailerOptions } from './resend';
 
-export const DEFAULT_MAIL_FROM = 'Wolleen <no-reply@wolleen.com>';
+export const DEFAULT_MAIL_FROM = 'Dev AppStore <no-reply@devappstore.com>';
 
 /**
  * Sélection du transport par variables d'environnement :

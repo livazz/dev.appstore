@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import { getGameForAdmin, requireAdminPermission } from '@/server/admin';
 import { MODERATION_ACTION_LABELS, SUSPENSION_GROUNDS, can, type SuspensionGround } from '@/server/admin-logic';
 import { Card, DELIVERY_STATUS, Facts, GameStatusBadge, Mono, PageHeader, TableWrap, Time, td, th } from '@/components/admin/ui';

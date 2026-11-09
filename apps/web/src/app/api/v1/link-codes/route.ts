@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  * Le jeu affiche le code ; le joueur le saisit sur /games/[slug]/link (valable 10 min, usage unique).
  * Avec la clé publique, le SDK interroge ensuite GET /api/v1/link-requests/{link_request_id} pour obtenir son jeton joueur.
  * Sécurité : avec la clé publique, n'importe quel client peut demander un code pour n'importe quel player_id ; le jeton
- * obtenu ne donne accès qu'aux achats du compte Wolleen qui a saisi le code (cf. server/player-tokens.ts).
+ * obtenu ne donne accès qu'aux achats du compte Dev AppStore qui a saisi le code (cf. server/player-tokens.ts).
  */
 export async function POST(req: Request) {
   const guard = await guardApi(req, 'link-codes');

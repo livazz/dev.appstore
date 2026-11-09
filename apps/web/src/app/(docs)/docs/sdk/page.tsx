@@ -6,9 +6,9 @@ export const metadata = docMetadata('sdk');
 
 /* Contenu repris des README de packages/sdk-js et sdks/{unity,godot,unreal}. */
 
-const JS_EXAMPLE = `import { Wolleen } from '@wolleen/sdk';
+const JS_EXAMPLE = `import { DevAppStore } from '@devappstore/sdk';
 
-const client = new Wolleen({ apiKey: 'wk_live_…', baseUrl: 'https://…', storage: localStorage });
+const client = new DevAppStore({ apiKey: 'das_live_…', baseUrl: 'https://…', storage: localStorage });
 
 // 1. Liaison (une fois) : afficher un code que le joueur saisit sur Dev AppStore.
 const { code, expires_at } = await client.requestLinkCode(player.id, player.name);
@@ -22,26 +22,26 @@ const sub = client.onPurchase(player.id, async (e) => {
 // À la déconnexion du joueur :
 sub.unsubscribe();`;
 
-const JS_SERVER = `import { verifyWebhookSignature, constructWebhookEvent } from '@wolleen/sdk/server';
+const JS_SERVER = `import { verifyWebhookSignature, constructWebhookEvent } from '@devappstore/sdk/server';
 
-// Corps BRUT (avant JSON.parse) + en-tête Wolleen-Signature + secret webhook du jeu.
-if (!verifyWebhookSignature(rawBody, req.headers['wolleen-signature'], process.env.WEBHOOK_SECRET)) {
+// Corps BRUT (avant JSON.parse) + en-tête DevAppStore-Signature + secret webhook du jeu.
+if (!verifyWebhookSignature(rawBody, req.headers['devappstore-signature'], process.env.WEBHOOK_SECRET)) {
   return res.writeHead(401).end();
 }
-const event = constructWebhookEvent(rawBody, req.headers['wolleen-signature'], process.env.WEBHOOK_SECRET);
+const event = constructWebhookEvent(rawBody, req.headers['devappstore-signature'], process.env.WEBHOOK_SECRET);
 // Créditer de façon idempotente (clé : event.delivery_id), puis répondre 2xx.`;
 
 const UNITY_EXAMPLE = `using UnityEngine;
-using Wolleen;
+using DevAppStore;
 
 public class Shop : MonoBehaviour
 {
-    WolleenClient client;
+    DevAppStoreClient client;
 
     void Start()
     {
-        // 1. Client (ou ajoutez le composant WolleenClient dans une scène et renseignez l'inspecteur).
-        client = WolleenClient.Create("wk_live_…", "https://…", pollIntervalSeconds: 30);
+        // 1. Client (ou ajoutez le composant DevAppStoreClient dans une scène et renseignez l'inspecteur).
+        client = DevAppStoreClient.Create("das_live_…", "https://…", pollIntervalSeconds: 30);
 
         // 2. Créditer l'achat. Lever une exception = pas d'ack, l'achat sera reproposé.
         client.OnPurchase += e =>
@@ -68,18 +68,18 @@ public class Shop : MonoBehaviour
 const GODOT_EXAMPLE = `extends Node
 
 func _ready() -> void:
-	Wolleen.purchase_received.connect(_on_purchase)
-	Wolleen.refund_received.connect(_on_refund)
-	Wolleen.request_failed.connect(func(endpoint, status, code, msg):
+	DevAppStore.purchase_received.connect(_on_purchase)
+	DevAppStore.refund_received.connect(_on_refund)
+	DevAppStore.request_failed.connect(func(endpoint, status, code, msg):
 		push_warning("%s : %d %s %s" % [endpoint, status, code, msg]))
 	# Après la connexion du joueur dans VOTRE jeu :
-	Wolleen.set_player_id(Save.player_id)  # déclenche un polling immédiat
+	DevAppStore.set_player_id(Save.player_id)  # déclenche un polling immédiat
 
 
 func _on_purchase(p: Dictionary) -> void:
 	# Idempotence : ne jamais créditer deux fois la même livraison.
 	if Save.delivered_ids.has(p.delivery_id):
-		Wolleen.ack(p.delivery_id)
+		DevAppStore.ack(p.delivery_id)
 		return
 	match p.product_id:
 		"gems_500":
@@ -90,44 +90,44 @@ func _on_purchase(p: Dictionary) -> void:
 			return  # produit inconnu : pas d'ack, l'achat sera re-proposé après mise à jour du jeu
 	Save.delivered_ids.append(p.delivery_id)
 	Save.write()                  # 1. crédit persisté
-	Wolleen.ack(p.delivery_id)    # 2. puis seulement l'accusé de réception
+	DevAppStore.ack(p.delivery_id)    # 2. puis seulement l'accusé de réception
 
 
 func _on_refund(p: Dictionary) -> void:
 	if p.product_id == "gems_500":
 		Save.gems = max(0, Save.gems - 500 * p.quantity)
 		Save.write()
-	Wolleen.ack(p.delivery_id)`;
+	DevAppStore.ack(p.delivery_id)`;
 
 const GODOT_LINK = `func _on_link_button_pressed() -> void:
-	var r := await Wolleen.request_link_code(Save.player_name)
+	var r := await DevAppStore.request_link_code(Save.player_name)
 	if r.is_empty():
 		$CodeLabel.text = "Impossible d'obtenir un code, réessayez."
 		return
 	$CodeLabel.text = "Code de liaison : %s" % r.code`;
 
-const UNREAL_INI = `[/Script/Wolleen.WolleenSettings]
+const UNREAL_INI = `[/Script/DevAppStore.DevAppStoreSettings]
 BaseUrl=http://localhost:3000
-ApiKey=wk_dev_xxx
+ApiKey=das_dev_xxx
 PollIntervalSeconds=60
 bPollOnFocus=True`;
 
 const UNREAL_EXAMPLE = `// MonGameInstance.cpp
-#include "WolleenSubsystem.h"
+#include "DevAppStoreSubsystem.h"
 
 void UMonGameInstance::Init()
 {
 	Super::Init();
-	UWolleenSubsystem* Sdk = GetSubsystem<UWolleenSubsystem>();
+	UDevAppStoreSubsystem* Sdk = GetSubsystem<UDevAppStoreSubsystem>();
 	Sdk->OnPurchase.AddDynamic(this, &UMonGameInstance::HandlePurchase);
 	Sdk->OnRefund.AddDynamic(this, &UMonGameInstance::HandleRefund);
 	// Après la connexion du joueur dans VOTRE jeu :
 	Sdk->SetPlayerId(MaSauvegarde->PlayerId); // déclenche un polling immédiat
 }
 
-void UMonGameInstance::HandlePurchase(const FWolleenPurchase& Purchase)
+void UMonGameInstance::HandlePurchase(const FDevAppStorePurchase& Purchase)
 {
-	UWolleenSubsystem* Sdk = GetSubsystem<UWolleenSubsystem>();
+	UDevAppStoreSubsystem* Sdk = GetSubsystem<UDevAppStoreSubsystem>();
 	if (MaSauvegarde->DeliveredIds.Contains(Purchase.DeliveryId)) // idempotence
 	{
 		Sdk->Ack(Purchase.DeliveryId);
@@ -153,7 +153,7 @@ export default function SdkPage() {
       <P>
         Tous les SDK parlent à la même <A href="/docs/api">API v1</A> et suivent les mêmes règles : chaque achat est remis{' '}
         <strong>une seule fois par <C>delivery_id</C></strong>, vous créditez et sauvegardez, puis l’ack part. Les identifiants techniques
-        (paquet <C>@wolleen/sdk</C>, classes <C>Wolleen…</C>) conservent leur nom historique.
+        (paquet <C>@devappstore/sdk</C>, classes <C>Dev AppStore…</C>) conservent leur nom historique.
       </P>
       <Table
         caption="SDK disponibles"
@@ -176,8 +176,8 @@ export default function SdkPage() {
       {/* ---------------------------------------------------------------- JS */}
       <H2 id="sdk-js">JavaScript / TypeScript</H2>
       <P>
-        Paquet <C>@wolleen/sdk</C>, sans dépendance, pour le navigateur et Node ≥ 20. Il fournit aussi la vérification de webhook côté
-        serveur (<C>@wolleen/sdk/server</C>).
+        Paquet <C>@devappstore/sdk</C>, sans dépendance, pour le navigateur et Node ≥ 20. Il fournit aussi la vérification de webhook côté
+        serveur (<C>@devappstore/sdk/server</C>).
       </P>
       <CodeBlock lang="ts" title="client.ts" code={JS_EXAMPLE} />
       <Table
@@ -215,14 +215,14 @@ export default function SdkPage() {
         Options : <C>apiKey</C> (obligatoire), <C>baseUrl</C>, <C>fetch</C>, <C>transport</C> (<C>auto</C> | <C>fetch</C> |{' '}
         <C>eventsource</C>), <C>EventSource</C>, <C>storage</C>, <C>autoAck</C> (true), <C>reconnectDelayMs</C> (1000),{' '}
         <C>maxReconnectDelayMs</C> (30000), <C>idleTimeoutMs</C> (45000), <C>timeoutMs</C> (15000), <C>onError</C>. Les erreurs de l’API
-        sont levées en <C>WolleenError</C> (<C>status</C>, <C>code</C>, <C>message</C>).
+        sont levées en <C>DevAppStoreError</C> (<C>status</C>, <C>code</C>, <C>message</C>).
       </P>
       <CodeBlock lang="ts" title="Côté serveur : vérifier un webhook" code={JS_SERVER} />
 
       {/* ---------------------------------------------------------------- Unity */}
       <H2 id="sdk-unity">Unity (C#)</H2>
       <P>
-        Paquet UPM <C>com.wolleen.sdk</C>, Unity 2021.3+, aucune dépendance (UnityWebRequest + JsonUtility). Installation :{' '}
+        Paquet UPM <C>com.devappstore.sdk</C>, Unity 2021.3+, aucune dépendance (UnityWebRequest + JsonUtility). Installation :{' '}
         <em>Window → Package Manager → + → Add package from git URL…</em> avec le chemin <C>?path=/sdks/unity</C> du dépôt, ou{' '}
         <em>Add package from disk…</em> et <C>sdks/unity/package.json</C>.
       </P>
@@ -241,23 +241,23 @@ export default function SdkPage() {
       />
       <P>
         Les 200 derniers <C>delivery_id</C> traités sont mémorisés dans <C>PlayerPrefs</C> avant l’ack : un ack perdu entraîne un simple
-        ré-acquittement. Erreurs : <C>WolleenError {'{ Status, Code, Message }'}</C> (<C>Status = 0</C> pour le réseau).
+        ré-acquittement. Erreurs : <C>DevAppStoreError {'{ Status, Code, Message }'}</C> (<C>Status = 0</C> pour le réseau).
       </P>
 
       {/* ---------------------------------------------------------------- Godot */}
       <H2 id="sdk-godot">Godot 4</H2>
       <P>
-        GDScript pur, Godot 4.2+. Copiez <C>addons/wolleen/</C> dans le dossier <C>addons/</C> de votre projet et activez le plugin
-        (<em>Projet → Paramètres du projet → Plugins</em>) : il enregistre l’autoload <C>Wolleen</C> et ces réglages :
+        GDScript pur, Godot 4.2+. Copiez <C>addons/devappstore/</C> dans le dossier <C>addons/</C> de votre projet et activez le plugin
+        (<em>Projet → Paramètres du projet → Plugins</em>) : il enregistre l’autoload <C>Dev AppStore</C> et ces réglages :
       </P>
       <Table
         caption="Réglages du SDK Godot"
         head={['Réglage', 'Défaut', 'Rôle']}
         rows={[
-          [<C key="a">wolleen/api/base_url</C>, '—', 'URL de Dev AppStore (en dev : http://localhost:3000)'],
-          [<C key="a">wolleen/api/api_key</C>, '—', 'Clé API du jeu (wk_…, onglet Intégration)'],
-          [<C key="a">wolleen/delivery/poll_interval_sec</C>, '60', 'Intervalle de polling (0 = désactivé)'],
-          [<C key="a">wolleen/delivery/poll_on_focus</C>, 'true', 'Interroger au retour au premier plan'],
+          [<C key="a">devappstore/api/base_url</C>, '—', 'URL de Dev AppStore (en dev : http://localhost:3000)'],
+          [<C key="a">devappstore/api/api_key</C>, '—', 'Clé API du jeu (das_…, onglet Intégration)'],
+          [<C key="a">devappstore/delivery/poll_interval_sec</C>, '60', 'Intervalle de polling (0 = désactivé)'],
+          [<C key="a">devappstore/delivery/poll_on_focus</C>, 'true', 'Interroger au retour au premier plan'],
         ]}
       />
       <CodeTabs
@@ -270,15 +270,15 @@ export default function SdkPage() {
       <P>
         Signaux : <C>purchase_received</C>, <C>refund_received</C>, <C>ack_completed</C>, <C>link_code_received</C>,{' '}
         <C>request_failed</C>. Méthodes : <C>set_player_id</C>, <C>poll</C>, <C>ack</C>, <C>request_link_code</C>, <C>configure</C>.
-        L’accusé de réception est persisté dans <C>user://wolleen_sdk.cfg</C> et renvoyé au polling suivant s’il a échoué.
+        L’accusé de réception est persisté dans <C>user://devappstore_sdk.cfg</C> et renvoyé au polling suivant s’il a échoué.
       </P>
 
       {/* ---------------------------------------------------------------- Unreal */}
       <H2 id="sdk-unreal">Unreal Engine 5</H2>
       <P>
-        Plugin C++ runtime, UE 5.1+, modules moteur uniquement. Copiez <C>Wolleen/</C> dans <C>Plugins/</C>, régénérez les fichiers projet
-        et compilez, puis réglez <em>Paramètres du projet → Plugins → Wolleen</em> (enregistré dans <C>Config/DefaultGame.ini</C>).
-        Ajoutez <C>&quot;Wolleen&quot;</C> à <C>PublicDependencyModuleNames</C> pour l’utiliser depuis votre module.
+        Plugin C++ runtime, UE 5.1+, modules moteur uniquement. Copiez <C>Dev AppStore/</C> dans <C>Plugins/</C>, régénérez les fichiers projet
+        et compilez, puis réglez <em>Paramètres du projet → Plugins → Dev AppStore</em> (enregistré dans <C>Config/DefaultGame.ini</C>).
+        Ajoutez <C>&quot;Dev AppStore&quot;</C> à <C>PublicDependencyModuleNames</C> pour l’utiliser depuis votre module.
       </P>
       <CodeTabs
         ariaLabel="Exemples Unreal"
@@ -289,18 +289,18 @@ export default function SdkPage() {
       />
       <UL>
         <li>
-          <C>UWolleenSubsystem</C> (<C>UGameInstanceSubsystem</C>) interroge l’API dès <C>SetPlayerId</C>, toutes les{' '}
+          <C>UDevAppStoreSubsystem</C> (<C>UGameInstanceSubsystem</C>) interroge l’API dès <C>SetPlayerId</C>, toutes les{' '}
           <C>PollIntervalSeconds</C> et au retour au premier plan.
         </li>
         <li>
           Délégués : <C>OnPurchase</C>, <C>OnRefund</C>, <C>OnAckCompleted</C>, <C>OnLinkCode</C>, <C>OnRequestFailed</C>.
         </li>
         <li>
-          Blueprints : <em>Get Wolleen Subsystem</em> → <em>Bind Event to On Purchase</em> → créditez, <em>Save Game to Slot</em>, puis{' '}
+          Blueprints : <em>Get Dev AppStore Subsystem</em> → <em>Bind Event to On Purchase</em> → créditez, <em>Save Game to Slot</em>, puis{' '}
           <em>Ack</em> avec le <C>DeliveryId</C>.
         </li>
         <li>
-          L’ack est persisté dans le slot <C>WolleenSDK</C> et renvoyé au polling suivant en cas d’échec réseau, sans rediffuser{' '}
+          L’ack est persisté dans le slot <C>DevAppStoreSDK</C> et renvoyé au polling suivant en cas d’échec réseau, sans rediffuser{' '}
           <C>OnPurchase</C>.
         </li>
       </UL>

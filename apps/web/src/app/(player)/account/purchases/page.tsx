@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import { requireUser } from '@/server/session';
 import { getPlayerPurchases } from '@/server/analytics';
 import { WITHDRAWAL_ERROR_MESSAGES, withdrawableOrderIds, type WithdrawalErrorCode } from '@/server/withdrawal';
@@ -7,7 +7,7 @@ import { formatDateTime, playerDeliveryLabel, TONE_CLASSES } from '@/lib/analyti
 import { confirmWithdrawal } from './actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Mes achats — Wolleen' };
+export const metadata = { title: 'Mes achats — Dev AppStore' };
 
 const PAGE_SIZE = 25;
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

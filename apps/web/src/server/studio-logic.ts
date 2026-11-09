@@ -9,8 +9,8 @@ import {
   randomToken,
   slugify,
   type GameTheme,
-} from '@wolleen/core';
-import { and, asc, count, eq, games, gte, inArray, items, orders, studioMembers, studios, sum, type DB } from '@wolleen/db';
+} from '@devappstore/core';
+import { and, asc, count, eq, games, gte, inArray, items, orders, studioMembers, studios, sum, type DB } from '@devappstore/db';
 import { generatePublishableKey, generateSecretApiKey } from './api-key';
 import { uploaderOfUrl, uploaderSegment } from './image-upload';
 
@@ -180,7 +180,7 @@ export async function createGameFor(database: DB, userId: string, input: NewGame
   const studio = await findCreatorStudio(database, userId);
   if (!studio) throw new StudioError("Vous devez d'abord créer ou rejoindre un studio.");
 
-  // Clé secrète au format actuel (`wk_secret_…`, D-05) et clé publique (`wk_pub_…`) générées dès la création :
+  // Clé secrète au format actuel (`das_secret_…`, D-05) et clé publique (`das_pub_…`) générées dès la création :
   // un jeu sans serveur peut intégrer le SDK client sans passer par une génération différée.
   const { key: apiKey, hash: apiKeyHash, prefix: apiKeyPrefix } = generateSecretApiKey();
   const id = newId('gam');

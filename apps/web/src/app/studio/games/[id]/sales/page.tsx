@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { db, eq, games } from '@wolleen/db';
-import { formatMoney, STORE_FEE_OPTIONS_BPS } from '@wolleen/core';
+import { db, eq, games } from '@devappstore/db';
+import { formatMoney, STORE_FEE_OPTIONS_BPS } from '@devappstore/core';
 import { requireGameAccess } from '@/server/session';
 import {
   DEFAULT_SALES_STORE_FEE_BPS,
@@ -17,7 +17,7 @@ import { RevenueChart } from '@/components/analytics/RevenueChart';
 import { bpsToPercentLabel, netViaStoresCents, parseStoreFeeBps } from '@/components/marketing/savings';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Ventes et tendances — Wolleen' };
+export const metadata = { title: 'Ventes et tendances — Dev AppStore' };
 
 export default async function SalesPage({
   params,
@@ -98,7 +98,7 @@ export default async function SalesPage({
         <Tile
           label="Revenu net"
           value={formatMoney(main.netCents, c)}
-          hint={feePct == null ? 'après commission Wolleen' : `après ${formatMoney(main.platformFeeCents, c)} de commission (${feePct.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %)`}
+          hint={feePct == null ? 'après commission Dev AppStore' : `après ${formatMoney(main.platformFeeCents, c)} de commission (${feePct.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %)`}
         />
         <Tile
           highlight

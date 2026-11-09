@@ -1,5 +1,5 @@
 /* Données de démo : `npm run db:push && npm run db:seed` (idempotent). */
-import { DEFAULT_ITEM_STYLE, hashApiKey, type ItemStyle } from '@wolleen/core';
+import { DEFAULT_ITEM_STYLE, hashApiKey, type ItemStyle } from '@devappstore/core';
 import { hashPassword } from 'better-auth/crypto';
 import { account, and, db, eq, games, isNull, items, platformAdmins, studios, studioMembers, user } from './index';
 import * as A from './demo-assets';
@@ -7,18 +7,18 @@ import { seedLoyalty } from './seed-loyalty';
 
 /** Clés de développement connues — utilisées par apps/demo-game. Jamais en production. */
 export const DEMO_KEYS = {
-  // apiKey = clé SECRÈTE au format actuel `wk_secret_…` (serveur du studio) ; publishableKey = clé PUBLIQUE `wk_pub_…`
+  // apiKey = clé SECRÈTE au format actuel `das_secret_…` (serveur du studio) ; publishableKey = clé PUBLIQUE `das_pub_…`
   // (SDK embarqué dans le client du jeu).
-  crystal: { apiKey: 'wk_secret_demo_crystal_clash', publishableKey: 'wk_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
-  farm: { apiKey: 'wk_secret_demo_pixel_farm', publishableKey: 'wk_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
+  crystal: { apiKey: 'das_secret_demo_crystal_clash', publishableKey: 'das_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
+  farm: { apiKey: 'das_secret_demo_pixel_farm', publishableKey: 'das_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
 };
 
-/** Anciennes clés secrètes de démo (`wk_test_…`) : une base déjà initialisée avec elles passe aux clés actuelles. */
-const LEGACY_DEMO_API_KEYS = { crystal: 'wk_test_demo_crystal_clash', farm: 'wk_test_demo_pixel_farm' } as const;
-const DEMO_API_KEY_PREFIX = 'wk_secret_demo';
+/** Anciennes clés secrètes de démo (`das_test_…`) : une base déjà initialisée avec elles passe aux clés actuelles. */
+const LEGACY_DEMO_API_KEYS = { crystal: 'das_test_demo_crystal_clash', farm: 'das_test_demo_pixel_farm' } as const;
+const DEMO_API_KEY_PREFIX = 'das_secret_demo';
 
 /** Superadmin du back-office /admin (table platform_admins) : le compte de démo développeur. */
-export const DEMO_PLATFORM_ADMIN = { email: 'dev@wolleen.test', role: 'superadmin' } as const;
+export const DEMO_PLATFORM_ADMIN = { email: 'dev@devappstore.test', role: 'superadmin' } as const;
 
 const lavender: ItemStyle = { ...DEFAULT_ITEM_STYLE, bg1: '#eef0ff', bg2: '#9fb0f0', titleColor: '#ffffff', titleOutline: true, titleShadow: true, subtitleColor: '#2d3a6b', priceBg: 'transparent', priceOutline: true, priceShadow: true, borderWidth: 3, borderColor: '#141826' };
 const gold: ItemStyle = { ...DEFAULT_ITEM_STYLE, bgType: 'linear', bg1: '#fff4cc', bg2: '#ffd46b', titleColor: '#ffffff', titleBg: '#f59f1c', subtitleColor: '#6b4a00', priceBg: '#5cc31f', priceShadow: true, borderWidth: 0 };
@@ -27,8 +27,8 @@ const farm: ItemStyle = { ...DEFAULT_ITEM_STYLE, bgType: 'linear', bg1: '#ffffff
 
 /** Utilisateurs de démo — mot de passe `DEMO_PASSWORD` (compte Better Auth « credential »). */
 export const DEMO_USERS = {
-  dev: { id: 'usr_demo_dev', name: 'Développeur Démo', email: 'dev@wolleen.test' },
-  player: { id: 'usr_demo_player', name: 'Joueur Démo', email: 'joueur@wolleen.test' },
+  dev: { id: 'usr_demo_dev', name: 'Développeur Démo', email: 'dev@devappstore.test' },
+  player: { id: 'usr_demo_player', name: 'Joueur Démo', email: 'joueur@devappstore.test' },
 };
 
 /** Mot de passe des comptes de démo. Jamais en production. */
@@ -67,7 +67,7 @@ async function main() {
       iconUrl: A.ICON_CRYSTAL, bannerUrl: A.BANNER_CRYSTAL,
       theme: { gradient: { enabled: true, c1: '#026ab3', c2: '#ffffff', style: 'linear' as const }, grid: { width: 205, height: 300, margin: 25 } },
       status: 'live' as const, linkMethods: ['code', 'id_confirm'] as ('code' | 'id_confirm')[],
-      playerLookupUrl: 'http://localhost:4100/wolleen/players/{player_id}', webhookUrl: 'http://localhost:4100/wolleen/webhook',
+      playerLookupUrl: 'http://localhost:4100/devappstore/players/{player_id}', webhookUrl: 'http://localhost:4100/devappstore/webhook',
       webhookSecret: DEMO_KEYS.crystal.webhookSecret, apiKeyHash: hashApiKey(DEMO_KEYS.crystal.apiKey), apiKeyPrefix: DEMO_API_KEY_PREFIX,
       publishableKey: DEMO_KEYS.crystal.publishableKey,
     },
@@ -86,7 +86,7 @@ async function main() {
     // Base créée avant l'ajout des clés publiques : on les complète sans toucher au reste.
     await db.update(games).set({ publishableKey: g.publishableKey }).where(and(eq(games.id, g.id), isNull(games.publishableKey)));
   }
-  // Base créée avec les anciennes clés secrètes `wk_test_demo_*` : passage aux clés `wk_secret_demo_*` (une clé
+  // Base créée avec les anciennes clés secrètes `das_test_demo_*` : passage aux clés `das_secret_demo_*` (une clé
   // régénérée depuis l'onglet Intégration n'est pas touchée).
   for (const k of ['crystal', 'farm'] as const) {
     await db
@@ -110,10 +110,10 @@ async function main() {
   for (const r of rows) await db.insert(items).values(r).onConflictDoNothing();
   console.log(`Seed OK : 1 studio, ${gameRows.length} jeux, ${rows.length} articles — comptes de démo : ${Object.values(DEMO_USERS).map((u) => u.email).join(', ')} / ${DEMO_PASSWORD}`);
   await seedDemoSales();
-  // Points Wolleen : récompenses de démo + points des commandes payées du joueur de démo (idempotent).
+  // Points Dev AppStore : récompenses de démo + points des commandes payées du joueur de démo (idempotent).
   const loyalty = await seedLoyalty(DEMO_USERS.player.id);
-  console.log(`Seed Points Wolleen : ${loyalty.rewards} récompenses, ${loyalty.awards} attributions ajoutées (${loyalty.points} points au total)`);
-  // Back-office /admin : dev@wolleen.test superadmin de la plateforme (idempotent ; un rôle modifié depuis est conservé).
+  console.log(`Seed Points Dev AppStore : ${loyalty.rewards} récompenses, ${loyalty.awards} attributions ajoutées (${loyalty.points} points au total)`);
+  // Back-office /admin : dev@devappstore.test superadmin de la plateforme (idempotent ; un rôle modifié depuis est conservé).
   await db.insert(platformAdmins).values({ userId: DEMO_USERS.dev.id, role: DEMO_PLATFORM_ADMIN.role }).onConflictDoNothing();
   console.log(`Seed administration : ${DEMO_PLATFORM_ADMIN.email} est ${DEMO_PLATFORM_ADMIN.role} de Dev AppStore — back-office sur /admin`);
 }
@@ -124,7 +124,7 @@ async function main() {
  * identifiants fixes + onConflictDoNothing → relancer le seed ne crée pas de doublon.
  */
 async function seedDemoSales() {
-  const { DEFAULT_PLATFORM_FEE_BPS, feeCents } = await import('@wolleen/core');
+  const { DEFAULT_PLATFORM_FEE_BPS, feeCents } = await import('@devappstore/core');
   const { deliveries, gameLinks, orders } = await import('./index');
   const PLAYER_ID = '#2PP8QL9';
   const DAYS = 90;

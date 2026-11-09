@@ -1,17 +1,17 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
-// `server-only` lève une erreur hors de Next ; la base par défaut (@wolleen/db) ne doit pas toucher .data.
+// `server-only` lève une erreur hors de Next ; la base par défaut (@devappstore/db) ne doit pas toucher .data.
 vi.mock('server-only', () => ({}));
 await vi.hoisted(async () => {
   const { mkdtempSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
-  process.env.WOLLEEN_DATA_DIR ??= mkdtempSync(join(tmpdir(), 'wolleen-analytics-'));
+  process.env.DEVAPPSTORE_DATA_DIR ??= mkdtempSync(join(tmpdir(), 'devappstore-analytics-'));
 });
 
-import { createTestDb } from '@wolleen/db/testing';
-import { deliveries, games, items, orders, studios, user, type DB } from '@wolleen/db';
-import type { Currency, DeliveryStatus, OrderStatus } from '@wolleen/core';
+import { createTestDb } from '@devappstore/db/testing';
+import { deliveries, games, items, orders, studios, user, type DB } from '@devappstore/db';
+import type { Currency, DeliveryStatus, OrderStatus } from '@devappstore/core';
 import {
   DEFAULT_SALES_STORE_FEE_BPS,
   getDailyRevenue,
@@ -209,7 +209,7 @@ describe('getTopItems / getTransactions', () => {
     const [, l1, l2] = csv.trimEnd().split('\r\n');
     expect(l1).toContain(`,'+cmd|calc,"'=HYPERLINK(""https://evil.tld"",""Clique"")",'@SUM(1+1),`);
     expect(l2).toContain(`,ok,'-2+3,"'\tpid",`);
-    // Les montants (générés par Wolleen) ne sont pas touchés.
+    // Les montants (générés par Dev AppStore) ne sont pas touchés.
     expect(l1).toContain(',10.00,0.50,9.50,');
   });
 });
@@ -239,7 +239,7 @@ describe('int/security — commission store choisie et commandes à 0 €', () =
     expect(resolveStoreFeeBps(undefined)).toBe(1500);
     expect(storeFeeLabel(1500)).toBe('15 %');
     expect(storeFeeLabel(3000)).toBe('30 %');
-    // Économie jamais négative (commission Wolleen supérieure à la commission store évitée).
+    // Économie jamais négative (commission Dev AppStore supérieure à la commission store évitée).
     const [empty] = await getSalesTotals('gam_a', { days: 7, now: new Date('2025-01-01T00:00:00Z'), storeFeeBps: 3000 }, t);
     expect(empty).toMatchObject({ savingsCents: 0, storeFeeBps: 3000 });
   });

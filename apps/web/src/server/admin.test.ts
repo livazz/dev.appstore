@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_ITEM_STYLE, DEFAULT_THEME } from '@wolleen/core';
-import { createTestDb } from '@wolleen/db/testing';
-import type { DB } from '@wolleen/db';
-import type { Mailer, MailMessage } from '@wolleen/emails';
+import { DEFAULT_ITEM_STYLE, DEFAULT_THEME } from '@devappstore/core';
+import { createTestDb } from '@devappstore/db/testing';
+import type { DB } from '@devappstore/db';
+import type { Mailer, MailMessage } from '@devappstore/emails';
 
 /*
  * Back-office : base en mémoire, session simulée (utilisateur « connecté » courant), delivery.ts simulé
@@ -15,8 +15,8 @@ const h = vi.hoisted(() => ({
   dispatched: [] as string[],
 }));
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wolleen/db')>();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@devappstore/db')>();
   return {
     ...actual,
     get db() {
@@ -34,7 +34,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('./session', () => ({ getCurrentUser: async () => h.current }));
 
 vi.mock('./delivery', async () => {
-  const { deliveries, eq } = await import('@wolleen/db');
+  const { deliveries, eq } = await import('@devappstore/db');
   return {
     dispatchDelivery: vi.fn(async (id: string) => {
       h.dispatched.push(id);
@@ -45,7 +45,7 @@ vi.mock('./delivery', async () => {
 
 const admin = await import('./admin');
 const { adminAuditLog, deliveries, eq, gameModerationNotices, games, items, orders, platformAdmins, session, studioMembers, studios, user, userSuspensions } =
-  await import('@wolleen/db');
+  await import('@devappstore/db');
 
 const U = {
   super: { id: 'usr_super', email: 'super@devappstore.test', name: 'Super' },
@@ -86,7 +86,7 @@ beforeAll(async () => {
     { studioId: 'std_t', userId: U.owner.id, role: 'owner' },
     { studioId: 'std_t', userId: U.dev.id, role: 'developer' },
   ]);
-  const base = { studioId: 'std_t', theme: DEFAULT_THEME, webhookSecret: 'whsec_secret', apiKeyHash: 'hash', apiKeyPrefix: 'wk_test' };
+  const base = { studioId: 'std_t', theme: DEFAULT_THEME, webhookSecret: 'whsec_secret', apiKeyHash: 'hash', apiKeyPrefix: 'das_test' };
   await h.db.insert(games).values([
     { ...base, id: 'gam_a', slug: 'jeu-a', name: 'Jeu A', status: 'review' },
     { ...base, id: 'gam_b', slug: 'jeu-b', name: 'Jeu B', status: 'live' },

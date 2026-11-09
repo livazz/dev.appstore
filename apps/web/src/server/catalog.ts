@@ -1,6 +1,6 @@
 import 'server-only';
-import { GAME_CATEGORIES, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@wolleen/core';
-import { and, asc, db, eq, games, ilike, inArray, items, or, sql, type DB } from '@wolleen/db';
+import { GAME_CATEGORIES, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@devappstore/core';
+import { and, asc, db, eq, games, ilike, inArray, items, or, sql, type DB } from '@devappstore/db';
 
 /*
  * Requêtes du catalogue public (tâche « catalog »).

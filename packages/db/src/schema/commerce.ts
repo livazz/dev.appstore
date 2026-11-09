@@ -1,9 +1,9 @@
 import { integer, pgTable, text, timestamp, unique, index, jsonb } from 'drizzle-orm/pg-core';
-import type { Currency, DeliveryStatus, LinkMethod, OrderStatus, PurchaseEvent } from '@wolleen/core';
+import type { Currency, DeliveryStatus, LinkMethod, OrderStatus, PurchaseEvent } from '@devappstore/core';
 import { user } from './auth';
 import { games, items } from './studio';
 
-/** Compte joueur Wolleen ↔ compte dans un jeu (un seul par jeu et par utilisateur). */
+/** Compte joueur Dev AppStore ↔ compte dans un jeu (un seul par jeu et par utilisateur). */
 export const gameLinks = pgTable(
   'game_links',
   {
@@ -33,7 +33,7 @@ export const linkCodes = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     /*
      * Ajouts « sec/delivery-keys » — la ligne sert aussi de « demande de liaison » (link_request_id = id) :
-     * - consumedBy : utilisateur Wolleen qui a saisi le code (le jeton joueur lui est rattaché) ;
+     * - consumedBy : utilisateur Dev AppStore qui a saisi le code (le jeton joueur lui est rattaché) ;
      * - source : clé qui a demandé le code (« publishable » = SDK client sans serveur, « secret » = serveur du studio) ;
      * - tokenIssuedAt : jeton joueur déjà délivré pour cette demande (échange unique).
      */
@@ -107,7 +107,7 @@ export const webhookAttempts = pgTable('webhook_attempts', {
 });
 
 /*
- * Ajout tâche « linking » — tentatives de liaison d'un compte de jeu, par utilisateur Wolleen :
+ * Ajout tâche « linking » — tentatives de liaison d'un compte de jeu, par utilisateur Dev AppStore :
  * - kind = 'code'   : saisie d'un code (ok = 0 → échec, compté pour l'anti force brute) ;
  * - kind = 'lookup' : appel « player lookup » du studio (limité pour éviter l'énumération des joueurs).
  *   Une recherche réussie (ok = 1) porte le joueur trouvé et sert de jeton de confirmation (usedAt = consommé).
@@ -158,9 +158,9 @@ export const refundDeliveries = pgTable(
 );
 
 /*
- * Ajout « sec/delivery-keys » (D-05) — jeton joueur opaque (`wk_pt_…`) délivré au SDK client après la liaison par code
+ * Ajout « sec/delivery-keys » (D-05) — jeton joueur opaque (`das_pt_…`) délivré au SDK client après la liaison par code
  * (GET /api/v1/link-requests/{id}). Seule l'empreinte SHA-256 est stockée. Avec la clé publique du jeu, il donne accès
- * aux livraisons de `playerId` achetées par `userId` (le compte Wolleen qui a saisi le code), et à rien d'autre.
+ * aux livraisons de `playerId` achetées par `userId` (le compte Dev AppStore qui a saisi le code), et à rien d'autre.
  * Révocable (revokedAt) par le SDK, le serveur du studio ou l'onglet Intégration.
  */
 export const playerTokens = pgTable(

@@ -1,13 +1,13 @@
 /*
  * Back-office Dev AppStore : donne un rôle de la plateforme à un compte existant (idempotent).
- * `npm run db:seed` fait déjà de dev@wolleen.test un superadmin (seed.ts) ; ce script sert pour un autre compte ou un
+ * `npm run db:seed` fait déjà de dev@devappstore.test un superadmin (seed.ts) ; ce script sert pour un autre compte ou un
  * autre rôle : `npx tsx packages/db/src/seed-admin.ts autre@exemple.fr support`.
  */
 import { db, eq, platformAdmins, user, type PlatformAdminRole } from './index';
 
 const ROLES: PlatformAdminRole[] = ['superadmin', 'support', 'finance'];
 
-export async function seedAdmin(email = 'dev@wolleen.test', role: PlatformAdminRole = 'superadmin') {
+export async function seedAdmin(email = 'dev@devappstore.test', role: PlatformAdminRole = 'superadmin') {
   if (!ROLES.includes(role)) throw new Error(`Rôle inconnu : ${role} (attendu : ${ROLES.join(', ')})`);
   const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
   if (!u) throw new Error(`Utilisateur introuvable : ${email} (lancez d'abord npm run db:seed)`);

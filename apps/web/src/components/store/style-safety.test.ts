@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_ITEM_STYLE, type ItemStyle } from '@wolleen/core/client';
+import { DEFAULT_ITEM_STYLE, type ItemStyle } from '@devappstore/core/client';
 import {
   activeFilterColors,
   cardBackground,
@@ -109,7 +109,7 @@ describe('D-18 / CHK-UPL-08 — couleurs revalidées au rendu (défense en profo
 });
 
 describe('T-UPL-05 / CHK-UPL-07 — images tierces non rendues aux joueurs', () => {
-  it('accepte les uploads Wolleen et les data:image du seed', () => {
+  it('accepte les uploads Dev AppStore et les data:image du seed', () => {
     expect(safeImageUrl('/api/uploads/icon/abc.webp')).toBe('/api/uploads/icon/abc.webp');
     expect(safeImageUrl('data:image/svg+xml;utf8,<svg/>')).toBe('data:image/svg+xml;utf8,<svg/>');
     expect(safeImageUrl('data:image/png;base64,AAAA')).toBe('data:image/png;base64,AAAA');
@@ -131,7 +131,7 @@ describe('T-UPL-05 / CHK-UPL-07 — images tierces non rendues aux joueurs', () 
   });
 
   describe('uploads du stockage objet (S3_PUBLIC_URL / NEXT_PUBLIC_S3_PUBLIC_URL)', () => {
-    const CDN = 'https://cdn.wolleen.test';
+    const CDN = 'https://cdn.devappstore.test';
     const key = 'item/usr_demo_dev/1b2c3d4e-0000-4a5b-8c9d-0123456789ab.webp';
 
     it('accepte une URL https sous la base publique, au format de clé des uploads', () => {
@@ -143,7 +143,7 @@ describe('T-UPL-05 / CHK-UPL-07 — images tierces non rendues aux joueurs', () 
 
     it('refuse hors base, hors format de clé, en http ou sans base configurée', () => {
       for (const u of [
-        `https://cdn.wolleen.test.pistage.tld/${key}`,
+        `https://cdn.devappstore.test.pistage.tld/${key}`,
         `https://pistage.tld/${key}`,
         `${CDN}/autre/usr_x/abc.webp`,
         `${CDN}/item/usr_x/abc.png`,
@@ -154,7 +154,7 @@ describe('T-UPL-05 / CHK-UPL-07 — images tierces non rendues aux joueurs', () 
       ])
         expect(safeImageUrl(u, CDN), u).toBeNull();
       expect(safeImageUrl(`${CDN}/${key}`, null)).toBeNull();
-      expect(safeImageUrl(`http://cdn.wolleen.test/${key}`, 'http://cdn.wolleen.test')).toBeNull();
+      expect(safeImageUrl(`http://cdn.devappstore.test/${key}`, 'http://cdn.devappstore.test')).toBeNull();
       expect(safeImageUrl(`${CDN}/${key}`, 'pas une url')).toBeNull();
     });
 

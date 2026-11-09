@@ -52,7 +52,7 @@ function Fields({ values }: { values: LinkSettingsValues }) {
               </span>
               <span className="mt-0.5 block text-sm text-ink-2">
                 Le jeu appelle <code className="font-mono text-xs">POST /api/v1/link-codes</code> et affiche le code (valable 10 min) ; le
-                joueur le saisit sur Wolleen.
+                joueur le saisit sur Dev AppStore.
               </span>
             </span>
           </label>
@@ -71,7 +71,7 @@ function Fields({ values }: { values: LinkSettingsValues }) {
                 <span className="rounded-full bg-ink-3/10 px-2 py-0.5 text-xs text-ink-2">déclaratif</span>
               </span>
               <span className="mt-0.5 block text-sm text-ink-2">
-                Le joueur saisit son identifiant ; Wolleen interroge votre serveur puis lui demande « Est-ce bien vous ? ».
+                Le joueur saisit son identifiant ; Dev AppStore interroge votre serveur puis lui demande « Est-ce bien vous ? ».
               </span>
             </span>
           </label>
@@ -89,13 +89,13 @@ function Fields({ values }: { values: LinkSettingsValues }) {
         defaultValue={values.playerLookupUrl}
         required={idConfirm}
         maxLength={2048}
-        placeholder="https://api.monjeu.com/wolleen/players/{player_id}"
+        placeholder="https://api.monjeu.com/devappstore/players/{player_id}"
         spellCheck={false}
         className="mt-1.5 w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm placeholder:text-ink-3/60 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
       />
       <p className="mt-1.5 text-xs text-ink-3">
         <code className="font-mono">{'{player_id}'}</code> est remplacé par l&apos;identifiant saisi (encodé). Requête GET signée
-        (en-tête <code className="font-mono">Wolleen-Signature</code>), délai maximal 5 s.
+        (en-tête <code className="font-mono">DevAppStore-Signature</code>), délai maximal 5 s.
       </p>
     </>
   );

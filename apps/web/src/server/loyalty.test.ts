@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { newId } from '@wolleen/core';
-import { db, eq, gameLinks, loyaltyEntries, loyaltyRedemptions, loyaltyRewards, orders, sql, user } from '@wolleen/db';
+import { newId } from '@devappstore/core';
+import { db, eq, gameLinks, loyaltyEntries, loyaltyRedemptions, loyaltyRewards, orders, sql, user } from '@devappstore/db';
 import { FX, insertPendingOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
 import { addDays } from './loyalty-logic';
 import {
@@ -19,9 +19,9 @@ import {
 } from './loyalty';
 
 // Base en mémoire à la place de .data/pglite.
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const { createTestDb } = await import('@wolleen/db/testing');
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const { createTestDb } = await import('@devappstore/db/testing');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
   return importOriginal();
 });
 
@@ -35,7 +35,7 @@ let userSeq = 0;
 /** Utilisateur neuf par test (soldes indépendants), lié au jeu de test. */
 async function newPlayer(opts: { linked?: boolean } = {}) {
   const id = `usr_loy_${++userSeq}`;
-  await db.insert(user).values({ id, name: `Joueur ${userSeq}`, email: `loy${userSeq}@wolleen.test` });
+  await db.insert(user).values({ id, name: `Joueur ${userSeq}`, email: `loy${userSeq}@devappstore.test` });
   if (opts.linked !== false) {
     await db.insert(gameLinks).values({ id: newId('lnk'), userId: id, gameId: FX.game.id, playerId: `P-${userSeq}`, method: 'code', verified: 1 });
   }

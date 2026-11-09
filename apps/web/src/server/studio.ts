@@ -1,8 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@wolleen/db';
-import type { StudioRole } from '@wolleen/core';
+import { db } from '@devappstore/db';
+import type { StudioRole } from '@devappstore/core';
 import { requireGameAccess, requireUser } from './session';
 import {
   StudioError,

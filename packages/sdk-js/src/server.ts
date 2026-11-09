@@ -1,8 +1,8 @@
 /*
- * Outils serveur (Node ≥ 20) : vérification des webhooks Wolleen.
- * Import séparé (`@wolleen/sdk/server`) pour que le bundle navigateur n'embarque pas `node:crypto`.
+ * Outils serveur (Node ≥ 20) : vérification des webhooks Dev AppStore.
+ * Import séparé (`@devappstore/sdk/server`) pour que le bundle navigateur n'embarque pas `node:crypto`.
  *
- * En-tête : `Wolleen-Signature: t=<unix>,v1=<hex>` où v1 = HMAC-SHA256(secret, `${t}.${corps brut}`).
+ * En-tête : `DevAppStore-Signature: t=<unix>,v1=<hex>` où v1 = HMAC-SHA256(secret, `${t}.${corps brut}`).
  *
  * Événements reçus : `purchase.completed` (créditer) et `purchase.refunded` (révoquer l'achat `order_id` s'il avait été
  * crédité, sinon ignorer). Idempotence obligatoire sur `delivery_id` (un même événement peut être renvoyé).
@@ -10,7 +10,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { PurchaseEvent } from './types.js';
 
-export const SIGNATURE_HEADER = 'Wolleen-Signature';
+export const SIGNATURE_HEADER = 'DevAppStore-Signature';
 export const DEFAULT_TOLERANCE_S = 300;
 
 export interface VerifyOptions {
@@ -22,14 +22,14 @@ export interface VerifyOptions {
 
 const toText = (body: string | Uint8Array) => (typeof body === 'string' ? body : Buffer.from(body).toString('utf8'));
 
-/** Calcule un en-tête `Wolleen-Signature` (utile pour tester son endpoint). */
+/** Calcule un en-tête `DevAppStore-Signature` (utile pour tester son endpoint). */
 export function signWebhookPayload(body: string | Uint8Array, secret: string, timestamp = Math.floor(Date.now() / 1000)): string {
   const v1 = createHmac('sha256', secret).update(`${timestamp}.${toText(body)}`).digest('hex');
   return `t=${timestamp},v1=${v1}`;
 }
 
 /**
- * Vérifie l'en-tête `Wolleen-Signature` d'un webhook (ou d'un appel « player lookup », dont le corps signé
+ * Vérifie l'en-tête `DevAppStore-Signature` d'un webhook (ou d'un appel « player lookup », dont le corps signé
  * est l'ID joueur brut). Passez le corps **brut**, tel que reçu, avant tout `JSON.parse`.
  */
 export function verifyWebhookSignature(body: string | Uint8Array, header: string | null | undefined, secret: string, options: VerifyOptions = {}): boolean {
@@ -56,7 +56,7 @@ export function verifyWebhookSignature(body: string | Uint8Array, header: string
 
 export class WebhookSignatureError extends Error {
   constructor() {
-    super('Signature Wolleen invalide ou expirée.');
+    super('Signature Dev AppStore invalide ou expirée.');
     this.name = 'WebhookSignatureError';
   }
 }

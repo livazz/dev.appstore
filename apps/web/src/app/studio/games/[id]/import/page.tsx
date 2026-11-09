@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { db, eq, games } from '@wolleen/db';
+import { db, eq, games } from '@devappstore/db';
 import { requireGameAccess } from '@/server/session';
 import { getCredentialStatus, listImportRuns, regionFor } from '@/server/import-logic';
 import { CredentialsPanel } from './CredentialsPanel';
 import { CatalogImporter } from './CatalogImporter';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Importer depuis les stores — Wolleen Studio' };
+export const metadata: Metadata = { title: 'Importer depuis les stores — Dev AppStore Studio' };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Paris' });
 const SOURCE_LABEL = { app_store: 'App Store', google_play: 'Google Play' } as const;
@@ -38,7 +38,7 @@ export default async function ImportPage({ params }: { params: Promise<{ id: str
       <div>
         <h2 className="text-xl font-semibold text-ink">Importer depuis les stores</h2>
         <p className="mt-1 max-w-3xl text-sm text-ink-2">
-          Récupérez les achats in-app déjà configurés sur App Store Connect et Google Play : Wolleen crée les articles de votre boutique
+          Récupérez les achats in-app déjà configurés sur App Store Connect et Google Play : Dev AppStore crée les articles de votre boutique
           avec le <strong>même identifiant produit</strong>, pour que votre jeu reconnaisse les achats sans changement. Prix lus pour
           la région <strong>{region.label}</strong> ({game.currency}), devise de votre boutique.
         </p>

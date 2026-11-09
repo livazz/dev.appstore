@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestDb } from '@wolleen/db/testing';
-import { games, studioMembers, studios, userSuspensions } from '@wolleen/db/schema';
+import { createTestDb } from '@devappstore/db/testing';
+import { games, studioMembers, studios, userSuspensions } from '@devappstore/db/schema';
 import { eq } from 'drizzle-orm';
-import type { DB } from '@wolleen/db';
+import type { DB } from '@devappstore/db';
 
 /*
  * Back-office : un compte désactivé (user_suspensions) n'a plus de session, même si son cookie Better Auth est encore
@@ -38,7 +38,7 @@ let devId = '';
 
 beforeAll(async () => {
   tdb = await createTestDb();
-  (globalThis as unknown as { __wolleenDb?: DB }).__wolleenDb = tdb;
+  (globalThis as unknown as { __devAppStoreDb?: DB }).__devAppStoreDb = tdb;
   flows = await import('./auth-flows');
   session = await import('./session');
   await flows.signUpWithPassword({ name: 'Dev', email: 'dev-susp@test.fr', password: 'motdepasse1' });
@@ -49,7 +49,7 @@ beforeAll(async () => {
   await tdb.insert(games).values({
     id: 'gam_s', studioId: 'std_s', slug: 'jeu-s', name: 'Jeu S',
     theme: { gradient: { enabled: false, c1: '#000000', c2: '#ffffff', style: 'linear' }, grid: { width: 200, height: 260, margin: 24 } },
-    webhookSecret: 'whsec_s', apiKeyHash: 'h_s', apiKeyPrefix: 'wk_secret_s',
+    webhookSecret: 'whsec_s', apiKeyHash: 'h_s', apiKeyPrefix: 'das_secret_s',
   });
 }, 60_000);
 
@@ -65,7 +65,7 @@ describe('compte désactivé par le back-office', () => {
     expect((await session.requireGameAccess('gam_s')).role).toBe('owner');
 
     await tdb.insert(userSuspensions).values({ userId: devId, adminId: 'usr_admin', reason: 'Fraude' });
-    expect([...jar.keys()].some((k) => k.startsWith('wolleen.session_token'))).toBe(true);
+    expect([...jar.keys()].some((k) => k.startsWith('devappstore.session_token'))).toBe(true);
     expect(await session.getCurrentUser()).toBeNull();
     await expect(session.requireUser('/account')).rejects.toMatchObject({ url: '/login?next=%2Faccount' });
     await expect(session.requireGameAccess('gam_s')).rejects.toMatchObject({ message: 'NEXT_REDIRECT' });

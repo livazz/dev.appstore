@@ -1,5 +1,5 @@
 import { index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import type { GameStatus } from '@wolleen/core';
+import type { GameStatus } from '@devappstore/core';
 import { user } from './auth';
 import { games } from './studio';
 

@@ -12,11 +12,11 @@ describe('config', () => {
     }
   });
 
-  it('lit le port et WOLLEEN_URL depuis l’environnement', () => {
-    const c = loadConfig({ PORT: '4200', WOLLEEN_URL: 'https://wolleen.example/' });
+  it('lit le port et DEVAPPSTORE_URL depuis l’environnement', () => {
+    const c = loadConfig({ PORT: '4200', DEVAPPSTORE_URL: 'https://devappstore.example/' });
     expect(c.port).toBe(4200);
-    expect(c.wolleenUrl).toBe('https://wolleen.example');
+    expect(c.devAppStoreUrl).toBe('https://devappstore.example');
     expect(loadConfig({}).port).toBe(4100);
-    expect(loadConfig({}).wolleenUrl).toBe('http://localhost:3000');
+    expect(loadConfig({}).devAppStoreUrl).toBe('http://localhost:3000');
   });
 });

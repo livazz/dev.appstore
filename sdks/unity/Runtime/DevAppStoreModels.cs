@@ -1,9 +1,9 @@
 using System;
 
-namespace Wolleen
+namespace DevAppStore
 {
     /// <summary>
-    /// Achat livré au jeu. Mêmes champs (snake_case) que le JSON de l'API Wolleen, pour JsonUtility.
+    /// Achat livré au jeu. Mêmes champs (snake_case) que le JSON de l'API Dev AppStore, pour JsonUtility.
     /// Montants en centimes. <c>delivery_id</c> est la clé d'idempotence : ne jamais créditer deux fois le même.
     /// </summary>
     [Serializable]
@@ -50,7 +50,7 @@ namespace Wolleen
         public string status;
         public string player_id;
         public string expires_at;
-        /// <summary>Jeton joueur (wk_pt_…), présent une seule fois, au premier appel après la saisie du code.</summary>
+        /// <summary>Jeton joueur (das_pt_…), présent une seule fois, au premier appel après la saisie du code.</summary>
         public string player_token;
     }
 
@@ -87,12 +87,12 @@ namespace Wolleen
     }
 
     /// <summary>Erreur renvoyée par l'API ou le réseau (status 0 = réseau).</summary>
-    public class WolleenError
+    public class DevAppStoreError
     {
         public long Status;
         public string Code;
         public string Message;
 
-        public override string ToString() => $"Wolleen {Status} {Code} : {Message}";
+        public override string ToString() => $"Dev AppStore {Status} {Code} : {Message}";
     }
 }

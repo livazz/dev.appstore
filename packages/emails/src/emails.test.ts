@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { formatMoney } from '@wolleen/core';
+import { formatMoney } from '@devappstore/core';
 import {
   WITHDRAWAL_WAIVER_TEXT,
   computeWeeklyTotals,
@@ -40,7 +40,7 @@ describe('échappement', () => {
   });
 
   it('safeUrl refuse javascript:, data: et les URL relatives', () => {
-    expect(safeUrl('https://wolleen.com/a?b=1&c=2')).toBe('https://wolleen.com/a?b=1&c=2');
+    expect(safeUrl('https://devappstore.com/a?b=1&c=2')).toBe('https://devappstore.com/a?b=1&c=2');
     expect(() => safeUrl('javascript:alert(1)')).toThrow();
     expect(() => safeUrl('data:text/html,<script>')).toThrow();
     expect(() => safeUrl('/relative')).toThrow();
@@ -128,10 +128,10 @@ describe('reçu d’achat — contenu légal (art. L221-28 13°)', () => {
     expect(m.text).toContain('Médiateur de la consommation');
   });
 
-  it('respecte les contraintes mail : 600 px, tables, logo W jaune, pas de <style> ni de script', () => {
+  it('respecte les contraintes mail : 600 px, tables, logo D jaune, pas de <style> ni de script', () => {
     expect(m.html).toContain('width="600"');
     expect(m.html).toContain('role="presentation"');
-    expect(m.html).toMatch(/#ffd43b[^>]*>W<\/td>/);
+    expect(m.html).toMatch(/#ffd43b[^>]*>D<\/td>/);
     expect(m.html).not.toContain('<style');
     expect(m.html).not.toContain('<script');
     expect(m.html.startsWith('<!DOCTYPE html>')).toBe(true);
@@ -217,15 +217,15 @@ describe('modèles', () => {
 
 describe('mailer', () => {
   it('console : écrit le HTML dans le dossier et logue', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'wolleen-mails-'));
+    const dir = await mkdtemp(join(tmpdir(), 'devappstore-mails-'));
     const log = vi.fn();
     try {
       const mailer = createConsoleMailer({ dir, log });
-      const res = await sendEmail(mailer, 'joueur@wolleen.test', verifyEmailEmail(f.sampleVerify));
+      const res = await sendEmail(mailer, 'joueur@devappstore.test', verifyEmailEmail(f.sampleVerify));
       const files = await readdir(dir);
       expect(files.some((n) => n === `${res.id}.html`)).toBe(true);
       expect(await readFile(join(dir, `${res.id}.html`), 'utf8')).toContain('Confirmer mon adresse');
-      expect(log.mock.calls[0]![0]).toContain('joueur@wolleen.test');
+      expect(log.mock.calls[0]![0]).toContain('joueur@devappstore.test');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -241,25 +241,25 @@ describe('mailer', () => {
 
   it('resend : POST JSON avec la clé en Bearer', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 're_123' }), { status: 200 }));
-    const mailer = createResendMailer({ apiKey: 're_key', from: 'Wolleen <no-reply@wolleen.com>', replyTo: 'support@wolleen.com', fetch: fetchMock as unknown as typeof fetch });
+    const mailer = createResendMailer({ apiKey: 're_key', from: 'Dev AppStore <no-reply@devappstore.com>', replyTo: 'support@devappstore.com', fetch: fetchMock as unknown as typeof fetch });
     const res = await mailer.send({ to: 'a@b.fr', subject: 'S', html: '<p>h</p>', text: 't' });
     expect(res.id).toBe('re_123');
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.resend.com/emails');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_key');
     expect(JSON.parse(init.body as string)).toEqual({
-      from: 'Wolleen <no-reply@wolleen.com>',
+      from: 'Dev AppStore <no-reply@devappstore.com>',
       to: ['a@b.fr'],
       subject: 'S',
       html: '<p>h</p>',
       text: 't',
-      reply_to: 'support@wolleen.com',
+      reply_to: 'support@devappstore.com',
     });
   });
 
   it('resend : erreur explicite sans fuite de la clé', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: 'domain not verified' }), { status: 403 }));
-    const mailer = createResendMailer({ apiKey: 're_secret', from: 'no-reply@wolleen.com', fetch: fetchMock as unknown as typeof fetch });
+    const mailer = createResendMailer({ apiKey: 're_secret', from: 'no-reply@devappstore.com', fetch: fetchMock as unknown as typeof fetch });
     const err = await mailer.send({ to: 'a@b.fr', subject: 'S', html: 'h', text: 't' }).catch((e: Error) => e);
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toContain('403');

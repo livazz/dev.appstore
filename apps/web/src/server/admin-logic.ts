@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { GameStatus } from '@wolleen/core';
-import type { ModerationAction, PlatformAdminRole } from '@wolleen/db';
+import type { GameStatus } from '@devappstore/core';
+import type { ModerationAction, PlatformAdminRole } from '@devappstore/db';
 
 /*
  * Règles pures du back-office Dev AppStore (sans base ni session) : rôles, transitions de modération,

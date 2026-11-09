@@ -4,10 +4,10 @@
  * révoqué et reprend après une nouvelle liaison.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Wolleen, WolleenError, type PurchaseEvent, type PurchaseSubscription } from './index';
+import { DevAppStore, DevAppStoreError, type PurchaseEvent, type PurchaseSubscription } from './index';
 
-const BASE = 'http://wolleen.test';
-const PUB = 'wk_pub_test_farm';
+const BASE = 'http://devappstore.test';
+const PUB = 'das_pub_test_farm';
 
 function purchase(id: string, over: Partial<PurchaseEvent> = {}): PurchaseEvent {
   return {
@@ -18,10 +18,10 @@ function purchase(id: string, over: Partial<PurchaseEvent> = {}): PurchaseEvent 
 
 type Call = { method: string; url: string; headers: Record<string, string> };
 
-/** Faux Wolleen : clé publique + jeton joueur `wk_pt_ok` délivré une fois par la demande de liaison. */
-function fakeWolleen(opts: { pendingPolls?: number; pending?: PurchaseEvent[]; expire?: boolean } = {}) {
+/** Faux Dev AppStore : clé publique + jeton joueur `das_pt_ok` délivré une fois par la demande de liaison. */
+function fakeDevAppStore(opts: { pendingPolls?: number; pending?: PurchaseEvent[]; expire?: boolean } = {}) {
   const calls: Call[] = [];
-  const state = { validToken: 'wk_pt_ok', polls: 0, claimed: false, pending: new Map((opts.pending ?? []).map((e) => [e.delivery_id, e])), acked: [] as string[], revoked: 0 };
+  const state = { validToken: 'das_pt_ok', polls: 0, claimed: false, pending: new Map((opts.pending ?? []).map((e) => [e.delivery_id, e])), acked: [] as string[], revoked: 0 };
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
@@ -39,7 +39,7 @@ function fakeWolleen(opts: { pendingPolls?: number; pending?: PurchaseEvent[]; e
       state.claimed = true;
       return Response.json({ status: 'linked', player_id: 'p1', player_token: state.validToken });
     }
-    if (headers['wolleen-player-token'] !== state.validToken) {
+    if (headers['devappstore-player-token'] !== state.validToken) {
       return Response.json({ error: { code: 'player_token_required', message: 'Jeton joueur requis' } }, { status: 401 });
     }
     if (path === '/api/v1/player-tokens' && method === 'DELETE') {
@@ -74,12 +74,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const client = (srv: ReturnType<typeof fakeWolleen>, storage = memStorage(), extra: Record<string, unknown> = {}) =>
-  new Wolleen({ publishableKey: PUB, baseUrl: BASE, fetch: srv.fetch, storage, reconnectDelayMs: 5, maxReconnectDelayMs: 20, ...extra });
+const client = (srv: ReturnType<typeof fakeDevAppStore>, storage = memStorage(), extra: Record<string, unknown> = {}) =>
+  new DevAppStore({ publishableKey: PUB, baseUrl: BASE, fetch: srv.fetch, storage, reconnectDelayMs: 5, maxReconnectDelayMs: 20, ...extra });
 
 describe('clé publique', () => {
   it('sans jeton : aucun appel aux livraisons, erreur player_token_required', async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const w = client(srv);
     expect(w.keyType).toBe('publishable');
     expect(w.isLinked('p1')).toBe(false);
@@ -88,32 +88,32 @@ describe('clé publique', () => {
   });
 
   it('liaison : code + link_request_id, interrogation jusqu’au jeton, mémorisé dans le storage', async () => {
-    const srv = fakeWolleen({ pendingPolls: 2 });
+    const srv = fakeDevAppStore({ pendingPolls: 2 });
     const storage = memStorage();
     const w = client(srv, storage);
     const link = await w.requestLinkCode('p1', 'Ali');
     expect(link).toMatchObject({ code: 'K7QF-M2XA', link_request_id: 'lnc_req1' });
     const token = await w.waitForLink(link, { intervalMs: 1000, timeoutMs: 10_000 });
-    expect(token).toBe('wk_pt_ok');
+    expect(token).toBe('das_pt_ok');
     expect(srv.state.polls).toBe(3);
-    expect(storage.mem.get('wolleen:player-token:p1')).toBe('wk_pt_ok');
+    expect(storage.mem.get('devappstore:player-token:p1')).toBe('das_pt_ok');
     expect(w.isLinked('p1')).toBe(true);
     // Un nouveau client (relance du jeu) retrouve le jeton.
-    expect(client(srv, storage).getPlayerToken('p1')).toBe('wk_pt_ok');
+    expect(client(srv, storage).getPlayerToken('p1')).toBe('das_pt_ok');
   }, 15_000);
 
   it('code expiré ou attente annulée → erreur explicite', async () => {
-    const w = client(fakeWolleen({ expire: true }));
+    const w = client(fakeDevAppStore({ expire: true }));
     await expect(w.waitForLink('lnc_req1')).rejects.toMatchObject({ code: 'link_expired' });
-    const w2 = client(fakeWolleen({ pendingPolls: 100 }));
+    const w2 = client(fakeDevAppStore({ pendingPolls: 100 }));
     const ctrl = new AbortController();
     const p = w2.waitForLink('lnc_req1', { intervalMs: 1000, signal: ctrl.signal });
     ctrl.abort();
-    await expect(p).rejects.toBeInstanceOf(WolleenError);
+    await expect(p).rejects.toBeInstanceOf(DevAppStoreError);
   });
 
   it('onPurchase attend la liaison puis démarre seul ; jeton en en-tête, jamais dans une URL', async () => {
-    const srv = fakeWolleen({ pending: [purchase('dlv_1')] });
+    const srv = fakeDevAppStore({ pending: [purchase('dlv_1')] });
     const onError = vi.fn();
     const w = client(srv, memStorage(), { onError });
     const handler = vi.fn();
@@ -128,21 +128,21 @@ describe('clé publique', () => {
     await vi.waitFor(() => expect(sub.connected).toBe(true));
     expect(handler).toHaveBeenCalledTimes(1);
     for (const c of srv.calls) {
-      expect(c.url).not.toContain('wk_pub');
-      expect(c.url).not.toContain('wk_pt');
-      if (c.url.includes('/deliveries')) expect(c.headers['wolleen-player-token']).toBe('wk_pt_ok');
+      expect(c.url).not.toContain('das_pub');
+      expect(c.url).not.toContain('das_pt');
+      if (c.url.includes('/deliveries')) expect(c.headers['devappstore-player-token']).toBe('das_pt_ok');
     }
   });
 
   it('jeton révoqué : oublié, abonnement en attente, reprise après une nouvelle liaison', async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const storage = memStorage();
-    storage.mem.set('wolleen:player-token:p1', 'wk_pt_ancien'); // jeton révoqué côté serveur
+    storage.mem.set('devappstore:player-token:p1', 'das_pt_ancien'); // jeton révoqué côté serveur
     const onError = vi.fn();
     const w = client(srv, storage, { onError });
     const sub = w.onPurchase('p1', () => {});
     subs.push(sub);
-    await vi.waitFor(() => expect(storage.mem.has('wolleen:player-token:p1')).toBe(false));
+    await vi.waitFor(() => expect(storage.mem.has('devappstore:player-token:p1')).toBe(false));
     expect(w.isLinked('p1')).toBe(false);
     const streamCalls = () => srv.calls.filter((c) => c.url.includes('/stream')).length;
     const before = streamCalls();
@@ -150,27 +150,27 @@ describe('clé publique', () => {
     expect(streamCalls()).toBe(before); // pas de boucle de reconnexion sans jeton
 
     srv.state.pending.set('dlv_2', purchase('dlv_2'));
-    w.setPlayerToken('p1', 'wk_pt_ok');
+    w.setPlayerToken('p1', 'das_pt_ok');
     await vi.waitFor(() => expect(srv.state.acked).toEqual(['dlv_2']));
   });
 
   it('unlink révoque le jeton côté serveur puis l’oublie', async () => {
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const storage = memStorage();
     const w = client(srv, storage);
-    w.setPlayerToken('p1', 'wk_pt_ok');
+    w.setPlayerToken('p1', 'das_pt_ok');
     expect(await w.unlink('p1')).toBe(1);
     expect(srv.state.revoked).toBe(1);
     expect(srv.calls.at(-1)).toMatchObject({ method: 'DELETE', url: `${BASE}/api/v1/player-tokens` });
-    expect(storage.mem.has('wolleen:player-token:p1')).toBe(false);
+    expect(storage.mem.has('devappstore:player-token:p1')).toBe(false);
   });
 
   it("n'utilise jamais l'EventSource natif (pas d'en-têtes → la clé finirait dans l'URL)", async () => {
     const constructed: string[] = [];
     vi.stubGlobal('EventSource', class { constructor(url: string) { constructed.push(url); } });
-    const srv = fakeWolleen();
+    const srv = fakeDevAppStore();
     const w = client(srv, memStorage(), { transport: 'eventsource' });
-    w.setPlayerToken('p1', 'wk_pt_ok');
+    w.setPlayerToken('p1', 'das_pt_ok');
     const sub = w.onPurchase('p1', () => {});
     subs.push(sub);
     await vi.waitFor(() => expect(sub.connected).toBe(true));
@@ -178,8 +178,8 @@ describe('clé publique', () => {
   });
 
   it('exige une clé', () => {
-    expect(() => new Wolleen({})).toThrow();
-    expect(new Wolleen({ apiKey: 'wk_pub_x', fetch: (async () => new Response()) as typeof fetch }).keyType).toBe('publishable');
-    expect(new Wolleen({ apiKey: 'wk_secret_x', fetch: (async () => new Response()) as typeof fetch }).keyType).toBe('secret');
+    expect(() => new DevAppStore({})).toThrow();
+    expect(new DevAppStore({ apiKey: 'das_pub_x', fetch: (async () => new Response()) as typeof fetch }).keyType).toBe('publishable');
+    expect(new DevAppStore({ apiKey: 'das_secret_x', fetch: (async () => new Response()) as typeof fetch }).keyType).toBe('secret');
   });
 });

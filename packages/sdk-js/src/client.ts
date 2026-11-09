@@ -9,73 +9,73 @@ import type {
   PurchaseSubscription,
   StorageLike,
   WaitForLinkOptions,
-  WolleenOptions,
+  DevAppStoreOptions,
 } from './types.js';
 
 export const SDK_VERSION = '0.2.0';
-const DEFAULT_BASE_URL = 'https://wolleen.com';
+const DEFAULT_BASE_URL = 'https://devappstore.com';
 const PROCESSED_KEEP = 500;
 /** En-tête du jeton joueur (clé publique). */
-export const PLAYER_TOKEN_HEADER = 'Wolleen-Player-Token';
-const PUBLISHABLE_PREFIX = 'wk_pub_';
+export const PLAYER_TOKEN_HEADER = 'DevAppStore-Player-Token';
+const PUBLISHABLE_PREFIX = 'das_pub_';
 /** Sans flux temps réel possible, rattrapage périodique. */
 const FALLBACK_POLL_MS = 30_000;
 
-/** Erreur renvoyée par l'API Wolleen (`{ error: { code, message } }`) ou par le transport. */
-export class WolleenError extends Error {
+/** Erreur renvoyée par l'API Dev AppStore (`{ error: { code, message } }`) ou par le transport. */
+export class DevAppStoreError extends Error {
   constructor(
     message: string,
     readonly status: number,
     readonly code: string,
   ) {
     super(message);
-    this.name = 'WolleenError';
+    this.name = 'DevAppStoreError';
   }
 }
 
 /** Erreurs qui ne se corrigent pas en réessayant (clé invalide, jeton absent, paramètre manquant…). */
 function isFatal(e: unknown) {
-  return e instanceof WolleenError && (e.status === 400 || e.status === 401 || e.status === 403 || e.status === 404);
+  return e instanceof DevAppStoreError && (e.status === 400 || e.status === 401 || e.status === 403 || e.status === 404);
 }
 
 const tokenRequired = () =>
-  new WolleenError('Compte joueur non lié sur cet appareil : appelez requestLinkCode() puis waitForLink().', 401, 'player_token_required');
+  new DevAppStoreError('Compte joueur non lié sur cet appareil : appelez requestLinkCode() puis waitForLink().', 401, 'player_token_required');
 
 const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) return reject(new WolleenError('Attente annulée.', 0, 'aborted'));
+    if (signal?.aborted) return reject(new DevAppStoreError('Attente annulée.', 0, 'aborted'));
     const t = setTimeout(() => {
       signal?.removeEventListener('abort', onAbort);
       resolve();
     }, ms);
     const onAbort = () => {
       clearTimeout(t);
-      reject(new WolleenError('Attente annulée.', 0, 'aborted'));
+      reject(new DevAppStoreError('Attente annulée.', 0, 'aborted'));
     };
     signal?.addEventListener('abort', onAbort, { once: true });
   });
 
 /**
- * Client Wolleen pour le jeu (navigateur, WebView, Node ≥ 20). Aucune dépendance.
+ * Client Dev AppStore pour le jeu (navigateur, WebView, Node ≥ 20). Aucune dépendance.
  *
  * Jeu SANS serveur — clé publique + jeton joueur :
  * ```ts
- * const wolleen = new Wolleen({ publishableKey: 'wk_pub_…', baseUrl: 'https://wolleen.com', storage: localStorage });
- * if (!wolleen.isLinked(playerId)) {
- *   const link = await wolleen.requestLinkCode(playerId, playerName); // afficher link.code
- *   await wolleen.waitForLink(link);                                  // jeton joueur mémorisé
+ * const devappstore = new DevAppStore({ publishableKey: 'das_pub_…', baseUrl: 'https://devappstore.com', storage: localStorage });
+ * if (!devappstore.isLinked(playerId)) {
+ *   const link = await devappstore.requestLinkCode(playerId, playerName); // afficher link.code
+ *   await devappstore.waitForLink(link);                                  // jeton joueur mémorisé
  * }
- * const sub = wolleen.onPurchase(playerId, async (e) => inventory.apply(e));
+ * const sub = devappstore.onPurchase(playerId, async (e) => inventory.apply(e));
  * ```
- * Serveur du studio (Node) — clé secrète : `new Wolleen({ apiKey: process.env.WOLLEEN_SECRET_KEY })`.
+ * Serveur du studio (Node) — clé secrète : `new DevAppStore({ apiKey: process.env.DEVAPPSTORE_SECRET_KEY })`.
  */
-export class Wolleen {
+export class DevAppStore {
   readonly baseUrl: string;
   /** `publishable` : clé publique (client du jeu, jeton joueur requis) ; `secret` : clé secrète (serveur). */
   readonly keyType: 'publishable' | 'secret';
   private readonly key: string;
-  private readonly opts: Required<Pick<WolleenOptions, 'autoAck' | 'reconnectDelayMs' | 'maxReconnectDelayMs' | 'idleTimeoutMs' | 'timeoutMs'>> &
-    WolleenOptions;
+  private readonly opts: Required<Pick<DevAppStoreOptions, 'autoAck' | 'reconnectDelayMs' | 'maxReconnectDelayMs' | 'idleTimeoutMs' | 'timeoutMs'>> &
+    DevAppStoreOptions;
   private readonly fetchImpl: typeof fetch;
   /** delivery_id déjà crédités, par joueur. */
   private readonly processed = new Map<string, Set<string>>();
@@ -83,9 +83,9 @@ export class Wolleen {
   private readonly tokens = new Map<string, string | null>();
   private readonly tokenListeners = new Map<string, Set<(token: string | null) => void>>();
 
-  constructor(options: WolleenOptions) {
+  constructor(options: DevAppStoreOptions) {
     const key = options?.publishableKey || options?.apiKey;
-    if (!key) throw new Error('Wolleen : publishableKey (client du jeu) ou apiKey (serveur) est obligatoire.');
+    if (!key) throw new Error('Dev AppStore : publishableKey (client du jeu) ou apiKey (serveur) est obligatoire.');
     this.key = key;
     this.keyType = key.startsWith(PUBLISHABLE_PREFIX) ? 'publishable' : 'secret';
     this.opts = {
@@ -98,14 +98,14 @@ export class Wolleen {
     };
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     const f = options.fetch ?? (typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : undefined);
-    if (!f) throw new Error('Wolleen : aucune implémentation fetch disponible (passez options.fetch).');
+    if (!f) throw new Error('Dev AppStore : aucune implémentation fetch disponible (passez options.fetch).');
     this.fetchImpl = f;
   }
 
   // ---------------------------------------------------------- Liaison et jeton joueur
 
   /**
-   * Demande un code de liaison à afficher dans le jeu ; le joueur le saisit sur Wolleen.
+   * Demande un code de liaison à afficher dans le jeu ; le joueur le saisit sur Dev AppStore.
    * Avec la clé publique, passez ensuite le résultat à `waitForLink` pour obtenir le jeton joueur.
    */
   requestLinkCode(playerId: string, playerName?: string): Promise<LinkCode> {
@@ -122,13 +122,13 @@ export class Wolleen {
   }
 
   /**
-   * Attend que le joueur ait saisi le code sur Wolleen (interrogation toutes les 3 s) et renvoie le jeton joueur
+   * Attend que le joueur ait saisi le code sur Dev AppStore (interrogation toutes les 3 s) et renvoie le jeton joueur
    * (clé publique, mémorisé : `onPurchase` démarre alors tout seul) ou null (clé secrète : la liaison est faite).
-   * Lève `WolleenError` : `link_expired` (code expiré), `link_already_claimed`, `link_timeout`, `aborted`.
+   * Lève `DevAppStoreError` : `link_expired` (code expiré), `link_already_claimed`, `link_timeout`, `aborted`.
    */
   async waitForLink(link: LinkCode | string, options: WaitForLinkOptions = {}): Promise<string | null> {
     const id = typeof link === 'string' ? link : link.link_request_id;
-    if (!id) throw new WolleenError('Réponse sans link_request_id : mettez Wolleen à jour.', 0, 'no_link_request');
+    if (!id) throw new DevAppStoreError('Réponse sans link_request_id : mettez Dev AppStore à jour.', 0, 'no_link_request');
     const interval = Math.max(1000, options.intervalMs ?? 3000);
     const expires = typeof link === 'string' ? NaN : Date.parse(link.expires_at);
     const deadline = Date.now() + (options.timeoutMs ?? (Number.isFinite(expires) ? Math.max(0, expires - Date.now()) + 30_000 : 11 * 60_000));
@@ -138,10 +138,10 @@ export class Wolleen {
       if (r.status === 'claimed') {
         const known = r.player_id ? this.getPlayerToken(r.player_id) : null;
         if (known) return known;
-        throw new WolleenError('Le jeton de cette liaison a déjà été délivré : demandez un nouveau code.', 409, 'link_already_claimed');
+        throw new DevAppStoreError('Le jeton de cette liaison a déjà été délivré : demandez un nouveau code.', 409, 'link_already_claimed');
       }
-      if (r.status === 'expired') throw new WolleenError('Code expiré : demandez-en un nouveau.', 410, 'link_expired');
-      if (Date.now() + interval > deadline) throw new WolleenError('Le code n’a pas été saisi à temps.', 408, 'link_timeout');
+      if (r.status === 'expired') throw new DevAppStoreError('Code expiré : demandez-en un nouveau.', 410, 'link_expired');
+      if (Date.now() + interval > deadline) throw new DevAppStoreError('Le code n’a pas été saisi à temps.', 408, 'link_timeout');
       await sleep(interval, options.signal);
     }
   }
@@ -150,7 +150,7 @@ export class Wolleen {
   getPlayerToken(playerId: string): string | null {
     if (!this.tokens.has(playerId)) {
       const stored = safeGet(this.opts.storage, tokenKey(playerId));
-      this.tokens.set(playerId, stored && stored.startsWith('wk_pt_') ? stored : null);
+      this.tokens.set(playerId, stored && stored.startsWith('das_pt_') ? stored : null);
     }
     return this.tokens.get(playerId) ?? null;
   }
@@ -190,7 +190,7 @@ export class Wolleen {
       const r = await this.request<{ revoked: number }>('DELETE', '/api/v1/player-tokens', undefined, playerId);
       return r?.revoked ?? 0;
     } catch (e) {
-      if (e instanceof WolleenError && e.code === 'player_token_required') return 0; // déjà révoqué
+      if (e instanceof DevAppStoreError && e.code === 'player_token_required') return 0; // déjà révoqué
       throw e;
     } finally {
       this.setPlayerToken(playerId, null);
@@ -237,7 +237,7 @@ export class Wolleen {
         signal: ctrl.signal,
       });
     } catch (e) {
-      throw new WolleenError(`Wolleen injoignable : ${e instanceof Error ? e.message : String(e)}`, 0, 'network_error');
+      throw new DevAppStoreError(`Dev AppStore injoignable : ${e instanceof Error ? e.message : String(e)}`, 0, 'network_error');
     } finally {
       clearTimeout(timer);
     }
@@ -250,7 +250,7 @@ export class Wolleen {
     }
     if (!res.ok) {
       const err = (json as { error?: { code?: string; message?: string } } | undefined)?.error;
-      const error = new WolleenError(err?.message ?? `HTTP ${res.status}`, res.status, err?.code ?? 'http_error');
+      const error = new DevAppStoreError(err?.message ?? `HTTP ${res.status}`, res.status, err?.code ?? 'http_error');
       // Jeton révoqué ou invalide : on l'oublie, le jeu doit refaire la liaison.
       if (error.code === 'player_token_required' && playerId !== undefined && headers[PLAYER_TOKEN_HEADER]) this.setPlayerToken(playerId, null);
       throw error;
@@ -269,7 +269,7 @@ export class Wolleen {
    * un jeton révoqué le remet en attente.
    */
   onPurchase(playerId: string, handler: PurchaseHandler): PurchaseSubscription {
-    if (!playerId) throw new Error('Wolleen : playerId est obligatoire.');
+    if (!playerId) throw new Error('Dev AppStore : playerId est obligatoire.');
     return new Subscription(this, playerId, handler);
   }
 
@@ -325,8 +325,8 @@ export class Wolleen {
   }
 }
 
-const storageKey = (playerId: string) => `wolleen:processed:${playerId}`;
-const tokenKey = (playerId: string) => `wolleen:player-token:${playerId}`;
+const storageKey = (playerId: string) => `devappstore:processed:${playerId}`;
+const tokenKey = (playerId: string) => `devappstore:player-token:${playerId}`;
 function safeGet(s: StorageLike | null | undefined, k: string) {
   try {
     return s?.getItem(k) ?? null;
@@ -372,7 +372,7 @@ class Subscription implements PurchaseSubscription {
   private readonly detach: Array<() => void> = [];
 
   constructor(
-    private readonly client: Wolleen,
+    private readonly client: DevAppStore,
     private readonly playerId: string,
     private readonly handler: PurchaseHandler,
   ) {
@@ -519,7 +519,7 @@ class Subscription implements PurchaseSubscription {
     if (t.kind === 'fetch') this.connectFetch();
     else if (t.kind === 'eventsource') this.connectEventSource(t.ctor);
     else if (!this.pollTimer) {
-      this.client._reportError(new WolleenError('Flux temps réel indisponible ici : rattrapage toutes les 30 s.', 0, 'realtime_unavailable'));
+      this.client._reportError(new DevAppStoreError('Flux temps réel indisponible ici : rattrapage toutes les 30 s.', 0, 'realtime_unavailable'));
       this.pollTimer = setInterval(() => this.catchUp().catch(() => {}), FALLBACK_POLL_MS);
     }
   }
@@ -574,7 +574,7 @@ class Subscription implements PurchaseSubscription {
         } catch {
           /* corps non JSON */
         }
-        throw new WolleenError(message, res.status, code);
+        throw new DevAppStoreError(message, res.status, code);
       }
       this.onOpen();
       if (this.attemptedBefore) this.catchUp().catch(() => {});
@@ -595,7 +595,7 @@ class Subscription implements PurchaseSubscription {
       if (isFatal(e)) {
         this._connected = false;
         // Jeton révoqué : on l'oublie (l'abonnement se remet en attente de liaison). Clé invalide : on arrête.
-        if (e instanceof WolleenError && e.code === 'player_token_required') this.client.setPlayerToken(this.playerId, null);
+        if (e instanceof DevAppStoreError && e.code === 'player_token_required') this.client.setPlayerToken(this.playerId, null);
         return;
       }
     }

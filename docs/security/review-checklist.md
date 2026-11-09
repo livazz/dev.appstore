@@ -1,4 +1,4 @@
-# Wolleen — checklist de revue de sécurité (vague 2)
+# Dev AppStore — checklist de revue de sécurité (vague 2)
 
 Checklist **concrète et vérifiable** à appliquer au code livré par la vague 1. Chaque point renvoie aux menaces (`T-…`)
 et défauts (`D-…`) de [`threat-model.md`](./threat-model.md).
@@ -12,8 +12,8 @@ et défauts (`D-…`) de [`threat-model.md`](./threat-model.md).
 3. Un point **P0 en KO bloque la mise en production**. Un point P1 en KO bloque l'ouverture publique.
 4. Quand un point demande un test, le test doit être **ajouté au dépôt** (vitest, `createTestDb()`), pas seulement exécuté à la main.
 
-Conventions : `$W=apps/web/src`, `$API=$W/app/api`. Clés secrètes de démo : `wk_secret_demo_crystal_clash` (jeu `gam_crystal`),
-`wk_secret_demo_pixel_farm` (jeu `gam_farm`) ; clés publiques `wk_pub_demo_*` ; serveur local `http://localhost:3000`.
+Conventions : `$W=apps/web/src`, `$API=$W/app/api`. Clés secrètes de démo : `das_secret_demo_crystal_clash` (jeu `gam_crystal`),
+`das_secret_demo_pixel_farm` (jeu `gam_farm`) ; clés publiques `das_pub_demo_*` ; serveur local `http://localhost:3000`.
 
 ```bash
 # Inventaire de départ : toutes les surfaces d'entrée à couvrir
@@ -29,22 +29,22 @@ rg -n "process\.env\." apps/web/src packages                                    
 
 | ID | Vérification | Comment vérifier | Réf. | Prio |
 |---|---|---|---|---|
-| CHK-CFG-01 | En production, l'application refuse de démarrer si `DATABASE_URL` est vide (pas de repli PGlite). | Lire `packages/db/src/index.ts` ; `NODE_ENV=production DATABASE_URL= node -e "require('@wolleen/db')"` (ou équivalent) doit échouer. | D-17, T-PLT-01 | P1 |
+| CHK-CFG-01 | En production, l'application refuse de démarrer si `DATABASE_URL` est vide (pas de repli PGlite). | Lire `packages/db/src/index.ts` ; `NODE_ENV=production DATABASE_URL= node -e "require('@devappstore/db')"` (ou équivalent) doit échouer. | D-17, T-PLT-01 | P1 |
 | CHK-CFG-02 | Les variables d'environnement serveur sont validées au démarrage (zod) : `AUTH_SECRET` ≥ 32 octets et ≠ `change-me`, `STRIPE_WEBHOOK_SECRET` présent si `STRIPE_SECRET_KEY` l'est, `CRON_SECRET` présent, `PLATFORM_FEE_BPS` entier 0–3000, `APP_URL` en `https://` en production. | `rg -n "AUTH_SECRET|CRON_SECRET|PLATFORM_FEE_BPS|STRIPE_" apps/web/src` → un module unique de lecture validée ; test unitaire des cas invalides. | D-16, T-AUTH-02, T-PAY-07 | P0 |
 | CHK-CFG-03 | `.env.example` liste toutes les variables utilisées (dont `CRON_SECRET`) sans valeur exploitable. | Comparer `rg -o "process\.env\.[A-Z_]+" -N apps/web/src packages \| sort -u` avec `.env.example`. | D-16 | P2 |
-| CHK-CFG-04 | `npm run db:seed` refuse de s'exécuter en production ; aucune clé `wk_secret_demo*` / `wk_test_demo*` (anciennes) / `whsec_demo*` n'est acceptée quand `NODE_ENV=production`. | Lire `packages/db/src/seed.ts` (garde en tête de `main`) ; test : `authenticateGame` rejette `wk_test_` en mode production si c'est la politique retenue. | T-PLT-02 | P1 |
-| CHK-CFG-05 | Aucun secret réel committé. | `git log -p \| rg -n "sk_live_|rk_live_|whsec_[A-Za-z0-9]{20,}|wk_live_"` → vide. | A5 | P0 |
-| CHK-CFG-06 | Le stub de session `wolleen_demo_user` a disparu, ou lève une erreur si `NODE_ENV=production`. | `rg -n "wolleen_demo_user|usr_demo_player" apps/web/src` → uniquement dans des tests / la garde. | D-01, T-AUTH-01 | P0 |
+| CHK-CFG-04 | `npm run db:seed` refuse de s'exécuter en production ; aucune clé `das_secret_demo*` / `das_test_demo*` (anciennes) / `whsec_demo*` n'est acceptée quand `NODE_ENV=production`. | Lire `packages/db/src/seed.ts` (garde en tête de `main`) ; test : `authenticateGame` rejette `das_test_` en mode production si c'est la politique retenue. | T-PLT-02 | P1 |
+| CHK-CFG-05 | Aucun secret réel committé. | `git log -p \| rg -n "sk_live_|rk_live_|whsec_[A-Za-z0-9]{20,}|das_live_"` → vide. | A5 | P0 |
+| CHK-CFG-06 | Le stub de session `devappstore_demo_user` a disparu, ou lève une erreur si `NODE_ENV=production`. | `rg -n "devappstore_demo_user|usr_demo_player" apps/web/src` → uniquement dans des tests / la garde. | D-01, T-AUTH-01 | P0 |
 
 ## 2. Authentification et session
 
 | ID | Vérification | Comment vérifier | Réf. | Prio |
 |---|---|---|---|---|
 | CHK-AUTH-01 | `getCurrentUser()` renvoie `null` sans session valide (aucun utilisateur par défaut). | Test : requête sans cookie sur `/account` → redirection `/login?next=%2Faccount`. `curl -sI localhost:3000/account`. | D-01 | P0 |
-| CHK-AUTH-02 | Un cookie forgé (ex. `wolleen_demo_user=usr_demo_dev`, ou jeton de session aléatoire) ne donne aucun accès. | `curl -s -b "wolleen_demo_user=usr_demo_dev" localhost:3000/studio -o /dev/null -w "%{http_code} %{redirect_url}\n"` → redirection login. | T-AUTH-01 | P0 |
+| CHK-AUTH-02 | Un cookie forgé (ex. `devappstore_demo_user=usr_demo_dev`, ou jeton de session aléatoire) ne donne aucun accès. | `curl -s -b "devappstore_demo_user=usr_demo_dev" localhost:3000/studio -o /dev/null -w "%{http_code} %{redirect_url}\n"` → redirection login. | T-AUTH-01 | P0 |
 | CHK-AUTH-03 | Cookie de session : `HttpOnly`, `Secure` (prod), `SameSite=Lax` ou `Strict`, `Path=/`. | Inspecter `Set-Cookie` après connexion (`curl -si -X POST …/api/auth/sign-in/email`). Config Better Auth (`advanced.useSecureCookies`, `defaultCookieAttributes`). | T-AUTH-05 | P1 |
 | CHK-AUTH-04 | Limitation de débit active sur connexion, inscription, réinitialisation. | Config Better Auth `rateLimit` ; 20 échecs de connexion rapides → `429`. | T-AUTH-03 | P1 |
-| CHK-AUTH-05 | Messages d'erreur de connexion / inscription identiques que le compte existe ou non. | Comparer les réponses pour un e-mail existant (`joueur@wolleen.test`) et inexistant. | T-AUTH-03 | P2 |
+| CHK-AUTH-05 | Messages d'erreur de connexion / inscription identiques que le compte existe ou non. | Comparer les réponses pour un e-mail existant (`joueur@devappstore.test`) et inexistant. | T-AUTH-03 | P2 |
 | CHK-AUTH-06 | Paramètre `next` : seuls les chemins relatifs sont suivis. | Test unitaire de la fonction de nettoyage : `//evil.tld`, `/\evil.tld`, `https://evil.tld`, `/%2F%2Fevil.tld`, `javascript:alert(1)` → `/`. | T-AUTH-06 | P1 |
 | CHK-AUTH-07 | Chaque route handler `POST/PUT/PATCH/DELETE` authentifié par cookie vérifie `Origin` (ou passe par une server action). | Pour chaque fichier listé par l'inventaire : présence d'un contrôle d'origine ; `curl -X POST -H "Origin: https://evil.tld" -b <cookie> localhost:3000/api/checkout` → `403`. | T-AUTH-05 | P1 |
 | CHK-AUTH-08 | Comptes studio : e-mail vérifié avant accès aux clés ; 2FA disponible (obligatoire `owner`/`admin` avant ouverture publique). | Config Better Auth (`emailVerification`, plugin `twoFactor`) ; parcours `/studio/signup`. | T-AUTH-04 | P1 |
@@ -70,7 +70,7 @@ un fichier de test avec `createTestDb()`.
 
 | ID | Vérification | Comment vérifier | Réf. | Prio |
 |---|---|---|---|---|
-| CHK-API-01 | Toutes les routes `/api/v1/*` appellent `authenticateGame` et répondent `401` sans clé, avec clé invalide, avec `Bearer` mal formé. | `for p in link-codes deliveries deliveries/stream; do curl -s -o /dev/null -w "$p %{http_code}\n" localhost:3000/api/v1/$p; done` → 401 ; idem avec `-H "Authorization: Bearer wk_faux"`. | T-DLV-04 | P0 |
+| CHK-API-01 | Toutes les routes `/api/v1/*` appellent `authenticateGame` et répondent `401` sans clé, avec clé invalide, avec `Bearer` mal formé. | `for p in link-codes deliveries deliveries/stream; do curl -s -o /dev/null -w "$p %{http_code}\n" localhost:3000/api/v1/$p; done` → 401 ; idem avec `-H "Authorization: Bearer das_faux"`. | T-DLV-04 | P0 |
 | CHK-API-02 | Toute requête de l'API v1 est restreinte au jeu de la clé : aucun `game_id` n'est lu dans la requête. | Lire chaque route : `game.id` provient d'`authenticateGame` ; test : clé `gam_farm` + `player_id` d'un joueur de `gam_crystal` → liste vide. | T-DLV-05, T-MT-04 | P0 |
 | CHK-API-03 | Un jeu `suspended` est refusé par `authenticateGame`. | Test vitest. | D-04 | P1 |
 | CHK-API-04 | La clé n'est jamais acceptée dans la query string ni journalisée. | `rg -n "searchParams.get\('(key|api_key|token)'\)" apps/web/src` → vide ; `rg -n "authorization" -i apps/web/src` → aucun `console.log` de l'en-tête. | T-DLV-04 | P1 |
@@ -79,7 +79,7 @@ un fichier de test avec `createTestDb()`.
 | CHK-API-07 | Rotation sans interruption possible (plusieurs clés actives, révocation, `last_used_at`). | Schéma + écran Intégration. | T-DLV-04 | P2 |
 | CHK-API-08 | Erreurs de l'API v1 au format `apiError` sans message d'exception brut ni pile. | `rg -n "apiError\(.*(e|err|error)\.message" apps/web/src` → vide. | T-PLT-04 | P2 |
 | CHK-API-09 | Limitation de débit par clé et par IP sur `/api/v1/*` (`429` + `Retry-After`). | Boucle de 200 requêtes → `429` observé. | T-PLT-06 | P1 |
-| CHK-API-10 | CORS : pas de `Access-Control-Allow-Origin` reflétant l'origine avec `Access-Control-Allow-Credentials: true`. | `curl -si -H "Origin: https://evil.tld" localhost:3000/api/v1/deliveries -H "Authorization: Bearer wk_pub_demo_pixel_farm"` → pas d'ACAO reflété + credentials. | T-DLV-05 | P1 |
+| CHK-API-10 | CORS : pas de `Access-Control-Allow-Origin` reflétant l'origine avec `Access-Control-Allow-Credentials: true`. | `curl -si -H "Origin: https://evil.tld" localhost:3000/api/v1/deliveries -H "Authorization: Bearer das_pub_demo_pixel_farm"` → pas d'ACAO reflété + credentials. | T-DLV-05 | P1 |
 
 ## 5. Liaison de compte
 
@@ -124,7 +124,7 @@ un fichier de test avec `createTestDb()`.
 | CHK-PAY-07 | Passage à `paid` par **transition conditionnelle** (`WHERE status='pending' … RETURNING`) ; `enqueueDelivery` appelé seulement si une ligne a changé. | Lecture ; test : traiter deux fois le même événement → une seule livraison, un seul appel au dispatcher. | T-PAY-04 | P0 |
 | CHK-PAY-08 | La commande est retrouvée par `stripeCheckoutSessionId` (unique) ; `payment_status === 'paid'`, `amount_total` et `currency` comparés à la commande ; événements asynchrones (`async_payment_succeeded/failed`) gérés. | Lecture ; test : événement signé avec un montant différent → commande non payée, alerte journalisée. | T-PAY-04 | P0 |
 | CHK-PAY-09 | La page `/checkout/success` ne marque rien comme payé (ou relit la session via l'API Stripe et applique la même transition conditionnelle). | Lecture ; visiter `/checkout/success?session_id=cs_faux` → aucune écriture. | T-PAY-06 | P0 |
-| CHK-PAY-10 | **Mode simulation impossible en production** : démarrage en échec si `NODE_ENV=production` et `STRIPE_SECRET_KEY` vide ; `sk_live_` exigé en production (sauf drapeau explicite de préproduction). | Lecture du module de config ; `NODE_ENV=production STRIPE_SECRET_KEY= npm run start -w @wolleen/web` → échec. | T-PAY-05 | P0 |
+| CHK-PAY-10 | **Mode simulation impossible en production** : démarrage en échec si `NODE_ENV=production` et `STRIPE_SECRET_KEY` vide ; `sk_live_` exigé en production (sauf drapeau explicite de préproduction). | Lecture du module de config ; `NODE_ENV=production STRIPE_SECRET_KEY= npm run start -w @devappstore/web` → échec. | T-PAY-05 | P0 |
 | CHK-PAY-11 | `/checkout/mock` : vérifie côté serveur que le mode simulation est actif, que la commande appartient à l'utilisateur courant et est `pending` ; utilise la même transition conditionnelle. | Tests : commande d'un autre utilisateur → refus ; mode Stripe actif → 404. | T-PAY-05 | P0 |
 | CHK-PAY-12 | `stripeAccountId` n'est écrit que par le flux d'onboarding Connect (compte créé côté serveur), réservé au rôle `owner` ; `stripeChargesEnabled` mis à jour par `account.updated` ou relecture API. | `rg -n "stripeAccountId" apps/web/src` → aucune écriture depuis une entrée utilisateur. | T-PAY-08 | P1 |
 | CHK-PAY-13 | Les erreurs Stripe ne sont pas renvoyées brutes au client ; pas de log du corps complet des événements. | Lecture. | T-PAY-11 | P2 |
@@ -135,7 +135,7 @@ un fichier de test avec `createTestDb()`.
 |---|---|---|---|---|
 | CHK-DLV-01 | `enqueueDelivery` refuse une commande non `paid`. | Test : commande `pending` → exception, aucune ligne `deliveries`. | D-06 | P0 |
 | CHK-DLV-02 | `enqueueDelivery` est réellement idempotent sous concurrence et renvoie l'ID existant (`insert … onConflictDoNothing().returning()` puis relecture). | Test : `Promise.all([enqueueDelivery(o), enqueueDelivery(o)])` → même ID, une seule ligne, un seul envoi. | D-07 | P1 |
-| CHK-DLV-03 | Le webhook sortant est signé par `signPayload(bodyExact, game.webhookSecret)` sur **la chaîne exacte envoyée** (pas de re-sérialisation entre signature et envoi) ; en-tête `Wolleen-Signature`. | Lecture du dispatcher ; test avec faux serveur qui vérifie via `verifySignature`. | T-DLV-01 | P0 |
+| CHK-DLV-03 | Le webhook sortant est signé par `signPayload(bodyExact, game.webhookSecret)` sur **la chaîne exacte envoyée** (pas de re-sérialisation entre signature et envoi) ; en-tête `DevAppStore-Signature`. | Lecture du dispatcher ; test avec faux serveur qui vérifie via `verifySignature`. | T-DLV-01 | P0 |
 | CHK-DLV-04 | Seul un **2xx** passe la livraison à `delivered` ; 3xx/4xx/5xx/timeout → relance selon `nextAttemptAt(attempts ≥ 1)` puis `failed` ; transitions via `canTransition`. | Tests : 302, 500, timeout ; vérifier `attempts` et `nextAttemptAt` (attention à `nextAttemptAt(0)` → `null`, D-14). | T-DLV-03, D-14 | P1 |
 | CHK-DLV-05 | Réservation atomique des livraisons dues (pas de double envoi par deux exécutions concurrentes du cron / dispatcher). | Lecture (`UPDATE … WHERE next_attempt_at <= now() … RETURNING` ou `FOR UPDATE SKIP LOCKED`) ; test : deux `dispatchDelivery(id)` simultanés → une seule requête HTTP. | T-DLV-03 | P1 |
 | CHK-DLV-06 | Canal créditeur défini : une livraison `delivered` par webhook n'est pas recréditée via le SDK (ou documentation + SDK imposant un magasin d'idempotence commun sur `delivery_id`). | Lecture de `GET /api/v1/deliveries` et du SDK ; décision écrite dans la doc d'intégration. | D-15 | P1 |
@@ -159,7 +159,7 @@ un fichier de test avec `createTestDb()`.
 | CHK-UPL-04 | Clé de stockage générée côté serveur (`newId` + extension du format réel) ; le nom de fichier client n'apparaît jamais dans le chemin. | Lecture ; `rg -n "\.name\b" $API/uploads` → pas utilisé dans un chemin. | T-UPL-02 | P0 |
 | CHK-UPL-05 | `GET /api/uploads/[...key]` : regex stricte sur la clé, `path.resolve` + vérification du préfixe racine ; refus de `..`, `%2e%2e`, `%2f`, `\`, `%00`, segments multiples non prévus. | `for k in ..%2F..%2F.env %2e%2e/%2e%2e/package.json ..\\..\\.env a/../../.env; do curl -s -o /dev/null -w "$k %{http_code}\n" "localhost:3000/api/uploads/$k"; done` → 400/404, jamais le contenu. | T-UPL-02 | P0 |
 | CHK-UPL-06 | En-têtes de service : `Content-Type` forcé selon le format stocké, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Cache-Control` adapté. | `curl -sI localhost:3000/api/uploads/<clé>`. | T-UPL-01 | P0 |
-| CHK-UPL-07 | `iconUrl`, `bannerUrl`, `models[].imageUrl` n'acceptent que des URL d'uploads Wolleen (ou `data:image/` du seed en dev). | Test sur l'action de l'éditeur : `https://pistage.tld/x.png`, `javascript:…` → refus. | T-UPL-05 | P2 |
+| CHK-UPL-07 | `iconUrl`, `bannerUrl`, `models[].imageUrl` n'acceptent que des URL d'uploads Dev AppStore (ou `data:image/` du seed en dev). | Test sur l'action de l'éditeur : `https://pistage.tld/x.png`, `javascript:…` → refus. | T-UPL-05 | P2 |
 | CHK-UPL-08 | Couleurs `ItemStyle` / `GameTheme` validées (`^#[0-9a-fA-F]{6}$` ou `transparent`), nombres bornés (`GRID_LIMITS`, `borderWidth`), `layout ∈ 1..6`, `bgType` énuméré. | Test : `bg1 = "red, url(https://pistage.tld/x)"` → refus. | T-UPL-06, D-18 | P2 |
 | CHK-UPL-09 | Aucun `dangerouslySetInnerHTML` sur du contenu studio/joueur ; `href` dynamiques limités à `https:`/chemins relatifs. | `rg -n "dangerouslySetInnerHTML" apps/web/src` → vide ou justifié (contenu statique) ; `rg -n "href=\{" apps/web/src` → revue. | T-UPL-07 | P1 |
 

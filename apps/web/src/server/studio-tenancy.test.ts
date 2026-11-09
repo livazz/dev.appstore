@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, hashApiKey } from '@wolleen/core';
-import { createTestDb } from '@wolleen/db/testing';
-import type { DB } from '@wolleen/db';
+import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, hashApiKey } from '@devappstore/core';
+import { createTestDb } from '@devappstore/db/testing';
+import type { DB } from '@devappstore/db';
 
 /*
  * Revue de sécurité (vague 2) — isolation multi-tenant de l'espace studio (CHK-MT-01/02/03/05/06, CHK-UPL-07).
@@ -13,8 +13,8 @@ import type { DB } from '@wolleen/db';
 const h = vi.hoisted(() => ({ db: null as unknown as DB, currentUser: null as string | null }));
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wolleen/db')>();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@devappstore/db')>();
   return {
     ...actual,
     get db() {
@@ -23,7 +23,7 @@ vi.mock('@wolleen/db', async (importOriginal) => {
   };
 });
 vi.mock('./session', async () => {
-  const { and, eq, games, studioMembers } = await import('@wolleen/db');
+  const { and, eq, games, studioMembers } = await import('@devappstore/db');
   const requireUser = async () => {
     if (!h.currentUser) throw new Error('NEXT_REDIRECT');
     return { id: h.currentUser, email: `${h.currentUser}@t.test`, name: h.currentUser };
@@ -47,7 +47,7 @@ vi.mock('./session', async () => {
 const actions = await import('./studio');
 const { saveLinkSettingsAction } = await import('@/components/studio/link-settings-actions');
 const { GET: exportSales } = await import('@/app/studio/games/[id]/sales/export/route');
-const { games, items, studioMembers, studios, user, eq } = await import('@wolleen/db');
+const { games, items, studioMembers, studios, user, eq } = await import('@devappstore/db');
 
 const FORBIDDEN = { ok: false, error: "Vous n'avez pas accès à ce jeu." };
 
@@ -68,7 +68,7 @@ const itemInput = {
 async function insertGame(id: string, studioId: string) {
   await h.db.insert(games).values({
     id, studioId, slug: id, name: `Jeu ${id}`, status: 'live', theme: DEFAULT_THEME, linkMethods: ['code'],
-    webhookSecret: `whsec_${id}`, apiKeyHash: hashApiKey(`wk_${id}`), apiKeyPrefix: 'wk_test',
+    webhookSecret: `whsec_${id}`, apiKeyHash: hashApiKey(`das_${id}`), apiKeyPrefix: 'das_test',
   });
   await h.db.insert(items).values([
     { id: `itm_${id}_1`, gameId: id, productId: 'p1', title: 'Original 1', priceCents: 499, position: 0, style: DEFAULT_ITEM_STYLE },

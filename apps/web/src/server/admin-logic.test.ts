@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveContext } from '@wolleen/emails';
+import { resolveContext } from '@devappstore/emails';
 import {
   auditTargetHref,
   can,

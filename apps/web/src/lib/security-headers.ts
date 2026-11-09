@@ -6,7 +6,7 @@
  * reste nécessaire pour script-src. Les autres directives sont strictes : aucune origine de script externe, pas de
  * plugin, pas d'intégration en cadre (clickjacking de « Est-ce bien vous ? », achat, intégration), formulaires vers
  * le site et Stripe uniquement. img-src accepte les data: (visuels de démo) et https: (avatar renvoyé par le studio
- * lors de la liaison) ; les visuels de boutique sont, eux, limités aux uploads Wolleen côté serveur (studio-logic).
+ * lors de la liaison) ; les visuels de boutique sont, eux, limités aux uploads Dev AppStore côté serveur (studio-logic).
  */
 
 export interface HeaderEntry {

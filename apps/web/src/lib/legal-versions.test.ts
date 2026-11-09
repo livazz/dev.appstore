@@ -18,7 +18,7 @@ describe('legal-versions', () => {
     for (const doc of LEGAL_DOCUMENTS) {
       expect(isLegalVersion(doc.version), doc.slug).toBe(true);
       expect(doc.href).toBe(`/legal/${doc.slug}`);
-      expect(doc.title).not.toMatch(/wolleen/i);
+      expect(doc.title).not.toMatch(/devappstore/i);
     }
   });
 

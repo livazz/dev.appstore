@@ -9,7 +9,7 @@ const notFound = () => corsError(404, 'delivery_not_found', 'Livraison introuvab
 
 /**
  * POST /api/v1/deliveries/{id}/ack → { ok: true } — idempotent ; 404 si la livraison n'appartient pas au jeu
- * (ni, avec la clé publique, au joueur du jeton et à son compte Wolleen).
+ * (ni, avec la clé publique, au joueur du jeton et à son compte Dev AppStore).
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const guard = await guardApi(req, 'ack');

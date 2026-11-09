@@ -1,9 +1,9 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_ITEM_STYLE } from '@wolleen/core';
-import { createTestDb } from '@wolleen/db/testing';
-import { eq, importRuns, items, storeCredentials, studioMembers, studios, user, type DB } from '@wolleen/db';
-import type { FetchLike } from '@wolleen/importers';
+import { DEFAULT_ITEM_STYLE } from '@devappstore/core';
+import { createTestDb } from '@devappstore/db/testing';
+import { eq, importRuns, items, storeCredentials, studioMembers, studios, user, type DB } from '@devappstore/db';
+import type { FetchLike } from '@devappstore/importers';
 import { createGameFor, createItemFor, deleteItemFor, StudioError } from './studio-logic';
 import { deriveKey } from './secrets';
 import {
@@ -19,7 +19,7 @@ import {
   regionFor,
   saveStoreCredentials,
   strikePrice,
-  toWolleenProductId,
+  toDevAppStoreProductId,
 } from './import-logic';
 
 let t: DB;
@@ -35,7 +35,7 @@ const googlePlay = {
     project_id: 'nova',
     private_key_id: 'abc',
     private_key: rsaPem,
-    client_email: 'wolleen-import@nova.iam.gserviceaccount.com',
+    client_email: 'devappstore-import@nova.iam.gserviceaccount.com',
     client_id: '1234',
     token_uri: 'https://oauth2.googleapis.com/token',
   }),
@@ -54,7 +54,7 @@ beforeAll(async () => {
 });
 
 describe('fonctions pures', () => {
-  it('prix web : remise puis palier, bornée à la grille Wolleen', () => {
+  it('prix web : remise puis palier, bornée à la grille Dev AppStore', () => {
     expect(priceForWeb(999, 2000)).toEqual({ suggestedCents: 799, webPriceCents: 799 });
     expect(priceForWeb(199, 2000)).toEqual({ suggestedCents: 149, webPriceCents: 149 });
     expect(priceForWeb(999, 0)).toEqual({ suggestedCents: 999, webPriceCents: 999 });
@@ -74,10 +74,10 @@ describe('fonctions pures', () => {
   });
 
   it('identifiant produit et quantité', () => {
-    expect(toWolleenProductId('com.nova.gems_100')).toBe('com.nova.gems_100');
-    expect(toWolleenProductId('vip:monthly')).toBe('vip.monthly');
-    expect(toWolleenProductId(':x')).toBe('x');
-    expect(toWolleenProductId('a'.repeat(80))).toHaveLength(64);
+    expect(toDevAppStoreProductId('com.nova.gems_100')).toBe('com.nova.gems_100');
+    expect(toDevAppStoreProductId('vip:monthly')).toBe('vip.monthly');
+    expect(toDevAppStoreProductId(':x')).toBe('x');
+    expect(toDevAppStoreProductId('a'.repeat(80))).toHaveLength(64);
     expect(guessQuantity('gems_1200', 'consumable')).toBe(1200);
     expect(guessQuantity('com.nova.gold.10000', 'consumable')).toBe(10000);
     expect(guessQuantity('gems_1200', 'non_consumable')).toBe(1);
@@ -150,7 +150,7 @@ describe('identifiants chiffrés', () => {
 
     const after = await deleteStoreCredentials(t, game.id, 'app_store');
     expect(after.app_store).toBeNull();
-    expect((await getCredentialStatus(t, game.id)).google_play?.hint).toContain('wolleen-import@nova.iam.gserviceaccount.com');
+    expect((await getCredentialStatus(t, game.id)).google_play?.hint).toContain('devappstore-import@nova.iam.gserviceaccount.com');
   });
 
   it('valide les identifiants (zod)', async () => {

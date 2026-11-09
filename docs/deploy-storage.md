@@ -1,8 +1,8 @@
 # Stockage des fichiers : Cloudflare R2 (ou tout S3 compatible)
 
 Complète `docs/deploy.md` § 5. En production (Vercel), le disque des fonctions est éphémère : les images
-téléversées (icônes, bannières, visuels d'articles) doivent aller dans un stockage objet. Wolleen fournit
-l'adaptateur `apps/web/src/server/storage-s3.ts`, activé par `WOLLEEN_STORAGE=s3`.
+téléversées (icônes, bannières, visuels d'articles) doivent aller dans un stockage objet. Dev AppStore fournit
+l'adaptateur `apps/web/src/server/storage-s3.ts`, activé par `DEVAPPSTORE_STORAGE=s3`.
 
 ## Fonctionnement
 
@@ -10,7 +10,7 @@ l'adaptateur `apps/web/src/server/storage-s3.ts`, activé par `WOLLEEN_STORAGE=s
 |---|---|
 | Téléversement | Le navigateur envoie l'image à `POST /api/uploads` (jamais directement au bucket). Le serveur la redimensionne en WebP (`image-upload.ts`) puis l'écrit dans le bucket par un `PUT` signé **AWS SigV4** (adressage *path-style* `<S3_ENDPOINT>/<S3_BUCKET>/<clé>`). |
 | En-têtes stockés | `Content-Type: image/webp` et `Cache-Control: public, max-age=31536000, immutable` : chaque clé contient un UUID, un fichier n'est jamais réécrit. |
-| URL renvoyée | `<S3_PUBLIC_URL>/<clé>` (ex. `https://cdn.wolleen.eu/item/usr_x/1b2c….webp`), enregistrée en base et servie directement par le CDN Cloudflare. `/api/uploads/[...key]` n'est plus sollicité (il relit le bucket par un `GET` signé si une ancienne URL y pointe encore). |
+| URL renvoyée | `<S3_PUBLIC_URL>/<clé>` (ex. `https://cdn.devappstore.eu/item/usr_x/1b2c….webp`), enregistrée en base et servie directement par le CDN Cloudflare. `/api/uploads/[...key]` n'est plus sollicité (il relit le bucket par un `GET` signé si une ancienne URL y pointe encore). |
 | Suppression | `S3Storage.delete(clé)` (`DELETE` signé, idempotent). |
 
 Le jeton R2 n'a donc besoin que des droits **lecture + écriture d'objets** sur ce seul bucket, et aucune règle CORS
@@ -20,33 +20,33 @@ n'est nécessaire pour l'upload.
 
 | Variable | Exemple R2 | Rôle |
 |---|---|---|
-| `WOLLEEN_STORAGE` | `s3` | `local` (défaut, disque `.data/uploads`) ou `s3` |
+| `DEVAPPSTORE_STORAGE` | `s3` | `local` (défaut, disque `.data/uploads`) ou `s3` |
 | `S3_ENDPOINT` | `https://<account_id>.eu.r2.cloudflarestorage.com` | Point d'accès S3 (sans le nom du bucket). Juridiction EU → sous-domaine `.eu.` |
 | `S3_REGION` | `auto` | Région de signature. `auto` pour R2 (défaut) ; région réelle pour AWS S3 (`eu-west-3`) |
-| `S3_BUCKET` | `wolleen-uploads` | Nom du bucket |
+| `S3_BUCKET` | `devappstore-uploads` | Nom du bucket |
 | `S3_ACCESS_KEY_ID` | — | *Access Key ID* du jeton d'API R2 |
 | `S3_SECRET_ACCESS_KEY` | — | *Secret Access Key* du jeton (secret : variable chiffrée Vercel) |
-| `S3_PUBLIC_URL` | `https://cdn.wolleen.eu` | URL publique du bucket ou du CDN, sans `/` final |
-| `NEXT_PUBLIC_S3_PUBLIC_URL` | `https://cdn.wolleen.eu` | **Même valeur** que `S3_PUBLIC_URL` (https). Les composants de boutique, rendus aussi dans le navigateur, n'affichent une image absolue que si elle est sous cette base et au format de clé des uploads (`<kind>/<uploadeur>/<id>.webp`, `safeImageUrl` dans `style-safety.ts`) ; toute autre URL (pistage) est ignorée. Injectée au build : reconstruire après un changement. Vérifiée au démarrage en production. |
+| `S3_PUBLIC_URL` | `https://cdn.devappstore.eu` | URL publique du bucket ou du CDN, sans `/` final |
+| `NEXT_PUBLIC_S3_PUBLIC_URL` | `https://cdn.devappstore.eu` | **Même valeur** que `S3_PUBLIC_URL` (https). Les composants de boutique, rendus aussi dans le navigateur, n'affichent une image absolue que si elle est sous cette base et au format de clé des uploads (`<kind>/<uploadeur>/<id>.webp`, `safeImageUrl` dans `style-safety.ts`) ; toute autre URL (pistage) est ignorée. Injectée au build : reconstruire après un changement. Vérifiée au démarrage en production. |
 
 ## 1. Créer le bucket R2
 
 1. Tableau de bord Cloudflare → **R2 Object Storage** → *Create bucket*.
-2. Nom : `wolleen-uploads` ; **Location** : *Specify jurisdiction* → **European Union (EU)** (RGPD, cf.
+2. Nom : `devappstore-uploads` ; **Location** : *Specify jurisdiction* → **European Union (EU)** (RGPD, cf.
    `docs/legal/rgpd.md` § 4). La juridiction ne peut pas être changée après coup.
 3. Classe de stockage : *Standard*.
-4. Pour la préproduction, créer un second bucket (`wolleen-uploads-staging`) avec son propre jeton.
+4. Pour la préproduction, créer un second bucket (`devappstore-uploads-staging`) avec son propre jeton.
 
 En ligne de commande (équivalent) :
 
 ```bash
-npx wrangler r2 bucket create wolleen-uploads --jurisdiction eu
+npx wrangler r2 bucket create devappstore-uploads --jurisdiction eu
 ```
 
 ## 2. Jeton d'API (clés S3)
 
 1. R2 → **Manage R2 API Tokens** → *Create API token*.
-2. Permissions : **Object Read & Write** ; *Specify bucket(s)* → `wolleen-uploads` uniquement.
+2. Permissions : **Object Read & Write** ; *Specify bucket(s)* → `devappstore-uploads` uniquement.
 3. TTL : illimité (ou rotation planifiée, voir plus bas) ; filtrage IP facultatif (Vercel n'a pas d'IP fixe).
 4. Copier l'*Access Key ID* → `S3_ACCESS_KEY_ID`, le *Secret Access Key* → `S3_SECRET_ACCESS_KEY`, et l'endpoint
    *S3 API* affiché pour la juridiction EU (`https://<account_id>.eu.r2.cloudflarestorage.com`) → `S3_ENDPOINT`.
@@ -79,7 +79,7 @@ si un client lit les images par `fetch()` / canvas depuis une autre origine (ex.
 ```json
 [
   {
-    "AllowedOrigins": ["https://wolleen.eu", "https://www.wolleen.eu"],
+    "AllowedOrigins": ["https://devappstore.eu", "https://www.devappstore.eu"],
     "AllowedMethods": ["GET", "HEAD"],
     "AllowedHeaders": ["*"],
     "MaxAgeSeconds": 86400
@@ -130,5 +130,5 @@ Créer un nouveau jeton, mettre à jour `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_K
 ## Migration des fichiers locaux existants
 
 Les images déjà téléversées en mode `local` ont des URL `/api/uploads/<clé>`. Les copier à l'identique dans le bucket
-(`rclone copy .data/uploads r2:wolleen-uploads`) : elles restent servies par `/api/uploads/[...key]`, qui relit alors
+(`rclone copy .data/uploads r2:devappstore-uploads`) : elles restent servies par `/api/uploads/[...key]`, qui relit alors
 le bucket. Les nouvelles images utilisent directement l'URL CDN.

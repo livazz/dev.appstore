@@ -16,8 +16,8 @@ export interface EmailContext {
 
 export const DEFAULT_CONTEXT: EmailContext = {
   appUrl: 'http://localhost:3000',
-  supportEmail: 'support@wolleen.com',
-  companyName: 'Wolleen SAS',
+  supportEmail: 'support@devappstore.com',
+  companyName: 'Dev AppStore SAS',
   timeZone: 'Europe/Paris',
 };
 

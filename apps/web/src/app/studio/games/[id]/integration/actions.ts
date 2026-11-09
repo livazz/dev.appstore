@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { z } from 'zod';
-import { randomToken } from '@wolleen/core';
-import { db, eq, games } from '@wolleen/db';
+import { randomToken } from '@devappstore/core';
+import { db, eq, games } from '@devappstore/db';
 import { generatePublishableKey, generateSecretApiKey } from '@/server/api-key';
 import { resumeParkedDeliveries, retryDelivery, retryDueDeliveries, sendTestWebhook, validateWebhookUrl } from '@/server/delivery';
 import { revokePlayerTokens } from '@/server/player-tokens';
@@ -28,7 +28,7 @@ async function guard(gameId: string): Promise<string | null> {
 }
 
 /**
- * Génère une nouvelle clé SECRÈTE (`wk_secret_…`) ; l'ancienne cesse immédiatement de fonctionner.
+ * Génère une nouvelle clé SECRÈTE (`das_secret_…`) ; l'ancienne cesse immédiatement de fonctionner.
  * La clé n'est renvoyée qu'une fois (seule son empreinte est stockée).
  */
 export async function regenerateApiKey(gameId: string): Promise<ActionResult<{ apiKey: string; prefix: string }>> {
@@ -40,7 +40,7 @@ export async function regenerateApiKey(gameId: string): Promise<ActionResult<{ a
   return { ok: true, apiKey: key, prefix };
 }
 
-/** Nouvelle clé PUBLIQUE (`wk_pub_…`) : les versions du jeu qui embarquent l'ancienne ne pourront plus lier de compte ni recevoir d'achats. */
+/** Nouvelle clé PUBLIQUE (`das_pub_…`) : les versions du jeu qui embarquent l'ancienne ne pourront plus lier de compte ni recevoir d'achats. */
 export async function regeneratePublishableKey(gameId: string): Promise<ActionResult<{ publishableKey: string }>> {
   const denied = await guard(gameId);
   if (denied) return { ok: false, error: denied };

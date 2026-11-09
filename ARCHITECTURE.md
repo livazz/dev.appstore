@@ -1,7 +1,7 @@
 # Dev AppStore — architecture
 
-> Nom commercial : **Dev AppStore** (logo : carré jaune « D »). Les identifiants techniques (`@wolleen/*`, cookies
-> `wolleen.*`, en-têtes `Wolleen-*`, variables `WOLLEEN_*`) portent encore l'ancien nom « Wolleen ».
+> Nom commercial : **Dev AppStore** (logo : carré jaune « D »), anciennement « Wolleen ». Identifiants techniques :
+> paquets `@devappstore/*`, cookies `devappstore.*`, en-têtes `DevAppStore-*`, variables `DEVAPPSTORE_*`, clés `das_*`.
 
 Place de marché web où les joueurs **cherchent leur jeu, lient leur compte de jeu, achètent**, et où
 **le jeu reçoit l'achat automatiquement**. Les studios configurent leur boutique (maquettes du PDF) et
@@ -25,7 +25,7 @@ gardent ~95 % du revenu au lieu de 70 %.
 | `prototype/` | Prototype front initial (référence visuelle de l'éditeur, NE PAS modifier ni importer) |
 
 Commandes : `npm install`, `npm run db:push`, `npm run db:seed`, `npm run dev` (http://localhost:3000),
-`npm test`, `npm run typecheck`, `npm run build -w @wolleen/web`, `npm run demo` (jeu de démo), `npm run test:e2e`.
+`npm test`, `npm run typecheck`, `npm run build -w @devappstore/web`, `npm run demo` (jeu de démo), `npm run test:e2e`.
 
 ## Règles pour toutes les tâches
 
@@ -35,12 +35,12 @@ Commandes : `npm install`, `npm run db:push`, `npm run db:seed`, `npm run dev` (
   (`packages/db/src/schema/*`, `src/server/*.ts` marqués CONTRAT) : ajoutez-le *en fin de fichier* sans changer les signatures existantes,
   et signalez-le dans votre rapport.
 - Pas de nouvelle dépendance sans nécessité ; déjà installées : better-auth, stripe, zod (3), sharp, drizzle-orm, vitest.
-- Code serveur : `import 'server-only'`, accès DB via `import { db, … } from '@wolleen/db'`.
+- Code serveur : `import 'server-only'`, accès DB via `import { db, … } from '@devappstore/db'`.
 - Variables d'environnement : côté serveur **toujours** via `import { env } from '@/env'` ; jamais `@/env` dans un
   composant client (seules les `NEXT_PUBLIC_*` y existent, injectées au build). Toute nouvelle variable : schéma et
   règles de production dans `src/env.ts`, `.env.example`, `docs/deploy.md` § Variables.
-- Tests : vitest à côté du code (`*.test.ts`), base en mémoire via `import { createTestDb } from '@wolleen/db/testing'`.
-- Avant de rendre : `npm run typecheck` et `npm test` passent, `npm run build -w @wolleen/web` compile.
+- Tests : vitest à côté du code (`*.test.ts`), base en mémoire via `import { createTestDb } from '@devappstore/db/testing'`.
+- Avant de rendre : `npm run typecheck` et `npm test` passent, `npm run build -w @devappstore/web` compile.
 
 ## Routes et propriétaires
 
@@ -52,7 +52,7 @@ Commandes : `npm install`, `npm run db:push`, `npm run db:seed`, `npm run dev` (
 | `/games/[slug]` boutique publique du jeu (`StorePanel` en lecture) | catalog (page) + payments (achat) |
 | `/games/[slug]/link` liaison du compte de jeu | linking |
 | `/account` (mes jeux liés, « vérifié / non vérifié »), `/account/purchases` (historique, statut de livraison, bouton « Me rétracter ») | linking / analytics / security |
-| `/account/points` (Points Wolleen : solde, historique, récompenses) | loyalty |
+| `/account/points` (Points Dev AppStore : solde, historique, récompenses) | loyalty |
 | `/login`, `/signup`, `/studio/signup` | auth |
 | `/checkout/success`, `/checkout/mock` | payments |
 | `/pour-les-studios` (page marketing) | marketing |
@@ -87,7 +87,7 @@ Un jeu suspendu par le back-office affiche le motif dans l'espace studio (`moder
   Jeu `suspended` : boutique masquée, achats impossibles, API v1 → 401 ; les achats payés restent livrés.
 - Compte désactivé (`user_suspensions`, `user-suspension.ts`) : plus de session (`readSession` → null même avec un
   cookie valide) et connexion refusée (`databaseHooks.session.create.before` dans `auth.ts`).
-- `npm run db:seed` fait de `dev@wolleen.test` un superadmin ; autre compte ou rôle :
+- `npm run db:seed` fait de `dev@devappstore.test` un superadmin ; autre compte ou rôle :
   `npx tsx packages/db/src/seed-admin.ts <email> <rôle>`.
 
 ### API
@@ -111,7 +111,7 @@ Un jeu suspendu par le back-office affiche le motif dans l'espace studio (`moder
 |---|---|---|
 | `/api/cron/deliveries` | chaque minute | relances webhook dues (réservation atomique, budget 45 s) ; en dev, boucle locale `ensureDevRetryLoop` |
 | `/api/checkout/expire` | `17 * * * *` | commandes `pending` de plus de 24 h → `failed` |
-| `/api/cron/loyalty` | `40 3 * * *` | expirations des Points Wolleen et des bons, rattrapage des objets bonus non livrés |
+| `/api/cron/loyalty` | `40 3 * * *` | expirations des Points Dev AppStore et des bons, rattrapage des objets bonus non livrés |
 | `/api/cron/weekly-reports` | `0 6 * * 1` | rapport hebdomadaire de chaque studio (idempotent par studio et semaine) |
 
 Toutes exigent `Authorization: Bearer $CRON_SECRET` (`cronGuard`, comparaison à temps constant). `CRON_SECRET` est
@@ -123,10 +123,10 @@ Deux clés par jeu, affichées dans l'onglet Intégration (D-05 du modèle de me
 
 | Clé | Où | Stockage | Accès |
 |---|---|---|---|
-| **secrète** `wk_secret_…` (anciennes `wk_live_…` / `wk_test_…` acceptées) | serveur du studio uniquement | empreinte SHA-256 (`games.apiKeyHash`) | tout le jeu : `link-codes`, `link-requests` (statut), `deliveries`/`stream` avec `player_id` obligatoire, `ack` de toute livraison du jeu, `DELETE player-tokens?player_id=` |
-| **publique** `wk_pub_…` (non secrète) | embarquée dans le jeu (SDK sans serveur) | en clair (`games.publishableKey`) | `link-codes` ; `link-requests/{id}` pour échanger, **une fois**, la demande de liaison contre un **jeton joueur** ; avec ce jeton seulement : `deliveries`, `stream`, `ack`, `DELETE player-tokens` (son jeton) |
+| **secrète** `das_secret_…` (anciennes `das_live_…` / `das_test_…` acceptées) | serveur du studio uniquement | empreinte SHA-256 (`games.apiKeyHash`) | tout le jeu : `link-codes`, `link-requests` (statut), `deliveries`/`stream` avec `player_id` obligatoire, `ack` de toute livraison du jeu, `DELETE player-tokens?player_id=` |
+| **publique** `das_pub_…` (non secrète) | embarquée dans le jeu (SDK sans serveur) | en clair (`games.publishableKey`) | `link-codes` ; `link-requests/{id}` pour échanger, **une fois**, la demande de liaison contre un **jeton joueur** ; avec ce jeton seulement : `deliveries`, `stream`, `ack`, `DELETE player-tokens` (son jeton) |
 
-- En-têtes : `Authorization: Bearer <clé>` et, avec la clé publique, `Wolleen-Player-Token: wk_pt_…`. Jamais de clé ni de
+- En-têtes : `Authorization: Bearer <clé>` et, avec la clé publique, `DevAppStore-Player-Token: das_pt_…`. Jamais de clé ni de
   jeton dans l'URL. Jeu `suspended` → 401.
 - **Jeton joueur** (`player_tokens`) : délivré par `GET /api/v1/link-requests/{link_request_id}` au premier appel après la
   saisie du code sur `/games/[slug]/link`, haché en base, lié au jeu, au `player_id` **et au compte qui a saisi le
@@ -172,7 +172,7 @@ Deux clés par jeu, affichées dans l'onglet Intégration (D-05 du modèle de me
   rétractation (`WITHDRAWAL_STOP_REASON`).
 - `withdrawal.ts` — rétractation en ligne (Flux § 5).
 - `notifications.ts` — e-mails transactionnels (§ Notifications).
-- `loyalty.ts` — Points Wolleen (§ Fidélité).
+- `loyalty.ts` — Points Dev AppStore (§ Fidélité).
 - `storage.ts`, `storage-s3.ts`, `image-upload.ts` — téléversements (§ Stockage).
 
 Composants partagés : `src/components/store/ItemCard.tsx`, `StorePanel.tsx` (boutique des maquettes), `style-safety.ts`
@@ -189,9 +189,9 @@ Composants partagés : `src/components/store/ItemCard.tsx`, `StorePanel.tsx` (bo
 2. **Achat** — `/games/[slug]` → bouton acheter → (si non lié → liaison) → case « livraison immédiate et renonciation »
    (horodatage et version des CGV enregistrés sur la commande) → `POST /api/checkout` → Stripe Checkout (Connect,
    `application_fee_amount`) ou **mode simulation** si `STRIPE_SECRET_KEY` est vide (`/checkout/mock`, jamais en
-   production) → commande `paid` → `enqueueDelivery` + reçu par e-mail + Points Wolleen.
+   production) → commande `paid` → `enqueueDelivery` + reçu par e-mail + Points Dev AppStore.
 3. **Livraison automatique** —
-   - webhook (jeu avec serveur, clé secrète) : `POST games.webhookUrl` avec `Wolleen-Signature: t=…,v1=…` (`signPayload` de core),
+   - webhook (jeu avec serveur, clé secrète) : `POST games.webhookUrl` avec `DevAppStore-Signature: t=…,v1=…` (`signPayload` de core),
      2xx = `delivered`, sinon relances (`WEBHOOK_RETRY_SCHEDULE_MS`, réservation atomique par le cron), `failed` quand
      elles sont épuisées (e-mail au joueur, alerte au studio) ; le serveur du jeu peut aussi ack. Les livraisons créées
      avant l'enregistrement de l'URL sont reprises à l'enregistrement.
@@ -228,20 +228,20 @@ Composants partagés : `src/components/store/ItemCard.tsx`, `StorePanel.tsx` (bo
 - Idempotence : table `notifications_sent`, clé unique (kind, ref_id) ; un envoi en échec peut être retenté.
 - Jamais bloquant : les fonctions ne lèvent pas ; depuis une requête, `runInBackground` (`after()` de Next.js).
 - Transport : console + `.data/mails` en dev, Resend si `RESEND_API_KEY` ; aucun e-mail réel sous vitest.
-  Aperçu de tous les modèles : `npm run preview -w @wolleen/emails`.
+  Aperçu de tous les modèles : `npm run preview -w @devappstore/emails`.
 
 ## Stockage des téléversements (`storage.ts`, `docs/deploy-storage.md`)
 
 - `POST /api/uploads` : image décodée par sharp (format déterminé par les octets), convertie en WebP, clé
   `<icon|banner|item>/<uploadeur>/<uuid>.webp` ; rôles owner / admin / developer, anti-CSRF.
-- `WOLLEEN_STORAGE=local` (défaut) : disque `.data/uploads`, servi par `GET /api/uploads/[...key]` (CSP sandbox, nosniff).
-- `WOLLEEN_STORAGE=s3` (Cloudflare R2 / S3, `storage-s3.ts`, PUT signé SigV4) : URL `<S3_PUBLIC_URL>/<clé>` servie par le CDN.
+- `DEVAPPSTORE_STORAGE=local` (défaut) : disque `.data/uploads`, servi par `GET /api/uploads/[...key]` (CSP sandbox, nosniff).
+- `DEVAPPSTORE_STORAGE=s3` (Cloudflare R2 / S3, `storage-s3.ts`, PUT signé SigV4) : URL `<S3_PUBLIC_URL>/<clé>` servie par le CDN.
 - Rendu : `safeImageUrl` (`components/store/style-safety.ts`, exécuté aussi côté client) n'affiche que les chemins
   relatifs, les `data:image/` du seed et les URL **https** sous `NEXT_PUBLIC_S3_PUBLIC_URL` (même valeur que
   `S3_PUBLIC_URL`, exigée en production avec `s3`) au format de clé ci-dessus ; toute autre URL (pistage) est ignorée.
   À l'écriture, `uploaderOfUrl` refuse une image que l'utilisateur n'a pas téléversée.
 
-## Fidélité — Points Wolleen (`loyalty.ts`, `docs/product/loyalty.md`)
+## Fidélité — Points Dev AppStore (`loyalty.ts`, `docs/product/loyalty.md`)
 
 Points gagnés sur les commandes payées (retirés au remboursement), échangés contre des récompenses (objets bonus livrés
 par le canal normal, bons de réduction au checkout). Ni achetables, ni convertibles en argent, ni transférables ; ils
@@ -251,18 +251,18 @@ par défaut hors production (`LOYALTY_ENABLED=1` pour l'ouvrir en production). P
 ## Données de démo (`npm run db:seed`)
 
 Studio « Nova Games » (`std_nova`), jeux `gam_crystal` (serveur : webhook + lookup sur http://localhost:4100, clé secrète) et
-`gam_farm` (SDK client seulement : clé publique + jeton joueur), utilisateurs `usr_demo_dev` (dev@wolleen.test,
-propriétaire du studio **et superadmin du back-office**) et `usr_demo_player` (joueur@wolleen.test), mot de passe
-`demo1234` ; ~90 jours de ventes de démo et des Points Wolleen.
-Clés de dev : `DEMO_KEYS` dans `packages/db/src/seed.ts` — secrètes `wk_secret_demo_crystal_clash` /
-`wk_secret_demo_pixel_farm`, publiques `wk_pub_demo_crystal_clash` / `wk_pub_demo_pixel_farm` (reprises par
+`gam_farm` (SDK client seulement : clé publique + jeton joueur), utilisateurs `usr_demo_dev` (dev@devappstore.test,
+propriétaire du studio **et superadmin du back-office**) et `usr_demo_player` (joueur@devappstore.test), mot de passe
+`demo1234` ; ~90 jours de ventes de démo et des Points Dev AppStore.
+Clés de dev : `DEMO_KEYS` dans `packages/db/src/seed.ts` — secrètes `das_secret_demo_crystal_clash` /
+`das_secret_demo_pixel_farm`, publiques `das_pub_demo_crystal_clash` / `das_pub_demo_pixel_farm` (reprises par
 `apps/demo-game/src/config.ts`, cohérence vérifiée par test, et lues par `e2e/`). Une base créée avec les anciennes clés
-`wk_test_demo_*` est migrée par le seed. Jamais en production.
+`das_test_demo_*` est migrée par le seed. Jamais en production.
 
 ## Phases suivantes (plan C)
 
 Déjà livrés depuis le plan initial : SDK Unreal / Godot, remboursements et rétractation, import App Store Connect /
-Google Play, e-mails, fidélité (Points Wolleen), génération IA du style des cartes, back-office, pages légales, docs.
+Google Play, e-mails, fidélité (Points Dev AppStore), génération IA du style des cartes, back-office, pages légales, docs.
 
 Restent — phase 2 : OAuth studio, TVA (Stripe Tax, `STRIPE_AUTOMATIC_TAX`), prix par pays, abonnements, promos, domaines
 perso, i18n, Sentry, limiteur de débit partagé (Redis, multi-instance). Phase 3 : fidélité multi-jeux, recommandations,

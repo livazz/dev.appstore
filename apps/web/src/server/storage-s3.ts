@@ -2,7 +2,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { contentTypeForKey, isSafeKey, type StorageAdapter, type StoredFile } from './storage';
 
 /*
- * Adaptateur de stockage S3 / Cloudflare R2 (phase 2, WOLLEEN_STORAGE=s3).
+ * Adaptateur de stockage S3 / Cloudflare R2 (phase 2, DEVAPPSTORE_STORAGE=s3).
  *
  * Signature AWS Signature Version 4 implémentée ici avec node:crypto (aucune dépendance) et vérifiée
  * contre les vecteurs officiels de la documentation S3 (voir storage-s3.test.ts).
@@ -220,7 +220,7 @@ export function s3StorageFromEnv(env: Record<string, string | undefined> = proce
   const missing = ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_PUBLIC_URL'].filter(
     (k) => !env[k],
   );
-  if (missing.length) throw new Error(`WOLLEEN_STORAGE=s3 : variables manquantes : ${missing.join(', ')}`);
+  if (missing.length) throw new Error(`DEVAPPSTORE_STORAGE=s3 : variables manquantes : ${missing.join(', ')}`);
   return new S3Storage({
     endpoint: env.S3_ENDPOINT!,
     region: env.S3_REGION || 'auto',

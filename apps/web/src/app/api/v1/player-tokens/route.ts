@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * DELETE /api/v1/player-tokens — révocation des jetons joueur.
- * - Clé publique + `Wolleen-Player-Token` : révoque ce jeton (le joueur délie cet appareil) → { ok: true, revoked: 1 }.
+ * - Clé publique + `DevAppStore-Player-Token` : révoque ce jeton (le joueur délie cet appareil) → { ok: true, revoked: 1 }.
  * - Clé secrète + `?player_id=` : révoque tous les jetons de ce joueur (serveur du studio) → { ok: true, revoked: n }.
  */
 export async function DELETE(req: Request) {

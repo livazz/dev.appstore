@@ -1,20 +1,20 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { db, studioMembers, user } from '@wolleen/db';
+import { db, studioMembers, user } from '@devappstore/db';
 import { FX, insertPendingOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
 import { canManagePayouts, getPayoutStudio, getPayoutStudios, getRecentStudioSales, getStudioRevenue } from './payouts';
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const { createTestDb } = await import('@wolleen/db/testing');
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const { createTestDb } = await import('@devappstore/db/testing');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
   return importOriginal();
 });
 
 beforeAll(async () => {
   await seedPaymentsFixtures();
   await db.insert(user).values([
-    { id: 'usr_owner', name: 'Owner', email: 'owner@wolleen.test' },
-    { id: 'usr_finance', name: 'Finance', email: 'finance@wolleen.test' },
-    { id: 'usr_dev', name: 'Dev', email: 'dev@wolleen.test' },
+    { id: 'usr_owner', name: 'Owner', email: 'owner@devappstore.test' },
+    { id: 'usr_finance', name: 'Finance', email: 'finance@devappstore.test' },
+    { id: 'usr_dev', name: 'Dev', email: 'dev@devappstore.test' },
   ]);
   await db.insert(studioMembers).values([
     { studioId: FX.studio, userId: 'usr_owner', role: 'owner' },

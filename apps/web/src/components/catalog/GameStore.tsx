@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { formatMoney, ITEM_TYPES, PERIODS, type Currency } from '@wolleen/core';
+import { formatMoney, ITEM_TYPES, PERIODS, type Currency } from '@devappstore/core';
 import { StorePanel, type PanelItem } from '@/components/store/StorePanel';
 import { BuyButton } from '@/components/checkout/BuyButton';
 import type { PublicGame, PublicItem } from '@/server/catalog';

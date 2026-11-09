@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
-import { formatMoney, type Currency } from '@wolleen/core/client';
+import { formatMoney, type Currency } from '@devappstore/core/client';
 import { CGV_URL, CGV_VERSION, formatLegalDate } from '@/lib/legal-versions';
 
 /** Réponse de GET /api/checkout?gameId=…&itemId=… */

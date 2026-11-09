@@ -3,9 +3,9 @@ import { PENDING_ORDER_TTL_MS } from '@/server/payments';
 import { getOrder, insertPendingOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
 import { GET } from './route';
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const { createTestDb } = await import('@wolleen/db/testing');
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const { createTestDb } = await import('@devappstore/db/testing');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
   return importOriginal();
 });
 

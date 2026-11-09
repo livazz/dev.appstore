@@ -38,7 +38,7 @@ export default function BestPracticesPage() {
     <DocPage slug="bonnes-pratiques">
       <H2 id="cle-secrete">Clé secrète côté serveur</H2>
       <P>
-        La clé API (<C>wk_…</C>) donne accès aux livraisons de <strong>tous</strong> les joueurs de votre jeu : les lire, les acquitter
+        La clé API (<C>das_…</C>) donne accès aux livraisons de <strong>tous</strong> les joueurs de votre jeu : les lire, les acquitter
         (donc les faire disparaître) et émettre des codes de liaison. Le secret webhook (<C>whsec_…</C>) permet de fabriquer de faux
         achats signés.
       </P>

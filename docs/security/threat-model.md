@@ -1,4 +1,4 @@
-# Wolleen — modèle de menaces (STRIDE)
+# Dev AppStore — modèle de menaces (STRIDE)
 
 | | |
 |---|---|
@@ -16,7 +16,7 @@
 
 ## 1. Résumé exécutif
 
-Wolleen manipule de l'argent (paiements Stripe Connect) et déclenche la création de biens virtuels dans des jeux tiers.
+Dev AppStore manipule de l'argent (paiements Stripe Connect) et déclenche la création de biens virtuels dans des jeux tiers.
 Les deux familles de risques dominantes sont donc **obtenir un objet sans payer** (fraude contre le studio) et **accéder
 aux données ou à la configuration d'un autre studio** (rupture de l'isolation multi-tenant). Viennent ensuite la fraude
 à la carte (le « cadeau » vers un ID joueur arbitraire est un vecteur de blanchiment), le SSRF via les URL configurées par
@@ -50,7 +50,7 @@ les studios et le XSS stocké via les uploads.
 | `apps/web` (Next.js 15, App Router) | Pages, server actions, route handlers `/api/*` | tous les secrets serveur (`AUTH_SECRET`, `STRIPE_*`, `CRON_SECRET`, `DATABASE_URL`) |
 | Base Postgres / PGlite (`packages/db`) | Utilisateurs, sessions, studios, jeux, articles, liaisons, codes, commandes, livraisons, journaux webhook | `games.webhookSecret` (en clair), `games.apiKeyHash`, `session.token`, `account.password` (haché par Better Auth), PII |
 | Stockage des uploads | Icônes, bannières, visuels d'articles | contenu fourni par les studios |
-| Stripe (Checkout + Connect) | Encaissement, commission `application_fee_amount`, reversement studio | — (aucune donnée carte ne transite par Wolleen) |
+| Stripe (Checkout + Connect) | Encaissement, commission `application_fee_amount`, reversement studio | — (aucune donnée carte ne transite par Dev AppStore) |
 | Serveur du studio | Reçoit les webhooks `purchase.completed`, répond au « player lookup » | `webhookSecret`, clé API (serveur) |
 | Client du jeu + SDK (`sdk-js`, Unity) | Écoute le flux SSE, interroge, crédite, `ack`, demande des codes de liaison | clé API **si** embarquée — à considérer comme publique |
 | Cron (`/api/cron/deliveries`) | Relances webhook dues | `CRON_SECRET` |
@@ -69,7 +69,7 @@ flowchart LR
   subgraph TB3["TB3 — Infrastructure studio (fiabilité variable)"]
     GS[Serveur du studio<br/>webhook + player lookup]
   end
-  subgraph TBW["Zone Wolleen (fiable)"]
+  subgraph TBW["Zone Dev AppStore (fiable)"]
     W[apps/web<br/>pages, server actions, /api]
     DB[(Postgres / PGlite)]
     U[(Stockage uploads)]
@@ -81,7 +81,7 @@ flowchart LR
   S -- "HTTPS, cookie : éditeur, intégration, uploads" --> W
   G -- "Bearer clé API : link-codes, deliveries, SSE, ack" --> W
   GS -- "Bearer clé API : link-codes, ack" --> W
-  W -- "POST signé Wolleen-Signature (TB4 sortant)" --> GS
+  W -- "POST signé DevAppStore-Signature (TB4 sortant)" --> GS
   W -- "GET playerLookupUrl signé (TB4 sortant)" --> GS
   W -- "API Stripe (clé secrète)" --> ST
   ST -- "POST /api/stripe/webhook signé (TB5)" --> W
@@ -93,13 +93,13 @@ flowchart LR
 
 Frontières de confiance :
 
-- **TB1** navigateur ↔ Wolleen : toute entrée (formulaires, server actions, query string, cookies, fichiers) est hostile.
+- **TB1** navigateur ↔ Dev AppStore : toute entrée (formulaires, server actions, query string, cookies, fichiers) est hostile.
 - **TB2** client du jeu ↔ API v1 : tout ce qui est embarqué dans un binaire de jeu (clé API, logique de crédit) est connu
   de l'attaquant. **Le client du jeu n'est pas une frontière d'authentification.**
 - **TB3** serveur du studio ↔ API v1 : authentifié par clé API ; le studio peut être compromis ou malveillant.
-- **TB4** Wolleen → URL configurées par le studio (sortant) : zone de SSRF, de fuite de données et de réponses forgées.
+- **TB4** Dev AppStore → URL configurées par le studio (sortant) : zone de SSRF, de fuite de données et de réponses forgées.
 - **TB5** Stripe → `/api/stripe/webhook` : authentifié par `STRIPE_WEBHOOK_SECRET`.
-- **TB6** Wolleen ↔ base / stockage : réseau privé, identifiants en variables d'environnement.
+- **TB6** Dev AppStore ↔ base / stockage : réseau privé, identifiants en variables d'environnement.
 - **TB7** ordonnanceur → cron : authentifié par `CRON_SECRET`.
 
 ---
@@ -114,11 +114,11 @@ Frontières de confiance :
 | A4 | Secrets webhook des jeux (`games.webhookSecret`) | ●●● | ●●● | | Permettent de forger des achats auprès du serveur du studio |
 | A5 | Secrets plateforme (`AUTH_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CRON_SECRET`, `DATABASE_URL`) | ●●● | ●●● | | Compromission = compromission totale |
 | A6 | Sessions et comptes utilisateurs (joueurs, membres de studio) | ●●● | ●●● | ● | |
-| A7 | Liaisons compte Wolleen ↔ compte de jeu (`game_links`) et codes de liaison | ●● | ●●● | ● | Déterminent le destinataire des achats |
+| A7 | Liaisons compte Dev AppStore ↔ compte de jeu (`game_links`) et codes de liaison | ●● | ●●● | ● | Déterminent le destinataire des achats |
 | A8 | Configuration des jeux (prix, articles, URL d'intégration, méthodes de liaison, statut) | | ●●● | ● | Un prix ou une URL modifiés = fraude ou détournement |
 | A9 | Données de ventes d'un studio (chiffre d'affaires, joueurs) | ●●● | ●● | | Secret commercial ; isolation multi-tenant |
 | A10 | PII joueurs : e-mail, `player_id`, nom de joueur, historique d'achats | ●●● | ● | | RGPD |
-| A11 | Contenu servi par Wolleen (uploads, textes de boutique) | | ●●● | ● | Vecteur XSS / hameçonnage |
+| A11 | Contenu servi par Dev AppStore (uploads, textes de boutique) | | ●●● | ● | Vecteur XSS / hameçonnage |
 | A12 | Disponibilité de l'API v1, du flux SSE et du dispatcher de livraisons | | | ●●● | Un retard de livraison est perçu comme une non-livraison |
 
 ---
@@ -127,23 +127,23 @@ Frontières de confiance :
 
 | ID | Acteur | Capacités | Motivations |
 |---|---|---|---|
-| AC1 | **Joueur malveillant** | Compte Wolleen gratuit, navigateur, outils de rejeu (Burp), décompilation du client du jeu (clé API embarquée), scripts | Objets gratuits ou en double, cadeaux frauduleux, nuire à d'autres joueurs, revente |
+| AC1 | **Joueur malveillant** | Compte Dev AppStore gratuit, navigateur, outils de rejeu (Burp), décompilation du client du jeu (clé API embarquée), scripts | Objets gratuits ou en double, cadeaux frauduleux, nuire à d'autres joueurs, revente |
 | AC2 | **Fraudeur à la carte** | Cartes volées, nombreux comptes, automatisation | Convertir des cartes volées en biens revendables (« gift » vers un `player_id` client), rétrofacturations |
-| AC3 | **Studio malveillant** | Compte studio légitime, contrôle total de ses URL d'intégration et de son contenu | Accéder aux données d'autres studios, SSRF vers l'infra Wolleen, XSS contre joueurs/staff, contourner la commission |
+| AC3 | **Studio malveillant** | Compte studio légitime, contrôle total de ses URL d'intégration et de son contenu | Accéder aux données d'autres studios, SSRF vers l'infra Dev AppStore, XSS contre joueurs/staff, contourner la commission |
 | AC4 | **Studio compromis** | Clé API, secret webhook ou compte d'un membre volés (phishing, fuite Git, CI) | Forger des livraisons, détourner les événements d'achat (changer `webhookUrl`), changer le compte de reversement |
 | AC5 | **Membre de studio à rôle limité** (`developer`, `finance`) | Session valide, rôle restreint | Élévation de rôle (payouts, rotation de clés, suppression du jeu) |
 | AC6 | **Attaquant réseau** | Position MITM (Wi-Fi public, DNS empoisonné, proxy d'entreprise), observation du trafic | Lire/modifier le trafic non chiffré (webhooks `http://`, lookup), voler des cookies, rejouer des requêtes signées |
 | AC7 | **Attaquant anonyme Internet** | Scans, force brute, requêtes massives | Déni de service, énumération, exploitation de configuration par défaut (mode simulation, secrets d'exemple, seed de démo) |
 
-Hors périmètre de cette version : compromission de Stripe, de l'hébergeur ou du poste d'un administrateur Wolleen ;
-attaques physiques ; triche *dans* le jeu sans rapport avec Wolleen.
+Hors périmètre de cette version : compromission de Stripe, de l'hébergeur ou du poste d'un administrateur Dev AppStore ;
+attaques physiques ; triche *dans* le jeu sans rapport avec Dev AppStore.
 
 ### Hypothèses
 
 - H1 — En production, tout le trafic public est en HTTPS (HSTS) ; les secrets sont fournis par l'hébergeur, jamais committés.
 - H2 — Better Auth remplacera la session provisoire avant toute exposition publique.
-- H3 — Le serveur du studio vérifie la signature `Wolleen-Signature` et dédoublonne sur `delivery_id` (à imposer par la doc et le SDK).
-- H4 — Stripe Checkout héberge la saisie de carte : Wolleen reste hors du périmètre PCI-DSS SAQ-D (SAQ-A visé).
+- H3 — Le serveur du studio vérifie la signature `DevAppStore-Signature` et dédoublonne sur `delivery_id` (à imposer par la doc et le SDK).
+- H4 — Stripe Checkout héberge la saisie de carte : Dev AppStore reste hors du périmètre PCI-DSS SAQ-D (SAQ-A visé).
 
 ---
 
@@ -165,7 +165,7 @@ exigée (vérifiée par la checklist). Les identifiants `CHK-…` renvoient à `
 
 | ID | STRIDE | Menace / scénario | Existant | À faire | Prio |
 |---|---|---|---|---|---|
-| T-AUTH-01 | S, E | Le cookie `wolleen_demo_user` est lu sans signature : n'importe qui fixe `usr_demo_dev` (ou tout autre ID) et devient cet utilisateur ; sans cookie, tout visiteur est `usr_demo_player`. | Aucun (stub vague 0) | Remplacer par Better Auth ; en attendant, refuser le stub si `NODE_ENV=production` (lever au démarrage). | P0 |
+| T-AUTH-01 | S, E | Le cookie `devappstore_demo_user` est lu sans signature : n'importe qui fixe `usr_demo_dev` (ou tout autre ID) et devient cet utilisateur ; sans cookie, tout visiteur est `usr_demo_player`. | Aucun (stub vague 0) | Remplacer par Better Auth ; en attendant, refuser le stub si `NODE_ENV=production` (lever au démarrage). | P0 |
 | T-AUTH-02 | S | Secret de session par défaut (`AUTH_SECRET=change-me` dans `.env.example`) reconduit en production → cookies forgeables. | — | Valider au démarrage : longueur ≥ 32 octets, ≠ valeurs d'exemple. | P0 |
 | T-AUTH-03 | S | Force brute / bourrage d'identifiants sur `/login`, énumération de comptes via messages d'erreur ou `/signup`. | — | Limitation de débit Better Auth (`rateLimit`), message d'erreur générique, vérification d'e-mail obligatoire pour les comptes studio. | P1 |
 | T-AUTH-04 | S, E | Prise de compte d'un membre de studio (phishing) → accès aux clés, URL, payouts. | — | 2FA (plugin Better Auth `twoFactor`) obligatoire pour `owner`/`admin`, ré-authentification pour les actions sensibles, notification e-mail sur changement d'intégration / payouts. | P1 |
@@ -176,13 +176,13 @@ exigée (vérifiée par la checklist). Les identifiants `CHK-…` renvoient à `
 
 ### 6.2 Liaison de compte (`code`, `id_confirm`)
 
-Rappel : la liaison détermine **à quel `player_id` les achats d'un utilisateur Wolleen sont livrés**. Un achat lié au
+Rappel : la liaison détermine **à quel `player_id` les achats d'un utilisateur Dev AppStore sont livrés**. Un achat lié au
 mauvais joueur est soit un cadeau involontaire, soit un vecteur de fraude ; une liaison « vérifiée » (`verified=1`) à tort
 est une fausse garantie dont pourront dépendre des fonctionnalités futures (OAuth, fidélité multi-jeux, remboursements).
 
 | ID | STRIDE | Menace / scénario | Existant | À faire | Prio |
 |---|---|---|---|---|---|
-| T-LNK-01 | S | **Usurpation d'ID joueur (id_confirm)** : la méthode est déclarative ; un joueur saisit l'ID d'un tiers. Cas graves : (a) fraudeur à la carte qui « offre » des objets à des clients (blanchiment, rétrofacturations à la charge du studio/Wolleen) ; (b) arnaque « achète pour moi » où une victime est poussée à saisir l'ID de l'escroc. | `verified=0` stocké ; confirmation du nom affiché | Plafonds de montant et de vélocité pour les liaisons `verified=0` (par utilisateur, par `player_id` cible, par carte) ; Stripe Radar avec métadonnées (`game_id`, `player_id`, `link_method`) ; avertissement clair « les achats seront livrés à <nom> » ; le studio peut désactiver `id_confirm`. | P1 |
+| T-LNK-01 | S | **Usurpation d'ID joueur (id_confirm)** : la méthode est déclarative ; un joueur saisit l'ID d'un tiers. Cas graves : (a) fraudeur à la carte qui « offre » des objets à des clients (blanchiment, rétrofacturations à la charge du studio/Dev AppStore) ; (b) arnaque « achète pour moi » où une victime est poussée à saisir l'ID de l'escroc. | `verified=0` stocké ; confirmation du nom affiché | Plafonds de montant et de vélocité pour les liaisons `verified=0` (par utilisateur, par `player_id` cible, par carte) ; Stripe Radar avec métadonnées (`game_id`, `player_id`, `link_method`) ; avertissement clair « les achats seront livrés à <nom> » ; le studio peut désactiver `id_confirm`. | P1 |
 | T-LNK-02 | I | **Oracle d'énumération** : `id_confirm` renvoie `display_name`, `level`, `avatar_url` pour tout ID saisi → collecte de profils, vérification d'existence d'un compte. | — | Authentification requise, limitation de débit par utilisateur et par IP (ex. 10 lookups / heure), journalisation ; ne jamais exposer d'autres champs que ceux de `PlayerLookupResponse`. | P1 |
 | T-LNK-03 | S | **Force brute des codes** : alphabet 32 symboles × 8 = 2⁴⁰ ≈ 1,1·10¹². Avec *A* codes actifs dans un jeu et *R* essais/s, gain espéré ≈ A·R·t / 2⁴⁰ : 10 000 codes actifs, 100 essais/s pendant 24 h → ≈ 8 % de chances de lier son compte au joueur d'un autre (et de consommer son code). | 40 bits d'entropie, CSPRNG (`randomInt`), TTL 10 min | Limitation stricte des essais de saisie (ex. 5 / 15 min par utilisateur, 20 / h par IP, global par jeu) ; recherche **par jeu** (`/games/[slug]/link`) ; réponse identique pour code inexistant / expiré / consommé ; alerte sur taux d'échec anormal. | P1 |
 | T-LNK-04 | S | **Code créé pour un `player_id` arbitraire** : `POST /api/v1/link-codes` accepte `player_id` du corps. Si la clé API est embarquée dans le client du jeu (cf. D-05), un joueur génère un code pour la victime et obtient une liaison **marquée vérifiée** à son compte. | — | Distinguer clé **serveur** (secrète) et identité **client** ; pour un appel client, le `player_id` doit provenir d'un jeton de session joueur émis/signé par le serveur du studio, pas du corps ; à défaut, documenter que `code` n'est vérifié que si le studio appelle depuis son serveur. | P0 (avec D-05) |
@@ -205,7 +205,7 @@ est une fausse garantie dont pourront dépendre des fonctionnalités futures (OA
 | T-PAY-05 | E | **Mode simulation en production** : `STRIPE_SECRET_KEY` vide ⇒ `/checkout/mock` marque les commandes payées sans paiement. Une variable oubliée lors d'un déploiement = boutique gratuite. Variante : clé `sk_test_` en production ⇒ paiements avec cartes de test. | — | Mode simulation **impossible** si `NODE_ENV=production` (échec au démarrage si `STRIPE_SECRET_KEY` absente) ; exiger `sk_live_` en production (ou un drapeau explicite pour la préproduction) ; `/checkout/mock` vérifie côté serveur que le mode est actif, que la commande appartient à l'utilisateur et est `pending` ; bannière visible « mode simulation ». | P0 |
 | T-PAY-06 | T | **Confirmation par la page de succès** : `/checkout/success?session_id=…` marque la commande payée sur la foi de l'URL. | — | La page de succès est en lecture seule (ou relit la session via l'API Stripe et vérifie `payment_status`) ; seule la transition conditionnelle déclenche la livraison. | P0 |
 | T-PAY-07 | T | **Commission contournée** : `application_fee_amount` calculé à partir d'un `PLATFORM_FEE_BPS` invalide (`NaN`, négatif, `0` par erreur) ou d'un montant client. | `feeCents()` (arrondi) | Parser et borner `PLATFORM_FEE_BPS` au démarrage (entier 0–3000) ; calcul serveur sur `amountCents` de la commande ; stocker `platformFeeCents` et le comparer au `application_fee` Stripe en rapprochement. | P1 |
-| T-PAY-08 | E, T | **Détournement du compte de reversement** : modification de `studios.stripeAccountId` (formulaire, server action, injection de champ) par un rôle non `owner` ou un autre studio. | — | `stripeAccountId` écrit uniquement par le flux d'onboarding Connect (compte créé par Wolleen), jamais depuis une entrée utilisateur ; rôle `owner` + ré-authentification ; webhook `account.updated` pour `stripeChargesEnabled`. | P1 |
+| T-PAY-08 | E, T | **Détournement du compte de reversement** : modification de `studios.stripeAccountId` (formulaire, server action, injection de champ) par un rôle non `owner` ou un autre studio. | — | `stripeAccountId` écrit uniquement par le flux d'onboarding Connect (compte créé par Dev AppStore), jamais depuis une entrée utilisateur ; rôle `owner` + ré-authentification ; webhook `account.updated` pour `stripeChargesEnabled`. | P1 |
 | T-PAY-09 | T | **URL de retour Checkout construites depuis l'en-tête `Host`** (injection d'hôte → `success_url` vers un domaine tiers). | `APP_URL` dans `.env.example` | `success_url`/`cancel_url` dérivées de `APP_URL` uniquement. | P1 |
 | T-PAY-10 | R, T | **Rétrofacturation / remboursement après livraison** : le joueur conteste le paiement et garde l'objet. | Type `purchase.refunded` déclaré, sans flux | Écouter `charge.refunded`, `charge.dispute.created` ; passer la commande à `refunded` ; émettre `purchase.refunded` signé au studio (révocation) ; vélocité / Radar. | P2 (phase 2) |
 | T-PAY-11 | I | Fuite de détails Stripe (ID de session, e-mail) dans les logs ou les réponses d'erreur. | — | Réponses d'erreur génériques ; pas de log des corps de webhook complets. | P2 |
@@ -217,7 +217,7 @@ est une fausse garantie dont pourront dépendre des fonctionnalités futures (OA
 | T-DLV-01 | S, T | **Falsification de webhooks auprès du studio** : un attaquant POST un faux `purchase.completed` sur `webhookUrl` (URL souvent devinable) pour obtenir un objet gratuit. | HMAC-SHA256 `t=…,v1=…` sur `${t}.${body}`, comparaison à temps constant, tolérance 300 s | Le SDK fournit `verifyWebhook(rawBody, header, secret)` et la documentation impose la vérification sur le corps brut ; la page Intégration propose « envoyer un événement de test **mal signé** » et alerte si le serveur répond 2xx. | P1 |
 | T-DLV-02 | T | **Rejeu d'un webhook capturé** dans la fenêtre de 300 s (MITM sur `http://`, logs du studio, proxy). | Horodatage signé | Idempotence côté studio sur `delivery_id` (persistée), documentée comme **obligatoire** ; HTTPS obligatoire pour `webhookUrl` en production. | P1 |
 | T-DLV-03 | T | **Double crédit** : (a) le studio crédite puis répond en retard/non-2xx → relance ; (b) webhook `delivered` **et** SDK qui liste les livraisons « delivered non ack. » (D-15) ; (c) deux exécutions concurrentes du cron ou du dispatcher envoient la même livraison ; (d) course dans `enqueueDelivery` (D-07). | `delivery_id`/`order_id` annoncés comme clés d'idempotence ; unicité `deliveries.orderId` | Clé d'idempotence unique par achat, identique sur tous les canaux ; préciser par jeu le canal qui crédite (webhook **ou** SDK) ou exiger un magasin d'idempotence partagé ; réservation atomique des livraisons dues (`UPDATE … SET next_attempt_at=now()+lease WHERE id=$1 AND next_attempt_at<=now() RETURNING`, ou `FOR UPDATE SKIP LOCKED`) ; le SDK persiste les `delivery_id` crédités. | P1 |
-| T-DLV-04 | S, E | **Fuite de clé API** (binaire du jeu, dépôt Git, logs, query string) : l'attaquant liste les livraisons de **tous** les joueurs, ouvre leur flux SSE, **acquitte** leurs livraisons (le vrai client ne les reçoit plus → non-livraison), crée des codes de liaison. | Seule l'empreinte SHA-256 est stockée ; préfixe affiché | Deux types de clés (cf. D-05) : `sk_`/secrète (serveur, toutes opérations) et identité client limitée au joueur (jeton signé par le serveur du studio, ou au minimum : client limité à `GET` sur **son** `player_id`, `ack` interdit) ; plusieurs clés actives par jeu (rotation sans interruption), `last_used_at`, révocation ; préfixe distinctif `wk_live_` / `wk_test_` déclaré au secret scanning GitHub ; jamais de clé dans une URL. | P0 |
+| T-DLV-04 | S, E | **Fuite de clé API** (binaire du jeu, dépôt Git, logs, query string) : l'attaquant liste les livraisons de **tous** les joueurs, ouvre leur flux SSE, **acquitte** leurs livraisons (le vrai client ne les reçoit plus → non-livraison), crée des codes de liaison. | Seule l'empreinte SHA-256 est stockée ; préfixe affiché | Deux types de clés (cf. D-05) : `sk_`/secrète (serveur, toutes opérations) et identité client limitée au joueur (jeton signé par le serveur du studio, ou au minimum : client limité à `GET` sur **son** `player_id`, `ack` interdit) ; plusieurs clés actives par jeu (rotation sans interruption), `last_used_at`, révocation ; préfixe distinctif `das_live_` / `das_test_` déclaré au secret scanning GitHub ; jamais de clé dans une URL. | P0 |
 | T-DLV-05 | I | **SSE** : `GET /api/v1/deliveries/stream?player_id=` — fuite inter-joueurs ou inter-jeux si le filtre n'est pas `(game_id de la clé, player_id)` ; tentation de passer la clé en query string pour `EventSource` navigateur (journalisée par les proxys). | — | Filtre strict `game_id = jeu authentifié AND player_id = demandé` ; `player_id` obligatoire ; clé uniquement en en-tête (le SDK utilise `fetch` + lecture de flux) ; pas de `Access-Control-Allow-Origin` reflété avec credentials. | P1 |
 | T-DLV-06 | D | **Épuisement par connexions SSE** (une clé publique → milliers de flux), limites de durée des fonctions serverless, absence de heartbeat. | — | Plafond de connexions par clé et par `player_id`, heartbeat (commentaire `:` toutes les 15–25 s), fermeture après N minutes avec reconnexion client (`retry:`), `Last-Event-ID` ; repli sur interrogation. | P2 |
 | T-DLV-07 | T, E | **Ack forgé ou inter-jeux** : `POST /api/v1/deliveries/{id}/ack` sur une livraison d'un autre jeu (IDs prédictibles ou fuités). | IDs aléatoires 96 bits (`newId`) | `WHERE id=$1 AND game_id=<jeu authentifié>` ; transition via `canTransition` ; réponse 404 identique pour « inexistant » et « autre jeu ». | P0 |
@@ -232,14 +232,14 @@ est une fausse garantie dont pourront dépendre des fonctionnalités futures (OA
 
 | ID | STRIDE | Menace / scénario | Existant | À faire | Prio |
 |---|---|---|---|---|---|
-| T-UPL-01 | T, E | **SVG / HTML → XSS stocké** : un studio téléverse un SVG avec `<script>` ou `onload`, servi par `GET /api/uploads/…` sur l'origine Wolleen ; ouvert directement, il s'exécute avec les cookies de l'utilisateur (joueur ou membre d'un autre studio). Idem pour un fichier HTML déguisé (`.png` avec contenu HTML et sniffing). | — | Liste blanche PNG/JPEG/WebP (+ GIF éventuel) vérifiée par **octets magiques** (sharp `metadata()`), refus du SVG, **ré-encodage** systématique via sharp (supprime EXIF et charges utiles) ; servir avec `Content-Type` forcé, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Content-Disposition: inline; filename="…"` ; idéalement domaine distinct sans cookies. | P0 |
+| T-UPL-01 | T, E | **SVG / HTML → XSS stocké** : un studio téléverse un SVG avec `<script>` ou `onload`, servi par `GET /api/uploads/…` sur l'origine Dev AppStore ; ouvert directement, il s'exécute avec les cookies de l'utilisateur (joueur ou membre d'un autre studio). Idem pour un fichier HTML déguisé (`.png` avec contenu HTML et sniffing). | — | Liste blanche PNG/JPEG/WebP (+ GIF éventuel) vérifiée par **octets magiques** (sharp `metadata()`), refus du SVG, **ré-encodage** systématique via sharp (supprime EXIF et charges utiles) ; servir avec `Content-Type` forcé, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Content-Disposition: inline; filename="…"` ; idéalement domaine distinct sans cookies. | P0 |
 | T-UPL-02 | T, I | **Traversée de chemin** : `GET /api/uploads/[...key]` avec `..`, `%2e%2e`, `%2f`, `\`, octets nuls, chemin absolu → lecture de `.env`, `.data/pglite`, code source ; `POST` qui écrit hors du dossier si le nom de fichier client est utilisé. | — | Clés générées par le serveur (`newId` + extension déduite du type réel), jamais du nom client ; regex stricte sur la clé en lecture (ex. `^[a-z]{3}_[A-Za-z0-9_-]{16}\.(png|jpe?g|webp)$`) ; `path.resolve` puis vérification du préfixe du dossier racine. | P0 |
 | T-UPL-03 | D | **Bombe de décompression / fichiers énormes** (image 50 000 × 50 000, PNG compressé) → mémoire saturée. | — | Taille max (ex. 5 Mo) vérifiée avant lecture complète ; sharp `limitInputPixels` ; dimensions max ; quotas par studio. | P1 |
 | T-UPL-04 | E | **Upload anonyme / hors studio** : n'importe qui stocke des fichiers (hébergement gratuit de contenu illicite). | — | Authentification + appartenance à un studio ; rattachement de chaque fichier au studio ; limitation de débit. | P1 |
-| T-UPL-05 | I | **URL d'images externes** (`iconUrl`, `bannerUrl`, `models[].imageUrl`, `avatar_url` du lookup) pointant vers un serveur tiers → pistage de l'IP des joueurs, contenu changeant après modération, contenu mixte. | Champs texte libres | N'accepter que les URL de l'origine des uploads Wolleen (ou des `data:` produits par le seed en dev) ; `avatar_url` proxifiée ou ignorée ; CSP `img-src 'self'`. | P2 |
+| T-UPL-05 | I | **URL d'images externes** (`iconUrl`, `bannerUrl`, `models[].imageUrl`, `avatar_url` du lookup) pointant vers un serveur tiers → pistage de l'IP des joueurs, contenu changeant après modération, contenu mixte. | Champs texte libres | N'accepter que les URL de l'origine des uploads Dev AppStore (ou des `data:` produits par le seed en dev) ; `avatar_url` proxifiée ou ignorée ; CSP `img-src 'self'`. | P2 |
 | T-UPL-06 | T | **Injection CSS via le style des cartes** : `ItemStyle.bg1/bg2/borderColor/priceBg…` et `GameTheme.gradient.c1/c2` sont interpolés dans `background` (`cardBackground`) ; une valeur `red, url(https://pistage.tld/x)` déclenche une requête depuis le navigateur du joueur. React empêche l'évasion du style, pas `url()`. | — | Valider toutes les couleurs par zod (`^#[0-9a-fA-F]{6}$` ou `transparent`), nombres bornés (`GRID_LIMITS`, `borderWidth`) ; CSP `img-src` restrictive en défense en profondeur. | P2 |
 | T-UPL-07 | T | **XSS via textes de boutique** (titre, sous-titre, description, nom du studio, `display_name` du lookup) si rendus avec `dangerouslySetInnerHTML` ou dans un contexte non échappé (attribut `href`, JSON-LD, métadonnées). | Échappement React par défaut | Interdire `dangerouslySetInnerHTML` sur du contenu studio/joueur ; `href` limités à `https:` ; JSON-LD sérialisé avec échappement de `<`. | P1 |
-| T-UPL-08 | S | **Usurpation d'un jeu ou d'un studio connu** (faux « Crystal Clash ») pour encaisser des joueurs. | Statuts `draft/review/live/suspended` | Seuls les jeux `live` sont visibles/achetables ; passage `review → live` par Wolleen (modération) ; `slug` réservés. | P2 |
+| T-UPL-08 | S | **Usurpation d'un jeu ou d'un studio connu** (faux « Crystal Clash ») pour encaisser des joueurs. | Statuts `draft/review/live/suspended` | Seuls les jeux `live` sont visibles/achetables ; passage `review → live` par Dev AppStore (modération) ; `slug` réservés. | P2 |
 
 ### 6.6 Multi-tenant et autorisation studio
 
@@ -270,7 +270,7 @@ Matrice de rôles proposée (à valider par la tâche « auth ») :
 | ID | STRIDE | Menace / scénario | Existant | À faire | Prio |
 |---|---|---|---|---|---|
 | T-PLT-01 | T, D | **Base embarquée silencieuse en production** : `DATABASE_URL` absente ⇒ PGlite dans `.data/pglite` (éphémère en serverless, non partagée entre instances) → perte de commandes, livraisons dupliquées. | — | Échec au démarrage si `NODE_ENV=production` et `DATABASE_URL` vide. | P1 |
-| T-PLT-02 | S, E | **Données de démo en production** : `DEMO_KEYS` committées (`wk_test_demo_crystal_clash`, `whsec_demo_crystal_clash`), utilisateurs `usr_demo_*` connus. | — | `db:seed` refuse de s'exécuter si `NODE_ENV=production` ou si `DATABASE_URL` ne désigne pas une base locale ; aucune clé `wk_test_demo*` acceptée en production. | P1 |
+| T-PLT-02 | S, E | **Données de démo en production** : `DEMO_KEYS` committées (`das_test_demo_crystal_clash`, `whsec_demo_crystal_clash`), utilisateurs `usr_demo_*` connus. | — | `db:seed` refuse de s'exécuter si `NODE_ENV=production` ou si `DATABASE_URL` ne désigne pas une base locale ; aucune clé `das_test_demo*` acceptée en production. | P1 |
 | T-PLT-03 | T, I | **En-têtes de sécurité absents** (`next.config.ts` n'en définit aucun) : pas de CSP, HSTS, `frame-ancestors`, `Referrer-Policy`, `Permissions-Policy`. | — | `headers()` dans `next.config.ts` ; CSP avec nonce pour les scripts, `img-src 'self' data:` (+ origine des uploads), `connect-src 'self' https://api.stripe.com`, `form-action 'self' https://checkout.stripe.com`. | P1 |
 | T-PLT-04 | I | **Secrets dans les logs / erreurs** : en-tête `Authorization`, corps de webhook, URL avec query string, piles d'erreurs renvoyées au client. | — | Masquage des en-têtes sensibles ; `apiError` ne renvoie jamais de message d'exception brut ; `NODE_ENV=production` (pas de stack). | P2 |
 | T-PLT-05 | T | **Chaîne d'approvisionnement** : dépendances compromises, workflow CI avec permissions par défaut du `GITHUB_TOKEN`. | `npm ci` avec lockfile | `permissions: contents: read` dans `ci.yml`, `npm audit --omit=dev` (non bloquant au début), Dependabot, secret scanning + push protection. | P3 |
@@ -286,7 +286,7 @@ attribué à la tâche propriétaire.
 
 | ID | Fichier:ligne | Défaut | Conséquence | Recommandation | Propriétaire | Prio |
 |---|---|---|---|---|---|---|
-| D-01 | `apps/web/src/server/session.ts:21` | Identité lue dans un cookie non signé `wolleen_demo_user` ; valeur par défaut `usr_demo_player` si absent. | Usurpation de tout utilisateur (dont un `owner` de studio) ; tout visiteur anonyme est « connecté ». | Remplacer par Better Auth ; garde-fou immédiat : `if (process.env.NODE_ENV === 'production') throw` dans le stub. | auth | P0 |
+| D-01 | `apps/web/src/server/session.ts:21` | Identité lue dans un cookie non signé `devappstore_demo_user` ; valeur par défaut `usr_demo_player` si absent. | Usurpation de tout utilisateur (dont un `owner` de studio) ; tout visiteur anonyme est « connecté ». | Remplacer par Better Auth ; garde-fou immédiat : `if (process.env.NODE_ENV === 'production') throw` dans le stub. | auth | P0 |
 | D-02 | `apps/web/src/server/session.ts:46` | `throw new Error('FORBIDDEN')` générique ; `roles` optionnel. | Dans un route handler → **500** au lieu de 403/404 ; message d'erreur potentiellement renvoyé ; sans `roles`, tous les rôles passent (T-MT-03). | Classe d'erreur typée (`ForbiddenError`) + helper qui mappe vers 404/403 ; rôles explicites pour les actions sensibles. | auth | P1 |
 | D-03 | `apps/web/src/server/session.ts:40` | `requireGameAccess` appelle `requireUser` qui fait un `redirect()`. | Utilisé dans un route handler d'API, renvoie une redirection HTML au lieu d'un 401 ; facile à confondre. | Variante `requireGameAccessApi` qui renvoie 401/404 JSON. | auth | P2 |
 | D-04 | `apps/web/src/server/api-key.ts:13` | `authenticateGame` ne vérifie pas `games.status` et renvoie la ligne complète (dont `webhookSecret`, `apiKeyHash`). | Un jeu `suspended` continue d'utiliser l'API ; risque de sérialiser le secret dans une réponse (T-MT-06). | Refuser `suspended` (et éventuellement `draft` pour les clés live) ; ne sélectionner que les colonnes utiles ou renvoyer un objet restreint. | delivery | P1 |
@@ -304,7 +304,7 @@ attribué à la tâche propriétaire.
 | D-16 | `games.webhookSecret` (schéma), `.env.example`, `seed.ts:7-9` | Secret webhook stocké en clair ; `AUTH_SECRET=change-me` par défaut ; `CRON_SECRET` absent de `.env.example` ; clés de démo committées. | Dump de base = forge d'achats pour tous les studios ; secrets par défaut reconduits ; cron non protégé si la variable manque (T-DLV-11). | Chiffrement applicatif au repos ; validation des variables d'environnement au démarrage (zod) ; ajouter `CRON_SECRET` à `.env.example` ; seed bloqué en production. | db + auth + delivery | P1 |
 | D-17 | `packages/db/src/index.ts:31-36` | Repli silencieux sur PGlite si `DATABASE_URL` est vide. | En production : base éphémère et non partagée (T-PLT-01). | Échec explicite en production. | db | P1 |
 | D-18 | `apps/web/src/components/store/ItemCard.tsx:27-30,67-68,84` | Valeurs de style interpolées dans `background`/`border` et `imageUrl` rendu tel quel. | Injection `url(…)` / images tierces pour pister les joueurs si les entrées ne sont pas validées (T-UPL-05/06). | Validation zod stricte à l'écriture (éditeur studio) ; CSP `img-src`. | studio-editor | P2 |
-| D-19 | `game_links` (schéma) | Pas d'unicité `(game_id, player_id)` : plusieurs comptes Wolleen peuvent se lier au même joueur, y compris en `verified=0`. | Facilite T-LNK-01 (nombreux comptes « offrant » au même joueur) ; ambiguïté pour les futures fonctionnalités (OAuth, fidélité). | Décision produit explicite ; au minimum, vélocité par `player_id` cible et affichage au joueur des comptes liés. | linking | P3 |
+| D-19 | `game_links` (schéma) | Pas d'unicité `(game_id, player_id)` : plusieurs comptes Dev AppStore peuvent se lier au même joueur, y compris en `verified=0`. | Facilite T-LNK-01 (nombreux comptes « offrant » au même joueur) ; ambiguïté pour les futures fonctionnalités (OAuth, fidélité). | Décision produit explicite ; au minimum, vélocité par `player_id` cible et affichage au joueur des comptes liés. | linking | P3 |
 | D-20 | `apps/web/next.config.ts` | Aucun en-tête de sécurité. | T-AUTH-07, T-PLT-03. | `headers()` (CSP, HSTS, XFO, nosniff, Referrer-Policy). | web (transverse) | P1 |
 | D-21 | `.github/workflows/ci.yml` | Pas de bloc `permissions`, pas d'audit de dépendances ni de test de sécurité. | Surface CI plus large que nécessaire. | `permissions: contents: read` ; étape `npm audit --omit=dev`. | infra | P3 |
 | D-22 | `seed.ts` (`playerLookupUrl`/`webhookUrl` en `http://localhost:4100`) et schéma (`text` libre) | Aucune validation d'URL d'intégration (schéma, hôte). | SSRF (T-LNK-05, T-DLV-08) ; trafic en clair. | Validation à l'écriture et à l'appel (`safeFetch`) ; `http://localhost` uniquement hors production. | delivery + linking | P1 |

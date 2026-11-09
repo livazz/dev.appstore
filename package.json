@@ -1,5 +1,5 @@
 {
-  "name": "wolleen",
+  "name": "devappstore",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -7,15 +7,15 @@
     "e2e"
   ],
   "scripts": {
-    "dev": "npm run dev -w @wolleen/web",
-    "build": "npm run build -w @wolleen/web",
+    "dev": "npm run dev -w @devappstore/web",
+    "build": "npm run build -w @devappstore/web",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test:e2e": "npm run test:e2e -w @wolleen/e2e",
-    "db:push": "npm run push -w @wolleen/db",
-    "db:seed": "npm run seed -w @wolleen/db",
-    "demo": "npm run dev -w @wolleen/demo-game"
+    "test:e2e": "npm run test:e2e -w @devappstore/e2e",
+    "db:push": "npm run push -w @devappstore/db",
+    "db:seed": "npm run seed -w @devappstore/db",
+    "demo": "npm run dev -w @devappstore/demo-game"
   },
   "engines": {
     "node": ">=20"

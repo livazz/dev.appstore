@@ -1,5 +1,5 @@
 /** E-mails transactionnels côté joueur : reçu, livraison, échec de livraison, bienvenue. */
-import type { Currency } from '@wolleen/core';
+import type { Currency } from '@devappstore/core';
 import { appLink, resolveContext, type EmailContext } from '../context';
 import { formatDateTime, isoTimestamp, money, type DateInput } from '../format';
 import { bullets, button, details, divider, heading, notice, para, renderEmail, subheading, type DetailRow, type EmailContent } from '../layout';
@@ -109,9 +109,9 @@ export function purchaseReceiptEmail(data: PurchaseReceiptData, context?: Partia
 
   return renderEmail({
     ctx,
-    subject: `Votre reçu Wolleen : ${itemLabel(data.item)} (${data.gameName})`,
+    subject: `Votre reçu Dev AppStore : ${itemLabel(data.item)} (${data.gameName})`,
     preheader: `${price} payés — commande ${data.orderId}. Votre achat est en route vers le jeu.`,
-    reason: 'Vous recevez cet e-mail car vous avez effectué un achat sur Wolleen. Conservez-le : il vaut reçu et confirmation sur support durable.',
+    reason: 'Vous recevez cet e-mail car vous avez effectué un achat sur Dev AppStore. Conservez-le : il vaut reçu et confirmation sur support durable.',
     blocks: [
       heading('Merci pour votre achat !'),
       para(greeting(data.playerName)),
@@ -152,7 +152,7 @@ export function purchaseReceiptEmail(data: PurchaseReceiptData, context?: Partia
           ` : ${sellerLines.join(' — ')}. Il livre l’objet dans le jeu et répond de sa conformité (garantie légale de conformité des contenus numériques, art. L224-25-1 et s. du Code de la consommation).`,
         ],
         [
-          'Wolleen est la place de marché : elle encaisse le paiement pour le compte du vendeur, transmet la commande au jeu et relaie vos demandes de support.',
+          'Dev AppStore est la place de marché : elle encaisse le paiement pour le compte du vendeur, transmet la commande au jeu et relaie vos demandes de support.',
         ],
         [
           'Objet non reçu ? Lancez le jeu ; s’il n’est toujours pas crédité, ',
@@ -185,7 +185,7 @@ export function purchaseDeliveredEmail(data: PurchaseDeliveredData, context?: Pa
     ctx,
     subject: `C’est arrivé ! ${itemLabel(data.item)} est dans ${data.gameName}`,
     preheader: `Votre achat a été crédité sur le compte ${accountLabel(data.gameAccount)}.`,
-    reason: 'Vous recevez cet e-mail car un achat effectué sur Wolleen vient d’être livré dans votre jeu.',
+    reason: 'Vous recevez cet e-mail car un achat effectué sur Dev AppStore vient d’être livré dans votre jeu.',
     blocks: [
       heading('Votre achat est arrivé dans le jeu'),
       para(greeting(data.playerName)),
@@ -241,7 +241,7 @@ export function deliveryFailedEmail(data: DeliveryFailedData, context?: Partial<
     ctx,
     subject: `Livraison retardée : ${itemLabel(data.item)} (${data.gameName})`,
     preheader: `Nous n’arrivons pas à livrer votre achat dans le jeu. Voici vos options.`,
-    reason: 'Vous recevez cet e-mail car la livraison d’un achat effectué sur Wolleen rencontre un problème.',
+    reason: 'Vous recevez cet e-mail car la livraison d’un achat effectué sur Dev AppStore rencontre un problème.',
     blocks: [
       heading('Votre achat n’a pas encore pu être livré'),
       para(greeting(data.playerName)),
@@ -299,12 +299,12 @@ export function playerWelcomeEmail(data: PlayerWelcomeData, context?: Partial<Em
   const catalogUrl = data.catalogUrl ?? appLink(ctx, '/');
   return renderEmail({
     ctx,
-    subject: 'Bienvenue sur Wolleen',
+    subject: 'Bienvenue sur Dev AppStore',
     preheader: 'Trouvez votre jeu, liez votre compte, et vos achats arrivent directement dans le jeu.',
-    reason: 'Vous recevez cet e-mail car vous venez de créer un compte Wolleen.',
+    reason: 'Vous recevez cet e-mail car vous venez de créer un compte Dev AppStore.',
     blocks: [
-      heading(data.name ? `Bienvenue, ${data.name} !` : 'Bienvenue sur Wolleen !'),
-      para('Votre compte est prêt. Acheter vos objets de jeu sur Wolleen, c’est simple :'),
+      heading(data.name ? `Bienvenue, ${data.name} !` : 'Bienvenue sur Dev AppStore !'),
+      para('Votre compte est prêt. Acheter vos objets de jeu sur Dev AppStore, c’est simple :'),
       bullets([
         [{ b: '1. Cherchez votre jeu' }, ' dans le catalogue.'],
         [{ b: '2. Liez votre compte de jeu' }, ' une seule fois (code affiché dans le jeu ou ID joueur).'],
@@ -313,7 +313,7 @@ export function playerWelcomeEmail(data: PlayerWelcomeData, context?: Partial<Em
       button('Découvrir les jeux', catalogUrl),
       divider(),
       para(
-        'Les prix sont toujours affichés en euros TTC, sans monnaie intermédiaire cachée. Ne communiquez jamais votre mot de passe : Wolleen ne vous le demandera jamais par e-mail.',
+        'Les prix sont toujours affichés en euros TTC, sans monnaie intermédiaire cachée. Ne communiquez jamais votre mot de passe : Dev AppStore ne vous le demandera jamais par e-mail.',
         { muted: true },
       ),
     ],

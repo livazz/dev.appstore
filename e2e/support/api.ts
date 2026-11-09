@@ -5,7 +5,7 @@ import { expect, type APIRequestContext } from '@playwright/test';
 import { BASE_URL, DEMO_GAME_URL } from './env';
 import { demoKeys, type DemoGameKey } from './demo-data';
 
-/** Événement d'achat tel que reçu par le jeu (PurchaseEvent de @wolleen/core, champs utiles aux tests). */
+/** Événement d'achat tel que reçu par le jeu (PurchaseEvent de @devappstore/core, champs utiles aux tests). */
 export interface PurchaseEvent {
   event: string;
   delivery_id: string;

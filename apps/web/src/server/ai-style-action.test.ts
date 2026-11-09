@@ -1,10 +1,10 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import Anthropic from '@anthropic-ai/sdk';
-import { DEFAULT_ITEM_STYLE } from '@wolleen/core';
-import { createTestDb } from '@wolleen/db/testing';
-import type { DB } from '@wolleen/db';
-import type { AiStyleClient } from '@wolleen/ai-style';
+import { DEFAULT_ITEM_STYLE } from '@devappstore/core';
+import { createTestDb } from '@devappstore/db/testing';
+import type { DB } from '@devappstore/db';
+import type { AiStyleClient } from '@devappstore/ai-style';
 
 /*
  * Tests de la Server Action generateStyleFromScreenshot : base en mémoire, session simulée (même règle
@@ -13,8 +13,8 @@ import type { AiStyleClient } from '@wolleen/ai-style';
 
 const h = vi.hoisted(() => ({ db: null as unknown as DB, currentUser: 'usr_dev' as string | null }));
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wolleen/db')>();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@devappstore/db')>();
   return {
     ...actual,
     get db() {
@@ -24,7 +24,7 @@ vi.mock('@wolleen/db', async (importOriginal) => {
 });
 
 vi.mock('./session', async () => {
-  const { and, eq, games, studioMembers } = await import('@wolleen/db');
+  const { and, eq, games, studioMembers } = await import('@devappstore/db');
   return {
     requireGameAccess: async (gameId: string, roles?: string[]) => {
       if (!h.currentUser) throw new Error('NEXT_REDIRECT');
@@ -42,7 +42,7 @@ vi.mock('./session', async () => {
 
 const { generateStyleFromScreenshot } = await import('./ai-style-action');
 const logic = await import('./ai-style-logic');
-const { aiStyleGenerations, games, items, studioMembers, studios, user, eq } = await import('@wolleen/db');
+const { aiStyleGenerations, games, items, studioMembers, studios, user, eq } = await import('@devappstore/db');
 
 const OUTPUT = {
   layout: 2,

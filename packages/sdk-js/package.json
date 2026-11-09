@@ -1,7 +1,7 @@
 {
-  "name": "@wolleen/sdk",
+  "name": "@devappstore/sdk",
   "version": "0.2.0",
-  "description": "SDK JavaScript/TypeScript Wolleen : livraisons d’achats en temps réel (clé publique + jeton joueur, ou clé secrète côté serveur), remboursements, accusés de réception et codes de liaison.",
+  "description": "SDK JavaScript/TypeScript Dev AppStore : livraisons d’achats en temps réel (clé publique + jeton joueur, ou clé secrète côté serveur), remboursements, accusés de réception et codes de liaison.",
   "private": true,
   "type": "module",
   "exports": {
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@wolleen/core": "*",
+    "@devappstore/core": "*",
     "typescript": "^5.8.3",
     "vitest": "^4.1.12"
   }

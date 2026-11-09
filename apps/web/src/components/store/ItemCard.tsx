@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { formatMoney, PERIODS, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@wolleen/core/client';
+import { formatMoney, PERIODS, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@devappstore/core/client';
 import { cardBackground, safeImageUrl, safeItemStyle } from './style-safety';
 import s from './store.module.css';
 

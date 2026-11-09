@@ -1,4 +1,4 @@
-# Dossier juridique Wolleen (notes de recherche)
+# Dossier juridique Dev AppStore (notes de recherche)
 
 > Notes de recherche datées du **9 novembre 2026**, rédigées pour cadrer le produit. **Ce ne sont pas des
 > avis juridiques ou fiscaux** ; les projets de conditions doivent être validés par un avocat avant toute
@@ -7,7 +7,7 @@
 | Fichier | Contenu |
 |---|---|
 | [stores.md](stores.md) | Règles Apple / Google pour les achats web utilisés dans un jeu mobile, par région (US, UE, UK, Japon, Corée) |
-| [tax.md](tax.md) | TVA / OSS, Royaume-Uni, sales tax US ; « studio vendeur » vs « Wolleen marchand de référence » ; Stripe Tax |
+| [tax.md](tax.md) | TVA / OSS, Royaume-Uni, sales tax US ; « studio vendeur » vs « Dev AppStore marchand de référence » ; Stripe Tax |
 | [consumer.md](consumer.md) | Rétractation et contenu numérique, bouton de rétractation 2026, mineurs, remboursements, rétrofacturations |
 | [cgv-draft.md](cgv-draft.md) | **Projet** de conditions joueurs (CGV/CGU) |
 | [cgu-draft.md](cgu-draft.md) | **Projet** de conditions studio (contrat de distribution, règlement P2B) |

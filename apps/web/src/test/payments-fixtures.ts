@@ -2,20 +2,20 @@
  * Données de test de la tâche « payments ». À utiliser dans un fichier de test qui remplace la base globale
  * par une base en mémoire :
  *
- *   vi.mock('@wolleen/db', async (importOriginal) => {
- *     const { createTestDb } = await import('@wolleen/db/testing');
- *     (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
+ *   vi.mock('@devappstore/db', async (importOriginal) => {
+ *     const { createTestDb } = await import('@devappstore/db/testing');
+ *     (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
  *     return importOriginal();
  *   });
  *
- * (`@wolleen/db` réutilise globalThis.__wolleenDb s'il existe : la base de dev .data/pglite n'est jamais ouverte.)
+ * (`@devappstore/db` réutilise globalThis.__devAppStoreDb s'il existe : la base de dev .data/pglite n'est jamais ouverte.)
  */
-import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, newId } from '@wolleen/core';
-import { and, db, eq, gameLinks, games, items, orders, studios, user } from '@wolleen/db';
+import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, newId } from '@devappstore/core';
+import { and, db, eq, gameLinks, games, items, orders, studios, user } from '@devappstore/db';
 
 export const FX = {
-  buyer: { id: 'usr_buyer', name: 'Acheteur', email: 'buyer@wolleen.test' },
-  stranger: { id: 'usr_stranger', name: 'Sans liaison', email: 'stranger@wolleen.test' },
+  buyer: { id: 'usr_buyer', name: 'Acheteur', email: 'buyer@devappstore.test' },
+  stranger: { id: 'usr_stranger', name: 'Sans liaison', email: 'stranger@devappstore.test' },
   studio: 'std_pay',
   game: { id: 'gam_pay', slug: 'jeu-test' },
   draftGame: { id: 'gam_draft', slug: 'jeu-brouillon' },
@@ -34,7 +34,7 @@ export async function seedPaymentsFixtures() {
     theme: DEFAULT_THEME,
     webhookSecret: 'whsec_test',
     apiKeyHash: 'hash',
-    apiKeyPrefix: 'wk_test',
+    apiKeyPrefix: 'das_test',
   };
   await db.insert(games).values([
     { ...game, id: FX.game.id, slug: FX.game.slug, name: 'Jeu Test', status: 'live' },

@@ -1,9 +1,9 @@
 import 'server-only';
 import sharp from 'sharp';
 import Anthropic from '@anthropic-ai/sdk';
-import { AiStyleError, generateCardStyle, type AiStyleClient, type GenerateResult } from '@wolleen/ai-style';
-import { newId } from '@wolleen/core';
-import { aiStyleGenerations, and, count, desc, eq, games, gt, items, ne, type DB } from '@wolleen/db';
+import { AiStyleError, generateCardStyle, type AiStyleClient, type GenerateResult } from '@devappstore/ai-style';
+import { newId } from '@devappstore/core';
+import { aiStyleGenerations, and, count, desc, eq, games, gt, items, ne, type DB } from '@devappstore/db';
 import {
   AI_STYLE_MAX_SIDE_PX,
   AI_STYLE_MAX_UPLOAD_BYTES,
@@ -13,7 +13,7 @@ import {
 } from '@/lib/ai-style-types';
 
 /*
- * Génération du style d'une carte article depuis une capture du jeu (@wolleen/ai-style), côté serveur.
+ * Génération du style d'une carte article depuis une capture du jeu (@devappstore/ai-style), côté serveur.
  * Logique testable (base et client IA injectés) ; la Server Action est dans ./ai-style-action.ts.
  */
 

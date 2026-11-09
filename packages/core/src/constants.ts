@@ -11,7 +11,7 @@ export const STORE_FEE_BPS = 3000;
 export const REDUCED_STORE_FEE_BPS = 1500;
 /** Taux de commission store proposés dans les comparatifs (calculateur marketing, tuile « Gagné en plus »). */
 export const STORE_FEE_OPTIONS_BPS = [REDUCED_STORE_FEE_BPS, STORE_FEE_BPS] as const;
-/** Commission Wolleen par défaut (points de base). Surchargée par PLATFORM_FEE_BPS. */
+/** Commission Dev AppStore par défaut (points de base). Surchargée par PLATFORM_FEE_BPS. */
 export const DEFAULT_PLATFORM_FEE_BPS = 500;
 
 /** Paliers de prix en centimes (inspirés d'App Store Connect). */

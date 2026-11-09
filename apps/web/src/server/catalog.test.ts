@@ -6,12 +6,12 @@ await vi.hoisted(async () => {
   const { mkdtempSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
-  process.env.WOLLEEN_DATA_DIR = mkdtempSync(join(tmpdir(), 'wolleen-catalog-test-'));
+  process.env.DEVAPPSTORE_DATA_DIR = mkdtempSync(join(tmpdir(), 'devappstore-catalog-test-'));
 });
 
-import { DEFAULT_ITEM_STYLE, DEFAULT_THEME } from '@wolleen/core';
-import { games, items, studios, type DB } from '@wolleen/db';
-import { createTestDb } from '@wolleen/db/testing';
+import { DEFAULT_ITEM_STYLE, DEFAULT_THEME } from '@devappstore/core';
+import { games, items, studios, type DB } from '@devappstore/db';
+import { createTestDb } from '@devappstore/db/testing';
 import {
   discountPct,
   escapeLike,
@@ -36,7 +36,7 @@ const game = (id: string, v: Partial<typeof games.$inferInsert> = {}) => ({
   theme: DEFAULT_THEME,
   webhookSecret: 'whsec_x',
   apiKeyHash: 'hash',
-  apiKeyPrefix: 'wk_test',
+  apiKeyPrefix: 'das_test',
   status: 'live' as const,
   ...v,
 });

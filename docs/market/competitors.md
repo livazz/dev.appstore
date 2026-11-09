@@ -28,7 +28,7 @@
 | **UE (DMA)** | Liens externes et moyens de paiement alternatifs autorisés. Apple y conserve des frais spécifiques. |
 | **Epic Games Store** | 0 % sur le premier million de dollars par application et par an, puis 12 %. Web Shops annoncés en mai 2025. Le barème propre aux Web Shops n'a pas été confirmé publiquement. |
 
-**À retenir pour Wolleen :** les frais de Google portent sur les achats **reliés à l'application**, par un lien ou une
+**À retenir pour Dev AppStore :** les frais de Google portent sur les achats **reliés à l'application**, par un lien ou une
 installation existante. Un achat que le joueur fait de lui-même sur une place de marché externe, sans lien depuis
 l'appli, sort a priori de ce périmètre. C'est le cas de Codashop ou du Supercell Store visité directement. Cet avantage
 structurel doit être confirmé par un juriste.
@@ -120,12 +120,12 @@ porte la fraude et les rétrofacturations, et fait le support de paiement.
 
 ### Supercell Store (modèle propriétaire de référence)
 
-- C'est un cas d'école pour Wolleen : **un compte (Supercell ID) pour plusieurs jeux**, des **points de fidélité
+- C'est un cas d'école pour Dev AppStore : **un compte (Supercell ID) pour plusieurs jeux**, des **points de fidélité
   utilisables dans tous les jeux** (ID Rewards), des **offres exclusives au web** (offre quotidienne Clash Royale, bonus
   de gemmes d'environ 10 % sur Brawl Stars **(à vérifier)**), des événements communautaires propres au web et des codes
   d'échange déplacés vers le web pour y attirer les joueurs.
 - Stash attribue au Supercell Store une contribution au passage de 5 jeux au-delà du milliard de dollars.
-- **Lecture :** Wolleen peut offrir à des studios indépendants ce que Supercell s'est construit en interne, en mutualisant
+- **Lecture :** Dev AppStore peut offrir à des studios indépendants ce que Supercell s'est construit en interne, en mutualisant
   compte, points et trafic entre studios.
 
 ### Unity IAP 5.4 et Stripe
@@ -138,7 +138,7 @@ porte la fraude et les rétrofacturations, et fait le support de paiement.
 
 ### Places de marché de recharge (Codashop, Midasbuy, LootBar, Razer Gold, SEAGM)
 
-- Ce sont les seuls acteurs déjà **orientés joueur et multi-jeux**, comme Wolleen. Les joueurs y cherchent leur jeu,
+- Ce sont les seuls acteurs déjà **orientés joueur et multi-jeux**, comme Dev AppStore. Les joueurs y cherchent leur jeu,
   saisissent leur ID et rechargent.
 - Midasbuy ne sert que les jeux Tencent. Codashop est très fort en Asie du Sud-Est et canal officiel de miHoYo.
   LootBar couvre plus de 150 jeux avec de fortes remises, mais sa fiabilité est contestée (connexion par mot de passe sur
@@ -152,7 +152,7 @@ porte la fraude et les rétrofacturations, et fait le support de paiement.
    Appcharge). En dessous : PayNow (2,5 à 3,5 %), Unity (0 %) et Epic (0 % jusqu'à 1 M$). **Le prix seul ne différencie
    plus.**
 2. **Les acteurs établis sont des marchands de référence.** Ils prennent en charge TVA, fraude et litiges.
-   Wolleen (Stripe Connect avec `application_fee_amount`) **n'est pas MoR à ce stade** : le studio reste vendeur et
+   Dev AppStore (Stripe Connect avec `application_fee_amount`) **n'est pas MoR à ce stade** : le studio reste vendeur et
    responsable de la TVA (Stripe Tax est prévu en phase 2). C'est un handicap face à un concurrent à 5 % qui inclut
    la conformité.
 3. **La valeur se déplace vers la LiveOps, la personnalisation et la fidélité** (Aghanim, Stash, Appcharge). La boutique

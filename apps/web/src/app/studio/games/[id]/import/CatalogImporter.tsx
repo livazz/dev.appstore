@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ITEM_TYPES, PERIODS, PRICE_TIERS_CENTS, formatMoney, type Period } from '@wolleen/core';
+import { ITEM_TYPES, PERIODS, PRICE_TIERS_CENTS, formatMoney, type Period } from '@devappstore/core';
 import { fetchCatalogAction, importSelectionAction, repriceAction } from '@/server/import-actions';
 import type { CatalogPreview, ImportOutcome, PreviewRow } from '@/server/import-logic';
 import { btnCancel, btnGhost, btnPrimary, card, input } from './ui';

@@ -58,7 +58,7 @@ describe('budget : coût ≤ 20 % de la commission', () => {
     expect(isRewardWithinBudget({ kind: 'discount', pointsCost: 50, valueCents: null })).toBe(false);
   });
 
-  it('les objets bonus (offerts par le studio) ne coûtent rien à Wolleen', () => {
+  it('les objets bonus (offerts par le studio) ne coûtent rien à Dev AppStore', () => {
     expect(isRewardWithinBudget({ kind: 'bonus_item', pointsCost: 1, valueCents: null })).toBe(true);
     expect(isRewardWithinBudget({ kind: 'bonus_item', pointsCost: 0, valueCents: null })).toBe(false);
   });

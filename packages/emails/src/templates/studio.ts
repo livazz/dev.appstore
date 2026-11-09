@@ -1,5 +1,5 @@
 /** E-mails côté studio : bienvenue, alerte « livraisons en échec », rapport hebdomadaire. */
-import { DEFAULT_PLATFORM_FEE_BPS, STORE_FEE_BPS, feeCents, savingsVsStores, type Currency } from '@wolleen/core';
+import { DEFAULT_PLATFORM_FEE_BPS, STORE_FEE_BPS, feeCents, savingsVsStores, type Currency } from '@devappstore/core';
 import { appLink, resolveContext, type EmailContext } from '../context';
 import { formatDate, formatDateTime, money, percent, plural, type DateInput } from '../format';
 import { bullets, button, dataTable, divider, heading, notice, para, renderEmail, stats, subheading, type EmailContent, type Rich } from '../layout';
@@ -29,9 +29,9 @@ export function studioWelcomeEmail(data: StudioWelcomeData, context?: Partial<Em
   const keep = percent(1 - fee / 10_000).replace('+', '');
   return renderEmail({
     ctx,
-    subject: `Bienvenue sur Wolleen, ${data.studioName}`,
+    subject: `Bienvenue sur Dev AppStore, ${data.studioName}`,
     preheader: `Votre espace studio est prêt : configurez votre boutique et gardez ${keep} de vos revenus.`,
-    reason: `Vous recevez cet e-mail car vous avez créé l’espace studio « ${data.studioName} » sur Wolleen.`,
+    reason: `Vous recevez cet e-mail car vous avez créé l’espace studio « ${data.studioName} » sur Dev AppStore.`,
     blocks: [
       heading(`Bienvenue, ${data.studioName} !`),
       para(data.userName ? `Bonjour ${data.userName},` : 'Bonjour,'),
@@ -50,7 +50,7 @@ export function studioWelcomeEmail(data: StudioWelcomeData, context?: Partial<Em
       button('Ouvrir mon espace studio', dashboardUrl),
       ...(data.docsUrl ? [para(['Documentation d’intégration : ', { a: data.docsUrl, href: data.docsUrl }], { muted: true })] : []),
       para(
-        'Sécurité : vos clés API et secrets de webhook ne sont affichés que dans l’espace studio. Wolleen ne vous les demandera jamais par e-mail.',
+        'Sécurité : vos clés API et secrets de webhook ne sont affichés que dans l’espace studio. Dev AppStore ne vous les demandera jamais par e-mail.',
         { muted: true },
       ),
     ],
@@ -100,7 +100,7 @@ export function studioDeliveryAlertEmail(data: StudioDeliveryAlertData, context?
     ctx,
     subject: `Alerte : ${plural(total, 'livraison en échec', 'livraisons en échec')} — ${data.gameName}`,
     preheader: `Des joueurs ont payé mais n’ont pas encore reçu leurs objets dans ${data.gameName}.`,
-    reason: `Vous recevez cette alerte en tant que membre du studio « ${data.studioName} » sur Wolleen.`,
+    reason: `Vous recevez cette alerte en tant que membre du studio « ${data.studioName} » sur Dev AppStore.`,
     blocks: [
       heading('Des livraisons échouent'),
       para([
@@ -123,7 +123,7 @@ export function studioDeliveryAlertEmail(data: StudioDeliveryAlertData, context?
         data.webhookUrl
           ? ['Votre webhook ', { b: data.webhookUrl }, ' répond-il en 2xx ? (certificat TLS, pare-feu, délai < 10 s)']
           : 'Votre webhook répond-il en 2xx ? (certificat TLS, pare-feu, délai < 10 s)',
-        'La signature Wolleen-Signature est-elle vérifiée avec le bon secret ?',
+        'La signature DevAppStore-Signature est-elle vérifiée avec le bon secret ?',
         'Avec le SDK : le jeu appelle-t-il bien ack() après avoir crédité l’objet ?',
       ]),
       button('Ouvrir le journal des livraisons', data.integrationUrl),
@@ -140,7 +140,7 @@ export interface WeeklyGameStats {
   /** Chiffre d'affaires TTC encaissé sur la période, en centimes. */
   revenueCents: number;
   orders: number;
-  /** Commission Wolleen appliquée au jeu. Par défaut `DEFAULT_PLATFORM_FEE_BPS`. */
+  /** Commission Dev AppStore appliquée au jeu. Par défaut `DEFAULT_PLATFORM_FEE_BPS`. */
   platformFeeBps?: number;
   previousRevenueCents?: number;
 }
@@ -216,22 +216,22 @@ export function studioWeeklyReportEmail(data: StudioWeeklyReportData, context?: 
 
   return renderEmail({
     ctx,
-    subject: `Votre semaine sur Wolleen : ${money(t.revenueCents, cur)} de ventes (${data.studioName})`,
+    subject: `Votre semaine sur Dev AppStore : ${money(t.revenueCents, cur)} de ventes (${data.studioName})`,
     preheader: `${money(t.savingsCents, cur)} gagnés en plus par rapport aux stores, ${period}.`,
-    reason: `Vous recevez ce rapport hebdomadaire en tant que membre du studio « ${data.studioName} » sur Wolleen.`,
+    reason: `Vous recevez ce rapport hebdomadaire en tant que membre du studio « ${data.studioName} » sur Dev AppStore.`,
     blocks: [
       heading('Votre rapport de la semaine'),
       para([`${data.studioName}, voici vos ventes `, { b: period }, '.']),
       stats([
         { label: 'Ventes TTC', value: money(t.revenueCents, cur), hint: trend(t.revenueCents, t.previousRevenueCents) },
         { label: 'Commandes', value: new Intl.NumberFormat('fr-FR').format(t.orders) },
-        { label: 'Votre revenu', value: money(t.netCents, cur), hint: 'après commission Wolleen' },
+        { label: 'Votre revenu', value: money(t.netCents, cur), hint: 'après commission Dev AppStore' },
       ]),
       notice('Économie par rapport aux stores', [
         [
           'Via l’App Store ou Google Play (commission de ',
           percent(STORE_FEE_BPS / 10_000).replace('+', ''),
-          `), ces ventes vous auraient rapporté ${money(t.storeNetCents, cur)}. Avec Wolleen, vous gagnez `,
+          `), ces ventes vous auraient rapporté ${money(t.storeNetCents, cur)}. Avec Dev AppStore, vous gagnez `,
           { b: `${money(t.savingsCents, cur)} de plus` },
           ' cette semaine.',
         ],
@@ -257,7 +257,7 @@ export function studioWeeklyReportEmail(data: StudioWeeklyReportData, context?: 
       button('Voir les ventes et tendances', salesUrl),
       divider(),
       para(
-        `Montants indicatifs, hors frais de paiement, remboursements et rétrofacturations ; commission Wolleen : ${money(t.platformFeeCents, cur)}. Le relevé définitif figure dans votre espace Versements.`,
+        `Montants indicatifs, hors frais de paiement, remboursements et rétrofacturations ; commission Dev AppStore : ${money(t.platformFeeCents, cur)}. Le relevé définitif figure dans votre espace Versements.`,
         { muted: true },
       ),
     ],

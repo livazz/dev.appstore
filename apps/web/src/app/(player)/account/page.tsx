@@ -5,7 +5,7 @@ import { requireUser } from '@/server/session';
 import { UnlinkButton } from './UnlinkButton';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Mon compte — Wolleen' };
+export const metadata: Metadata = { title: 'Mon compte — Dev AppStore' };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' });
 
@@ -28,7 +28,7 @@ export default async function AccountPage() {
           Historique des achats
         </Link>
         <Link href="/account/points" className="pb-2 text-ink-2 transition hover:text-ink">
-          Points Wolleen
+          Points Dev AppStore
         </Link>
       </nav>
 

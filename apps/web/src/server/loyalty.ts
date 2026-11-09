@@ -1,5 +1,5 @@
 import 'server-only';
-import { newId, type Currency } from '@wolleen/core';
+import { newId, type Currency } from '@devappstore/core';
 import {
   and,
   asc,
@@ -21,7 +21,7 @@ import {
   type DB,
   type LoyaltyReason,
   type LoyaltyRewardKind,
-} from '@wolleen/db';
+} from '@devappstore/db';
 import { enqueueDelivery } from '@/server/delivery';
 import {
   addDays,
@@ -38,7 +38,7 @@ import {
 } from '@/server/loyalty-logic';
 
 /*
- * Programme de fidélité « Points Wolleen » (phase 3) — règles et garde-fous : docs/product/loyalty.md.
+ * Programme de fidélité « Points Dev AppStore » (phase 3) — règles et garde-fous : docs/product/loyalty.md.
  * Les points ne s'achètent pas, ne se convertissent pas en argent, ne se transfèrent pas et expirent.
  *
  * Toute écriture qui dépend du solde se fait sous un verrou consultatif transactionnel par utilisateur
@@ -55,7 +55,7 @@ export function getLoyaltyConfig(): LoyaltyConfig {
 }
 
 async function lockUser(tx: Tx, userId: string) {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`wolleen:loyalty:${userId}`}))`);
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`devappstore:loyalty:${userId}`}))`);
 }
 
 async function loadLedger(ex: Exec, userId: string): Promise<LedgerEntry[]> {
@@ -334,7 +334,7 @@ export type RedeemErrorCode =
   | 'out_of_stock';
 
 export const REDEEM_ERROR_MESSAGES: Record<RedeemErrorCode, string> = {
-  disabled: 'Le programme Points Wolleen n’est pas encore ouvert.',
+  disabled: 'Le programme Points Dev AppStore n’est pas encore ouvert.',
   reward_unavailable: 'Cette récompense n’est plus disponible.',
   insufficient_points: 'Vous n’avez pas assez de points pour cette récompense.',
   not_linked: 'Liez d’abord votre compte de jeu pour recevoir cet objet.',
@@ -498,7 +498,7 @@ function checkVoucher(v: typeof loyaltyRedemptions.$inferSelect | undefined, use
     return { ok: false, code: 'voucher_unavailable', message: 'Ce bon de réduction n’est plus utilisable.' };
   }
   if (v.currency !== order.currency) return { ok: false, code: 'currency_mismatch', message: 'Ce bon n’est pas utilisable dans cette devise.' };
-  // Réduction financée par Wolleen sur SA commission : jamais plus que la commission de la commande.
+  // Réduction financée par Dev AppStore sur SA commission : jamais plus que la commission de la commande.
   if (v.valueCents > order.platformFeeCents || v.valueCents >= order.amountCents) {
     return { ok: false, code: 'order_too_small', message: 'Ce bon s’utilise sur une commande d’un montant plus élevé.' };
   }

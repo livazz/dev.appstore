@@ -1,19 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { DEFAULT_PLATFORM_FEE_BPS, REDUCED_STORE_FEE_BPS, STORE_FEE_BPS, STORE_FEE_OPTIONS_BPS, feeCents, formatMoney } from '@wolleen/core';
+import { DEFAULT_PLATFORM_FEE_BPS, REDUCED_STORE_FEE_BPS, STORE_FEE_BPS, STORE_FEE_OPTIONS_BPS, feeCents, formatMoney } from '@devappstore/core';
 import { EditorPreview } from '@/components/marketing/EditorPreview';
 import { Faq, type FaqEntry } from '@/components/marketing/Faq';
 import { SavingsCalculator } from '@/components/marketing/SavingsCalculator';
 import { bpsToPercentLabel, keptPercentLabel } from '@/components/marketing/savings';
 
-const KEPT_WOLLEEN = keptPercentLabel(DEFAULT_PLATFORM_FEE_BPS);
+const KEPT_DEVAPPSTORE = keptPercentLabel(DEFAULT_PLATFORM_FEE_BPS);
 /** « 70 à 85 % » : ce que gardent les studios via les stores, du taux standard (30 %) au taux réduit (15 %). */
 const KEPT_STORES = `${keptPercentLabel(STORE_FEE_BPS).replace(/\s*%$/, '')} à ${keptPercentLabel(REDUCED_STORE_FEE_BPS)}`;
 const STORE_RANGE = `${bpsToPercentLabel(REDUCED_STORE_FEE_BPS).replace(/\s*%$/, '')} à ${bpsToPercentLabel(STORE_FEE_BPS)}`;
 
 export const metadata: Metadata = {
-  title: 'Wolleen pour les studios — gardez ~95 % de vos ventes in-app',
-  description: `Vendez vos objets in-app sur le web : gardez environ ${KEPT_WOLLEEN} du revenu au lieu de ${KEPT_STORES} via les stores, livraison automatique dans le jeu par webhook signé ou SDK.`,
+  title: 'Dev AppStore pour les studios — gardez ~95 % de vos ventes in-app',
+  description: `Vendez vos objets in-app sur le web : gardez environ ${KEPT_DEVAPPSTORE} du revenu au lieu de ${KEPT_STORES} via les stores, livraison automatique dans le jeu par webhook signé ou SDK.`,
 };
 
 const SIGNUP_HREF = '/studio/signup';
@@ -36,18 +36,18 @@ const STEPS = [
   },
   {
     title: 'Le jeu se met à jour tout seul',
-    text: 'Vos joueurs achètent sur le web, moins cher. Wolleen livre l’achat au jeu automatiquement, en quelques secondes, sans action de leur part.',
+    text: 'Vos joueurs achètent sur le web, moins cher. Dev AppStore livre l’achat au jeu automatiquement, en quelques secondes, sans action de leur part.',
   },
 ];
 
 const GUARANTEES = [
   {
     title: 'Webhooks signés HMAC',
-    text: 'Chaque livraison porte une signature horodatée (en-tête Wolleen-Signature) que votre serveur vérifie avant de créditer : impossible de forger un achat.',
+    text: 'Chaque livraison porte une signature horodatée (en-tête DevAppStore-Signature) que votre serveur vérifie avant de créditer : impossible de forger un achat.',
   },
   {
     title: 'Livraison garantie',
-    text: 'Si votre serveur ne répond pas, Wolleen relance automatiquement pendant 24 h et plus. Le SDK récupère aussi les achats en attente au lancement du jeu.',
+    text: 'Si votre serveur ne répond pas, Dev AppStore relance automatiquement pendant 24 h et plus. Le SDK récupère aussi les achats en attente au lancement du jeu.',
   },
   {
     title: 'Jamais de double crédit',
@@ -55,7 +55,7 @@ const GUARANTEES = [
   },
   {
     title: 'Paiements sécurisés',
-    text: "Les paiements sont traités par Stripe : Wolleen ne stocke jamais les numéros de carte. Les reversements arrivent sur votre compte via Stripe Connect.",
+    text: "Les paiements sont traités par Stripe : Dev AppStore ne stocke jamais les numéros de carte. Les reversements arrivent sur votre compte via Stripe Connect.",
   },
 ];
 
@@ -72,19 +72,19 @@ const FAQ: FaqEntry[] = [
         </p>
         <p>
           <strong className="text-ink">À vérifier selon votre région</strong> : consultez les conditions en vigueur d’Apple et de
-          Google, et si besoin votre conseil juridique, avant de communiquer sur Wolleen dans votre jeu.
+          Google, et si besoin votre conseil juridique, avant de communiquer sur Dev AppStore dans votre jeu.
         </p>
       </>
     ),
   },
   {
-    question: 'Combien coûte Wolleen ?',
+    question: 'Combien coûte Dev AppStore ?',
     answer: (
       <p>
-        Aucun abonnement ni frais d’installation : Wolleen prélève une commission de {bpsToPercentLabel(DEFAULT_PLATFORM_FEE_BPS)} sur
+        Aucun abonnement ni frais d’installation : Dev AppStore prélève une commission de {bpsToPercentLabel(DEFAULT_PLATFORM_FEE_BPS)} sur
         chaque vente, contre {STORE_RANGE} sur les stores selon votre programme ({bpsToPercentLabel(REDUCED_STORE_FEE_BPS)} pour
         les petits studios et les abonnements après un an, {bpsToPercentLabel(STORE_FEE_BPS)} au taux standard). Vous gardez donc
-        environ {KEPT_WOLLEEN} du prix payé par le joueur (hors taxes applicables).
+        environ {KEPT_DEVAPPSTORE} du prix payé par le joueur (hors taxes applicables).
       </p>
     ),
   },
@@ -92,7 +92,7 @@ const FAQ: FaqEntry[] = [
     question: 'Dois-je retirer mes achats in-app des stores ?',
     answer: (
       <p>
-        Non. Wolleen vient en complément : vos joueurs gardent le choix d’acheter dans l’application ou sur le web, où vous pouvez
+        Non. Dev AppStore vient en complément : vos joueurs gardent le choix d’acheter dans l’application ou sur le web, où vous pouvez
         proposer un meilleur prix. Le calculateur ci-dessus vous permet d’estimer l’effet d’une bascule partielle.
       </p>
     ),
@@ -110,7 +110,7 @@ const FAQ: FaqEntry[] = [
     question: 'Comment le joueur relie-t-il son compte de jeu ?',
     answer: (
       <p>
-        Une seule fois par jeu : le jeu affiche un code temporaire que le joueur saisit sur Wolleen, ou le joueur indique son
+        Une seule fois par jeu : le jeu affiche un code temporaire que le joueur saisit sur Dev AppStore, ou le joueur indique son
         identifiant et confirme son pseudo. Ensuite, chaque achat est livré automatiquement sur le bon compte.
       </p>
     ),
@@ -150,7 +150,7 @@ export default function StudiosPage() {
               Pour les studios de jeux mobiles
             </p>
             <h1 id="promesse-titre" className="mt-5 text-4xl font-black leading-tight tracking-tight sm:text-5xl">
-              Gardez ~{KEPT_WOLLEEN} de vos ventes in-app, pas {KEPT_STORES}.
+              Gardez ~{KEPT_DEVAPPSTORE} de vos ventes in-app, pas {KEPT_STORES}.
             </h1>
             <p className="mt-5 max-w-xl text-lg text-ink-2">
               Vendez vos objets in-app sur le web. Vos joueurs paient moins cher, vous gagnez plus, et le jeu reçoit chaque achat
@@ -190,7 +190,7 @@ export default function StudiosPage() {
               ))}
               <div>
                 <div className="flex items-baseline justify-between gap-3">
-                  <dt className="text-ink-2">Via Wolleen ({bpsToPercentLabel(DEFAULT_PLATFORM_FEE_BPS)})</dt>
+                  <dt className="text-ink-2">Via Dev AppStore ({bpsToPercentLabel(DEFAULT_PLATFORM_FEE_BPS)})</dt>
                   <dd className="text-xl font-bold text-[color-mix(in_srgb,var(--ok)_75%,black)] tabular-nums">
                     {formatMoney(SAMPLE_CENTS - feeCents(SAMPLE_CENTS, DEFAULT_PLATFORM_FEE_BPS))}
                   </dd>
@@ -253,7 +253,7 @@ export default function StudiosPage() {
             id="securite-titre"
             kicker="Sécurité et fiabilité"
             title="Chaque achat arrive dans le jeu, une seule fois"
-            intro="La livraison automatique est le cœur de Wolleen : vos joueurs n'ont rien à faire, et vous gardez le contrôle."
+            intro="La livraison automatique est le cœur de Dev AppStore : vos joueurs n'ont rien à faire, et vous gardez le contrôle."
           />
           <ul className="grid gap-6 sm:grid-cols-2">
             {GUARANTEES.map((g) => (
@@ -276,7 +276,7 @@ export default function StudiosPage() {
       <section aria-labelledby="cta-titre" className="px-4 pb-20 sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 rounded-3xl bg-ink px-6 py-14 text-center text-white">
           <h2 id="cta-titre" className="max-w-2xl text-2xl font-bold tracking-tight sm:text-3xl">
-            Prêt à garder ~{KEPT_WOLLEEN} de vos ventes ?
+            Prêt à garder ~{KEPT_DEVAPPSTORE} de vos ventes ?
           </h2>
           <p className="max-w-xl text-white/80">
             Créez votre espace studio gratuitement, composez votre boutique et testez la livraison avec nos clés de démonstration.

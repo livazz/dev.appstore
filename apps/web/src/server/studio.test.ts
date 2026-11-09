@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_ITEM_STYLE } from '@wolleen/core';
-import { createTestDb } from '@wolleen/db/testing';
-import type { DB } from '@wolleen/db';
+import { DEFAULT_ITEM_STYLE } from '@devappstore/core';
+import { createTestDb } from '@devappstore/db/testing';
+import type { DB } from '@devappstore/db';
 
 /*
  * Tests des Server Actions : la base est remplacée par une base en mémoire, et la session par un
@@ -13,8 +13,8 @@ const h = vi.hoisted(() => ({ db: null as unknown as DB, currentUser: 'usr_dev' 
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
-vi.mock('@wolleen/db', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wolleen/db')>();
+vi.mock('@devappstore/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@devappstore/db')>();
   return {
     ...actual,
     get db() {
@@ -24,7 +24,7 @@ vi.mock('@wolleen/db', async (importOriginal) => {
 });
 
 vi.mock('./session', async () => {
-  const { and, eq, games, studioMembers } = await import('@wolleen/db');
+  const { and, eq, games, studioMembers } = await import('@devappstore/db');
   const requireUser = async () => {
     if (!h.currentUser) throw new Error('NEXT_REDIRECT');
     return { id: h.currentUser, email: `${h.currentUser}@t.test`, name: h.currentUser };
@@ -46,7 +46,7 @@ vi.mock('./session', async () => {
 });
 
 const actions = await import('./studio');
-const { games, items, studioMembers, studios, user, eq } = await import('@wolleen/db');
+const { games, items, studioMembers, studios, user, eq } = await import('@devappstore/db');
 
 const itemInput = {
   type: 'consumable' as const,
@@ -93,7 +93,7 @@ beforeEach(() => {
 describe('Server Actions du studio', () => {
   it('createGame renvoie la clé API une seule fois et crée le jeu dans le studio de l’utilisateur', async () => {
     const r = ok(await actions.createGame({ name: 'Pixel Farm', category: 'Simulation', currency: 'EUR' }));
-    expect(r.apiKey).toMatch(/^wk_secret_/);
+    expect(r.apiKey).toMatch(/^das_secret_/);
     const [g] = await h.db.select().from(games).where(eq(games.id, r.id));
     expect(g?.studioId).toBe('std_a');
     expect(g?.apiKeyHash).not.toContain(r.apiKey);

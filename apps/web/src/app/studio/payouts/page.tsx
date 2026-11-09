@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { feeCents, formatMoney, STORE_FEE_BPS, type Currency } from '@wolleen/core';
+import { feeCents, formatMoney, STORE_FEE_BPS, type Currency } from '@devappstore/core';
 import { SubmitButton } from '@/components/checkout/SubmitButton';
 import { platformFeeBps } from '@/server/payments';
 import { canManagePayouts, getPayoutStudios, getRecentStudioSales, getStudioRevenue, syncConnectStatus, type ConnectStatus } from '@/server/payouts';
@@ -9,7 +9,7 @@ import { chargeModel, isProduction, isStripeEnabled } from '@/server/stripe';
 import { openDashboardAction, startOnboardingAction } from './actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Paiements et versements — Wolleen' };
+export const metadata: Metadata = { title: 'Paiements et versements — Dev AppStore' };
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' });
 const dateTimeFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
@@ -69,7 +69,7 @@ export default async function PayoutsPage({ searchParams }: { searchParams: Prom
   const pendingSalesNote =
     isProduction() || chargeModel() === 'direct'
       ? 'En attendant, vos articles ne peuvent pas être achetés.'
-      : 'En attendant (hors production), les ventes de test sont encaissées par Wolleen pour votre compte.';
+      : 'En attendant (hors production), les ventes de test sont encaissées par Dev AppStore pour votre compte.';
   const error = sp.error ? (ERRORS[sp.error] ?? ERRORS.stripe) : connectError ? ERRORS.stripe : null;
 
   return (
@@ -78,7 +78,7 @@ export default async function PayoutsPage({ searchParams }: { searchParams: Prom
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Paiements et versements</h1>
           <p className="mt-1 text-sm text-ink-2">
-            Vos ventes sont versées sur votre compte bancaire via Stripe Connect. Commission Wolleen : {bps / 100} % (contre{' '}
+            Vos ventes sont versées sur votre compte bancaire via Stripe Connect. Commission Dev AppStore : {bps / 100} % (contre{' '}
             {STORE_FEE_BPS / 100} % sur les stores).
           </p>
         </div>
@@ -136,7 +136,7 @@ export default async function PayoutsPage({ searchParams }: { searchParams: Prom
         ) : connect && connect.chargesEnabled && connect.detailsSubmitted ? (
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <p className="text-sm text-ink-2">
-              Votre compte est actif : chaque vente vous est reversée automatiquement, commission Wolleen déduite.
+              Votre compte est actif : chaque vente vous est reversée automatiquement, commission Dev AppStore déduite.
             </p>
             {canManage && (
               <form action={openDashboardAction}>
@@ -184,7 +184,7 @@ export default async function PayoutsPage({ searchParams }: { searchParams: Prom
             return (
               <div key={r.currency} className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Stat label="Revenu brut" value={formatMoney(r.grossCents, r.currency)} hint={`${r.orders} vente${r.orders > 1 ? 's' : ''}`} />
-                <Stat label="Commission Wolleen" value={formatMoney(r.feeCents, r.currency)} hint="figée au moment de chaque achat" />
+                <Stat label="Commission Dev AppStore" value={formatMoney(r.feeCents, r.currency)} hint="figée au moment de chaque achat" />
                 <Stat label="Votre revenu net" value={formatMoney(r.netCents, r.currency)} hint="avant frais bancaires éventuels" />
                 <Stat
                   label="Gagné en plus vs stores"

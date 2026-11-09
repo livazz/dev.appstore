@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   // Monorepo : trace les dépendances depuis la racine du dépôt (packages/*, node_modules hoistés).
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   // Paquets du monorepo publiés en TypeScript source.
-  transpilePackages: ['@wolleen/core', '@wolleen/db', '@wolleen/emails', '@wolleen/importers', '@wolleen/ai-style'],
+  transpilePackages: ['@devappstore/core', '@devappstore/db', '@devappstore/emails', '@devappstore/importers', '@devappstore/ai-style'],
   serverExternalPackages: ['@electric-sql/pglite'],
   images: { unoptimized: true },
   // IA de style (AiStyleButton → generateStyleFromScreenshot) : le navigateur réduit la capture vers 900 Ko, mais
@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return securityHeaders({ dev: process.env.NODE_ENV !== 'production' });
   },
-  // Ajout studio-editor : @wolleen/core réexporte crypto.ts/ids.ts (node:crypto). Les composants client
+  // Ajout studio-editor : @devappstore/core réexporte crypto.ts/ids.ts (node:crypto). Les composants client
   // (StorePanel, ItemCard, éditeur) n'utilisent que ses constantes et formatMoney/slugify, mais webpack
   // refuse le schéma « node: » dans le bundle navigateur. On le remplace côté client par un module
   // qui lève une erreur si on l'appelle (Turbopack, lui, fournit déjà un polyfill).

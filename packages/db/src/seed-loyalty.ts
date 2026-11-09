@@ -1,5 +1,5 @@
 /*
- * Données de démo du programme Points Wolleen (idempotent) : `npx tsx packages/db/src/seed-loyalty.ts`
+ * Données de démo du programme Points Dev AppStore (idempotent) : `npx tsx packages/db/src/seed-loyalty.ts`
  * après `npm run db:seed`. Règles : docs/product/loyalty.md (1 point / 10 c de commission, validité 365 jours).
  */
 import { and, db, eq, games, inArray, items, loyaltyEntries, loyaltyRewards, orders } from './index';
@@ -76,7 +76,7 @@ export async function seedLoyalty(userId = 'usr_demo_player') {
 if (import.meta.url === `file://${process.argv[1]}`) {
   seedLoyalty()
     .then((r) => {
-      console.log(`Seed Points Wolleen : ${r.rewards} récompenses, ${r.awards} attributions ajoutées (${r.points} points au total pour le joueur de démo)`);
+      console.log(`Seed Points Dev AppStore : ${r.rewards} récompenses, ${r.awards} attributions ajoutées (${r.points} points au total pour le joueur de démo)`);
       process.exit(0);
     })
     .catch((e) => {

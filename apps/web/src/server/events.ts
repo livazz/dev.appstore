@@ -1,5 +1,5 @@
 import 'server-only';
-import type { PurchaseEvent } from '@wolleen/core';
+import type { PurchaseEvent } from '@devappstore/core';
 
 /**
  * Bus d'événements EN MÉMOIRE (propriétaire : tâche « delivery »).
@@ -15,7 +15,7 @@ import type { PurchaseEvent } from '@wolleen/core';
  */
 
 /**
- * Métadonnées serveur jointes à un événement (jamais envoyées au jeu) : `userId` = compte Wolleen acheteur.
+ * Métadonnées serveur jointes à un événement (jamais envoyées au jeu) : `userId` = compte Dev AppStore acheteur.
  * Un flux ouvert avec un jeton joueur ne relaie que les achats de SON compte (sec/delivery-keys).
  */
 export interface PurchaseMeta {
@@ -24,9 +24,9 @@ export interface PurchaseMeta {
 
 export type PurchaseListener = (event: PurchaseEvent, meta: PurchaseMeta) => void;
 
-const g = globalThis as unknown as { __wolleenDeliveryBus?: Map<string, Set<PurchaseListener>> };
+const g = globalThis as unknown as { __devAppStoreDeliveryBus?: Map<string, Set<PurchaseListener>> };
 /** Survit au rechargement à chaud de Next.js (sinon les flux ouverts seraient orphelins). */
-const bus: Map<string, Set<PurchaseListener>> = g.__wolleenDeliveryBus ?? (g.__wolleenDeliveryBus = new Map());
+const bus: Map<string, Set<PurchaseListener>> = g.__devAppStoreDeliveryBus ?? (g.__devAppStoreDeliveryBus = new Map());
 
 const keyOf = (gameId: string, playerId: string) => `${gameId}\u0000${playerId}`;
 

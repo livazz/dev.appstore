@@ -2,7 +2,7 @@
  * Accusé de réception de la rétractation, sur support durable (directive (UE) 2023/2673, art. L221-21 C. conso ;
  * docs/legal/consumer.md § 2.4). Envoyé dès que la rétractation faite depuis « Mes achats » est enregistrée.
  */
-import type { Currency } from '@wolleen/core';
+import type { Currency } from '@devappstore/core';
 import { appLink, resolveContext, type EmailContext } from '../context';
 import { formatDate, formatDateTime, isoTimestamp, money, toDate, type DateInput } from '../format';
 import { DEV_APPSTORE_BRAND, details, heading, notice, para, renderEmail, button, type DetailRow, type EmailContent } from '../layout';

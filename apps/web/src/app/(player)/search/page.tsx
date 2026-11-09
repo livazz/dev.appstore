@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { formatMoney, GAME_CATEGORIES } from '@wolleen/core';
+import { formatMoney, GAME_CATEGORIES } from '@devappstore/core';
 import { DiscountBadge, GameCard, GameIcon } from '@/components/catalog/GameCard';
 import { safeImageUrl } from '@/components/store/style-safety';
 import { discountPct, searchCatalog } from '@/server/catalog';

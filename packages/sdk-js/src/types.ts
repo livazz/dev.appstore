@@ -1,5 +1,5 @@
 /*
- * Types publics du SDK. Copie volontaire (le SDK n'a aucune dépendance) des types de `@wolleen/core` :
+ * Types publics du SDK. Copie volontaire (le SDK n'a aucune dépendance) des types de `@devappstore/core` :
  * la compatibilité est vérifiée par les tests (`types.test.ts`).
  */
 
@@ -95,19 +95,19 @@ export type EventSourceCtor = new (url: string, init?: { headers?: Record<string
 
 export type Transport = 'auto' | 'fetch' | 'eventsource';
 
-export interface WolleenOptions {
+export interface DevAppStoreOptions {
   /**
-   * Clé PUBLIQUE du jeu (`wk_pub_…`, page Intégration) : à utiliser dans le client du jeu (navigateur, WebGL, WebView).
+   * Clé PUBLIQUE du jeu (`das_pub_…`, page Intégration) : à utiliser dans le client du jeu (navigateur, WebGL, WebView).
    * Les achats du joueur ne sont accessibles qu'après la liaison (`requestLinkCode` + `waitForLink`), avec le jeton
    * joueur obtenu, mémorisé dans `storage`.
    */
   publishableKey?: string;
   /**
-   * Clé SECRÈTE du jeu (`wk_secret_…`) : uniquement côté SERVEUR (Node), jamais dans un client — elle donne accès aux
-   * achats de tous les joueurs. Une valeur `wk_pub_…` passée ici est traitée comme une clé publique.
+   * Clé SECRÈTE du jeu (`das_secret_…`) : uniquement côté SERVEUR (Node), jamais dans un client — elle donne accès aux
+   * achats de tous les joueurs. Une valeur `das_pub_…` passée ici est traitée comme une clé publique.
    */
   apiKey?: string;
-  /** URL de Wolleen, ex. `https://wolleen.com` ou `http://localhost:3000`. */
+  /** URL de Dev AppStore, ex. `https://devappstore.com` ou `http://localhost:3000`. */
   baseUrl?: string;
   /** Implémentation fetch (par défaut `globalThis.fetch`). */
   fetch?: typeof fetch;

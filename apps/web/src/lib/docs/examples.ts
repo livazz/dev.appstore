@@ -1,8 +1,8 @@
-import type { PlayerLookupResponse, PurchaseEvent } from '@wolleen/core';
+import type { PlayerLookupResponse, PurchaseEvent } from '@devappstore/core';
 
 /*
  * Valeurs d'exemple de la documentation. Le vecteur de test de signature est vérifié par examples.test.ts
- * contre `signPayload` / `verifySignature` de @wolleen/core : si l'algorithme change, la doc casse le test.
+ * contre `signPayload` / `verifySignature` de @devappstore/core : si l'algorithme change, la doc casse le test.
  */
 
 export const EXAMPLE_PURCHASE: PurchaseEvent = {
@@ -47,7 +47,7 @@ export const json = (v: unknown) => JSON.stringify(v, null, 2);
 
 /** Placeholders des exemples curl (variables shell). */
 export const SHELL_ENV = `export BASE_URL="http://localhost:3000"   # en production : l'URL de Dev AppStore
-export API_KEY="wk_secret_demo_crystal_clash"  # clé de démonstration (npm run db:seed)`;
+export API_KEY="das_secret_demo_crystal_clash"  # clé de démonstration (npm run db:seed)`;
 
 /* ------------------------------------------------------------------------------------------------
  * Vérification de signature webhook, une version par langage.
@@ -76,7 +76,7 @@ const app = express();
 // Corps BRUT : ne pas utiliser express.json() avant la vérification.
 app.post('/webhooks/purchases', express.raw({ type: 'application/json' }), async (req, res) => {
   const rawBody = req.body.toString('utf8');
-  if (!verifySignature(rawBody, req.get('Wolleen-Signature'))) return res.sendStatus(401);
+  if (!verifySignature(rawBody, req.get('DevAppStore-Signature'))) return res.sendStatus(401);
   const event = JSON.parse(rawBody);
   await creditOnce(event); // idempotent sur event.delivery_id
   res.sendStatus(200);
@@ -116,7 +116,7 @@ app = Flask(__name__)
 @app.post("/webhooks/purchases")
 def purchases():
     raw = request.get_data()  # corps brut, avant tout json.loads
-    if not verify_signature(raw, request.headers.get("Wolleen-Signature")):
+    if not verify_signature(raw, request.headers.get("DevAppStore-Signature")):
         abort(401)
     event = json.loads(raw)
     credit_once(event)  # idempotent sur event["delivery_id"]
@@ -142,7 +142,7 @@ function verify_signature(string $rawBody, ?string $header, string $secret, ?int
 }
 
 $raw = file_get_contents('php://input'); // corps brut
-$header = $_SERVER['HTTP_WOLLEEN_SIGNATURE'] ?? null;
+$header = $_SERVER['HTTP_DEVAPPSTORE_SIGNATURE'] ?? null;
 if (!verify_signature($raw, $header, getenv('WEBHOOK_SECRET'))) {
     http_response_code(401);
     exit;
@@ -193,7 +193,7 @@ func VerifySignature(rawBody []byte, header, secret string, now time.Time) bool 
 
 func PurchasesHandler(w http.ResponseWriter, r *http.Request) {
 	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // corps brut
-	if err != nil || !VerifySignature(raw, r.Header.Get("Wolleen-Signature"), os.Getenv("WEBHOOK_SECRET"), time.Now()) {
+	if err != nil || !VerifySignature(raw, r.Header.Get("DevAppStore-Signature"), os.Getenv("WEBHOOK_SECRET"), time.Now()) {
 		http.Error(w, "signature invalide", http.StatusUnauthorized)
 		return
 	}
@@ -240,7 +240,7 @@ app.MapPost("/webhooks/purchases", async (HttpRequest req) =>
 {
     using var reader = new StreamReader(req.Body, Encoding.UTF8);
     var raw = await reader.ReadToEndAsync(); // corps brut
-    if (!WebhookSignature.Verify(raw, req.Headers["Wolleen-Signature"], Environment.GetEnvironmentVariable("WEBHOOK_SECRET")!))
+    if (!WebhookSignature.Verify(raw, req.Headers["DevAppStore-Signature"], Environment.GetEnvironmentVariable("WEBHOOK_SECRET")!))
         return Results.Unauthorized();
     var evt = JsonSerializer.Deserialize<PurchaseEvent>(raw)!;
     await CreditOnce(evt); // idempotent sur evt.delivery_id

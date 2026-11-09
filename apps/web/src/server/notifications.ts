@@ -1,6 +1,6 @@
 import 'server-only';
 import { after } from 'next/server';
-import { newId, type Currency, type StudioRole } from '@wolleen/core';
+import { newId, type Currency, type StudioRole } from '@devappstore/core';
 import {
   and,
   db,
@@ -22,7 +22,7 @@ import {
   webhookAttempts,
   type DB,
   type NotificationKind,
-} from '@wolleen/db';
+} from '@devappstore/db';
 import {
   contextFromEnv,
   createConsoleMailer,
@@ -42,7 +42,7 @@ import {
   type ResolvedContext,
   type WeeklyGameStats,
   withdrawalAcknowledgementEmail,
-} from '@wolleen/emails';
+} from '@devappstore/emails';
 import { env } from '@/env';
 import { CGV_VERSION } from '@/lib/legal-versions';
 
@@ -55,7 +55,7 @@ import { CGV_VERSION } from '@/lib/legal-versions';
  * - **sans effet sur l'appelant** : elles ne lèvent jamais. Une erreur (transport, base, données) est journalisée et
  *   renvoyée sous la forme `{ ok: false, error }`. On peut donc les appeler sans `try` depuis un webhook Stripe ou une livraison.
  *
- * Transport : `createMailerFromEnv()` de @wolleen/emails (console + `.data/mails` en dev, Resend si `RESEND_API_KEY`).
+ * Transport : `createMailerFromEnv()` de @devappstore/emails (console + `.data/mails` en dev, Resend si `RESEND_API_KEY`).
  */
 
 /**
@@ -302,11 +302,11 @@ const itemOf = (o: { itemTitle: string; quantity: number }) => ({ name: o.itemTi
  * ---------------------------------------------------------------------------------------------- */
 
 /**
- * Version des CGV en vigueur (WOLLEEN_CGV_VERSION, ancien nom CGV_VERSION) — repli du reçu pour une commande
+ * Version des CGV en vigueur (DEVAPPSTORE_CGV_VERSION, ou CGV_VERSION) — repli du reçu pour une commande
  * antérieure à l'enregistrement de la preuve de consentement (la version acceptée est stockée sur la commande).
  */
 export function cgvVersion() {
-  return env.WOLLEEN_CGV_VERSION || env.CGV_VERSION || CGV_VERSION;
+  return env.DEVAPPSTORE_CGV_VERSION || env.CGV_VERSION || CGV_VERSION;
 }
 
 /**

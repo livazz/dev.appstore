@@ -15,7 +15,7 @@ export interface AuthEnv {
 type Env = AuthEnv;
 
 /** Secret de développement : uniquement hors production, jamais si un secret est défini. */
-export const DEV_AUTH_SECRET = 'wolleen-dev-secret-ne-pas-utiliser-en-production-0123456789';
+export const DEV_AUTH_SECRET = 'devappstore-dev-secret-ne-pas-utiliser-en-production-0123456789';
 
 export const AUTH_SECRET_MIN_LENGTH = 32;
 
@@ -23,7 +23,7 @@ const PLACEHOLDERS = new Set(['change-me', 'changeme', 'secret', 'dev-secret', '
 
 export class AuthConfigError extends Error {
   constructor(message: string) {
-    super(`[auth] ${message} — Wolleen refuse de démarrer. Générez un secret : openssl rand -hex 32`);
+    super(`[auth] ${message} — Dev AppStore refuse de démarrer. Générez un secret : openssl rand -hex 32`);
     this.name = 'AuthConfigError';
   }
 }

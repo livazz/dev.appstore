@@ -1,11 +1,11 @@
 import type { AddressInfo } from 'node:net';
-import { signPayload, type PurchaseEvent } from '@wolleen/core';
+import { signPayload, type PurchaseEvent } from '@devappstore/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDemoApp, type DemoApp } from './app';
 import { loadConfig } from './config';
 import { InventoryStore } from './store';
 
-const config = loadConfig({ WOLLEEN_URL: 'http://wolleen.test' });
+const config = loadConfig({ DEVAPPSTORE_URL: 'http://devappstore.test' });
 const CRYSTAL_SECRET = config.games.crystal.webhookSecret;
 
 function event(over: Partial<PurchaseEvent> = {}): PurchaseEvent {
@@ -49,22 +49,22 @@ afterAll(async () => {
 beforeEach(() => upstream.mockClear());
 
 const postWebhook = (body: string, sig?: string) =>
-  fetch(`${base}/wolleen/webhook`, { method: 'POST', headers: { 'content-type': 'application/json', ...(sig ? { 'Wolleen-Signature': sig } : {}) }, body });
+  fetch(`${base}/devappstore/webhook`, { method: 'POST', headers: { 'content-type': 'application/json', ...(sig ? { 'DevAppStore-Signature': sig } : {}) }, body });
 
-describe('POST /wolleen/webhook', () => {
-  it('crédite une fois, ignore les rejeux (idempotent par delivery_id) et acquitte chez Wolleen', async () => {
+describe('POST /devappstore/webhook', () => {
+  it('crédite une fois, ignore les rejeux (idempotent par delivery_id) et acquitte chez Dev AppStore', async () => {
     const before = app.store.get('crystal', '#2PP8QL9').inventory.gems;
     const body = JSON.stringify(event({ delivery_id: 'dlv_idem' }));
     const r1 = await postWebhook(body, signPayload(body, CRYSTAL_SECRET));
     expect(r1.status).toBe(200);
     expect(await r1.json()).toEqual({ ok: true, duplicate: false });
-    // Relance Wolleen (nouvelle signature, même livraison).
+    // Relance Dev AppStore (nouvelle signature, même livraison).
     const r2 = await postWebhook(body, signPayload(body, CRYSTAL_SECRET));
     expect(await r2.json()).toEqual({ ok: true, duplicate: true });
     expect(app.store.get('crystal', '#2PP8QL9').inventory.gems).toBe(before + 1200);
     await vi.waitFor(() => expect(upstream).toHaveBeenCalledTimes(1));
     const [url, init] = upstream.mock.calls[0]!;
-    expect(String(url)).toBe('http://wolleen.test/api/v1/deliveries/dlv_idem/ack');
+    expect(String(url)).toBe('http://devappstore.test/api/v1/deliveries/dlv_idem/ack');
     expect((init?.headers as Record<string, string>).authorization).toBe(`Bearer ${config.games.crystal.apiKey}`);
   });
 
@@ -110,25 +110,25 @@ describe('POST /wolleen/webhook', () => {
   });
 });
 
-describe('GET /wolleen/players/{id}', () => {
+describe('GET /devappstore/players/{id}', () => {
   it('renvoie le joueur (ID encodé, sans signature)', async () => {
-    const res = await fetch(`${base}/wolleen/players/%232PP8QL9`);
+    const res = await fetch(`${base}/devappstore/players/%232PP8QL9`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ player_id: '#2PP8QL9', display_name: 'Ali', level: 42 });
   });
 
   it('vérifie la signature si elle est présente (corps signé = ID brut)', async () => {
-    const ok = await fetch(`${base}/wolleen/players/2pp8ql9`, { headers: { 'Wolleen-Signature': signPayload('2pp8ql9', CRYSTAL_SECRET) } });
+    const ok = await fetch(`${base}/devappstore/players/2pp8ql9`, { headers: { 'DevAppStore-Signature': signPayload('2pp8ql9', CRYSTAL_SECRET) } });
     expect(ok.status).toBe(200);
     expect((await ok.json()).player_id).toBe('#2PP8QL9');
-    const replay = await fetch(`${base}/wolleen/players/2pp8ql9`, { headers: { 'Wolleen-Signature': signPayload('#9LQ2YVR', CRYSTAL_SECRET) } });
+    const replay = await fetch(`${base}/devappstore/players/2pp8ql9`, { headers: { 'DevAppStore-Signature': signPayload('#9LQ2YVR', CRYSTAL_SECRET) } });
     expect(replay.status).toBe(401);
-    const bad = await fetch(`${base}/wolleen/players/%232PP8QL9`, { headers: { 'Wolleen-Signature': 't=1,v1=abc' } });
+    const bad = await fetch(`${base}/devappstore/players/%232PP8QL9`, { headers: { 'DevAppStore-Signature': 't=1,v1=abc' } });
     expect(bad.status).toBe(401);
   });
 
   it('404 pour un joueur inconnu', async () => {
-    expect((await fetch(`${base}/wolleen/players/%23NOPE`)).status).toBe(404);
+    expect((await fetch(`${base}/devappstore/players/%23NOPE`)).status).toBe(404);
   });
 });
 
@@ -156,19 +156,19 @@ describe('API du jeu', () => {
     ctrl.abort();
   });
 
-  it('demande un code de liaison à Wolleen avec la clé du jeu', async () => {
+  it('demande un code de liaison à Dev AppStore avec la clé du jeu', async () => {
     const res = await fetch(`${base}/api/link-code`, { method: 'POST', body: JSON.stringify({ game: 'crystal', player_id: '#2PP8QL9' }) });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ code: 'K7QF-M2XA', echo: { player_id: '#2PP8QL9', player_name: 'Ali' } });
   });
 
-  it('relaie /proxy/api/v1/* vers Wolleen (mode SDK), jeton joueur compris', async () => {
+  it('relaie /proxy/api/v1/* vers Dev AppStore (mode SDK), jeton joueur compris', async () => {
     const res = await fetch(`${base}/proxy/api/v1/deliveries?player_id=p1`, {
-      headers: { authorization: 'Bearer wk_pub_demo_pixel_farm', 'wolleen-player-token': 'wk_pt_x' },
+      headers: { authorization: 'Bearer das_pub_demo_pixel_farm', 'devappstore-player-token': 'das_pt_x' },
     });
-    expect(await res.json()).toEqual({ data: [], auth: 'Bearer wk_pub_demo_pixel_farm' });
-    expect(String(upstream.mock.calls[0]![0])).toBe('http://wolleen.test/api/v1/deliveries?player_id=p1');
-    expect((upstream.mock.calls[0]![1]?.headers as Record<string, string>)['wolleen-player-token']).toBe('wk_pt_x');
+    expect(await res.json()).toEqual({ data: [], auth: 'Bearer das_pub_demo_pixel_farm' });
+    expect(String(upstream.mock.calls[0]![0])).toBe('http://devappstore.test/api/v1/deliveries?player_id=p1');
+    expect((upstream.mock.calls[0]![1]?.headers as Record<string, string>)['devappstore-player-token']).toBe('das_pt_x');
     expect((await fetch(`${base}/proxy/admin`)).status).toBe(404);
   });
 
@@ -178,7 +178,7 @@ describe('API du jeu', () => {
     const tokens: (string | undefined)[] = [];
     upstream.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      tokens.push((init?.headers as Record<string, string> | undefined)?.['wolleen-player-token']);
+      tokens.push((init?.headers as Record<string, string> | undefined)?.['devappstore-player-token']);
       if (url.includes('/deliveries/stream')) {
         const body = new ReadableStream<Uint8Array>({
           start(c) {
@@ -192,16 +192,16 @@ describe('API du jeu', () => {
       if (url.endsWith('/ack')) return Response.json({ ok: true });
       return new Response('nope', { status: 404 });
     });
-    const { Wolleen } = await import('@wolleen/sdk');
+    const { DevAppStore } = await import('@devappstore/sdk');
     // Client du jeu : clé PUBLIQUE + jeton joueur obtenu lors de la liaison.
-    const w = new Wolleen({ publishableKey: config.games.farm.publishableKey, baseUrl: `${base}/proxy` });
-    w.setPlayerToken('#2PP8QL9', 'wk_pt_demo');
+    const w = new DevAppStore({ publishableKey: config.games.farm.publishableKey, baseUrl: `${base}/proxy` });
+    w.setPlayerToken('#2PP8QL9', 'das_pt_demo');
     const got: PurchaseEvent[] = [];
     const sub = w.onPurchase('#2PP8QL9', (e) => void got.push(e));
     try {
       await vi.waitFor(() => expect(upstream.mock.calls.some(([u]) => String(u).endsWith('/deliveries/dlv_farm/ack'))).toBe(true));
       expect(got).toEqual([farmEvent]);
-      expect(tokens.every((t) => t === 'wk_pt_demo')).toBe(true);
+      expect(tokens.every((t) => t === 'das_pt_demo')).toBe(true);
     } finally {
       sub.unsubscribe();
       upstream.mockImplementation(defaultUpstream);
@@ -213,7 +213,7 @@ describe('API du jeu', () => {
     expect(res.headers.get('content-type')).toContain('javascript');
     expect(await res.text()).toContain("from './client.js'");
     const client = await (await fetch(`${base}/sdk/client.js`)).text();
-    expect(client).toContain('class Wolleen');
+    expect(client).toContain('class DevAppStore');
     expect(client).not.toContain('import type');
     expect((await fetch(`${base}/sdk/server.js`)).status).toBe(404);
   });
@@ -221,7 +221,7 @@ describe('API du jeu', () => {
   it('ne transmet au navigateur que la clé publique du jeu en mode SDK, jamais de clé secrète', async () => {
     const cfg = await (await fetch(`${base}/api/config`)).json();
     expect(cfg.games.farm.publishableKey).toBe(config.games.farm.publishableKey);
-    expect(cfg.games.farm.publishableKey.startsWith('wk_pub_')).toBe(true);
+    expect(cfg.games.farm.publishableKey.startsWith('das_pub_')).toBe(true);
     expect(cfg.games.farm.apiKey).toBeUndefined();
     expect(cfg.games.crystal.apiKey).toBeUndefined();
     expect(cfg.games.crystal.publishableKey).toBeUndefined();

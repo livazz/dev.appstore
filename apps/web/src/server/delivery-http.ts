@@ -8,8 +8,8 @@ import type { PlayerScope } from './delivery';
  * Aides HTTP de l'API publique /api/v1 (propriétaire : tâche « delivery »).
  *
  * CORS ouvert à toutes les origines : le SDK peut tourner dans un navigateur (HTML5, WebGL) et s'authentifie par
- * en-têtes (`Authorization: Bearer`, `Wolleen-Player-Token`), JAMAIS par cookie. `Access-Control-Allow-Credentials`
- * n'est jamais envoyé et l'origine n'est jamais reflétée : un site tiers ne peut rien faire avec les cookies Wolleen.
+ * en-têtes (`Authorization: Bearer`, `DevAppStore-Player-Token`), JAMAIS par cookie. `Access-Control-Allow-Credentials`
+ * n'est jamais envoyé et l'origine n'est jamais reflétée : un site tiers ne peut rien faire avec les cookies Dev AppStore.
  * Toutes les réponses des routes v1 (erreurs comprises) portent ces en-têtes, sinon le SDK ne peut pas lire l'erreur.
  */
 export const CORS_HEADERS: Record<string, string> = {
@@ -38,7 +38,7 @@ export function readPlayerId(req: Request): string | null {
   return v && v.length <= 200 ? v : null;
 }
 
-export const unauthorized = () => corsError(401, 'unauthorized', 'Clé API manquante ou invalide (Authorization: Bearer wk_…).');
+export const unauthorized = () => corsError(401, 'unauthorized', 'Clé API manquante ou invalide (Authorization: Bearer das_…).');
 export const missingPlayerId = () => corsError(400, 'invalid_player_id', 'Paramètre player_id obligatoire (200 caractères max).');
 export const playerTokenRequired = () =>
   corsError(401, 'player_token_required', `Avec la clé publique, un jeton joueur valide est requis (${PLAYER_TOKEN_HEADER}). Liez le compte du joueur.`);
@@ -47,7 +47,7 @@ export const playerTokenRequired = () =>
  * Joueur visé par un appel deliveries / stream / ack.
  * - Clé secrète : `player_id` en paramètre (obligatoire pour la liste et le flux), aucune restriction d'acheteur.
  * - Clé publique : jeton joueur obligatoire ; le joueur est celui du jeton (un `player_id` différent → 403) et seuls
- *   les achats du compte Wolleen qui a lié l'appareil sont visibles.
+ *   les achats du compte Dev AppStore qui a lié l'appareil sont visibles.
  */
 export function resolvePlayerScope(
   auth: ApiAuth,

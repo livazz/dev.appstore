@@ -3,8 +3,8 @@ import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
-import { newId } from '@wolleen/core';
-import { account, db, session, user, verification, type DB } from '@wolleen/db';
+import { newId } from '@devappstore/core';
+import { account, db, session, user, verification, type DB } from '@devappstore/db';
 import { env } from '@/env';
 import { resolveAuthSecret, sessionCookieOptions } from './auth-config';
 import { isUserDisabled } from './user-suspension';
@@ -67,7 +67,7 @@ export function enabledSocialProviders(): SocialProviderId[] {
 export function createAuth(database: DB) {
   const socialProviders = socialProvidersFromEnv();
   return betterAuth({
-    appName: 'Wolleen',
+    appName: 'Dev AppStore',
     logger: { disabled: process.env.VITEST === 'true' },
     // Obligatoire et robuste en production (lève AuthConfigError sinon) — validé aussi au démarrage (env.ts).
     secret: resolveAuthSecret(env),
@@ -112,7 +112,7 @@ export function createAuth(database: DB) {
       },
     },
     advanced: {
-      cookiePrefix: 'wolleen',
+      cookiePrefix: 'devappstore',
       // Cookies HttpOnly + SameSite=Lax + Path=/ ; Secure en production (CHK-AUTH-03).
       ...sessionCookieOptions(env),
       database: { generateId: ({ model }) => newId(ID_PREFIX[model] ?? model.slice(0, 3)) },

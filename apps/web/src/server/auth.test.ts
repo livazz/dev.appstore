@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestDb } from '@wolleen/db/testing';
-import { games, studioMembers, studios, user } from '@wolleen/db/schema';
-import type { DB } from '@wolleen/db';
+import { createTestDb } from '@devappstore/db/testing';
+import { games, studioMembers, studios, user } from '@devappstore/db/schema';
+import type { DB } from '@devappstore/db';
 
 /*
  * Tests de l'authentification : Better Auth branché sur une base PGlite en mémoire.
@@ -40,8 +40,8 @@ let authMod: typeof import('./auth');
 
 beforeAll(async () => {
   tdb = await createTestDb();
-  // `@wolleen/db` réutilise l'instance globale : on y place la base de test avant tout import applicatif.
-  (globalThis as unknown as { __wolleenDb?: DB }).__wolleenDb = tdb;
+  // `@devappstore/db` réutilise l'instance globale : on y place la base de test avant tout import applicatif.
+  (globalThis as unknown as { __devAppStoreDb?: DB }).__devAppStoreDb = tdb;
   authMod = await import('./auth');
   flows = await import('./auth-flows');
   session = await import('./session');
@@ -55,7 +55,7 @@ beforeAll(async () => {
   await tdb.insert(games).values({
     id: 'gam_t', studioId: 'std_t', slug: 'jeu-t', name: 'Jeu T',
     theme: { gradient: { enabled: false, c1: '#000000', c2: '#ffffff', style: 'linear' }, grid: { width: 200, height: 260, margin: 24 } },
-    webhookSecret: 'whsec_t', apiKeyHash: 'h', apiKeyPrefix: 'wk_test',
+    webhookSecret: 'whsec_t', apiKeyHash: 'h', apiKeyPrefix: 'das_test',
   });
 }, 60000);
 
@@ -65,7 +65,7 @@ describe('connexion e-mail + mot de passe', () => {
   it('connecte avec les bons identifiants et ouvre une session', async () => {
     const res = await flows.signInWithPassword({ email: 'Joueur@Test.fr ', password: 'motdepasse2' });
     expect(res.ok).toBe(true);
-    expect([...jar.keys()].some((k) => k.startsWith('wolleen.session_token'))).toBe(true);
+    expect([...jar.keys()].some((k) => k.startsWith('devappstore.session_token'))).toBe(true);
     const me = await session.getCurrentUser();
     expect(me).toMatchObject({ email: 'joueur@test.fr', name: 'Joueur' });
     expect(me!.id).toMatch(/^usr_/);

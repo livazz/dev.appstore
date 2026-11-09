@@ -1,6 +1,6 @@
 /**
  * Génère tous les modèles en HTML (+ texte) dans `.data/mails-preview/` à la racine du dépôt.
- * Usage : `npm run preview -w @wolleen/emails` [-- <dossier>]
+ * Usage : `npm run preview -w @devappstore/emails` [-- <dossier>]
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -44,7 +44,7 @@ async function main() {
   }
   await writeFile(
     join(outDir, 'index.html'),
-    `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Aperçu des e-mails Wolleen</title></head><body style="font-family:system-ui,sans-serif;padding:24px"><h1>E-mails Wolleen</h1><ul>${links.join('')}</ul></body></html>`,
+    `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Aperçu des e-mails Dev AppStore</title></head><body style="font-family:system-ui,sans-serif;padding:24px"><h1>E-mails Dev AppStore</h1><ul>${links.join('')}</ul></body></html>`,
     'utf8',
   );
   console.info(`${Object.keys(all).length} modèles générés dans ${outDir} (ouvrir index.html)`);

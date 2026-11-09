@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_THEME } from '@wolleen/core';
-import { deliveries, eq, gameLinks, games, notificationsSent, orders, studioMembers, studios, user, webhookAttempts, type DB } from '@wolleen/db';
-import { createTestDb } from '@wolleen/db/testing';
-import type { Mailer, MailMessage } from '@wolleen/emails';
+import { DEFAULT_THEME } from '@devappstore/core';
+import { deliveries, eq, gameLinks, games, notificationsSent, orders, studioMembers, studios, user, webhookAttempts, type DB } from '@devappstore/db';
+import { createTestDb } from '@devappstore/db/testing';
+import type { Mailer, MailMessage } from '@devappstore/emails';
 import {
   computeWeeklySales,
   previousWeekStart,
@@ -39,7 +39,7 @@ const deps = (extra: Partial<NotifyDeps> = {}): NotifyDeps => ({
   database,
   mailer,
   now: NOW,
-  context: { appUrl: 'https://wolleen.test' },
+  context: { appUrl: 'https://devappstore.test' },
   log: (m) => logs.push(m),
   ...extra,
 });
@@ -106,11 +106,11 @@ beforeAll(async () => {
     webhookUrl: 'https://game.test/hook',
     webhookSecret: 'whsec',
     apiKeyHash: `h_${id}`,
-    apiKeyPrefix: `wk_${id}`,
+    apiKeyPrefix: `das_${id}`,
     createdAt: new Date('2026-01-01T00:00:00Z'),
   });
   await database.insert(games).values([game('gam_a', 'Crystal Quest'), game('gam_b', 'Farm')]);
-  const { items } = await import('@wolleen/db');
+  const { items } = await import('@devappstore/db');
   const item = (id: string, gameId: string) => ({ id, gameId, productId: 'gems_500', title: '500 gemmes', priceCents: 499, style: {} as never });
   await database.insert(items).values([item('itm_a', 'gam_a'), item('itm_b', 'gam_b')]);
   await database.insert(gameLinks).values({ id: 'lnk_1', userId: 'usr_p', gameId: 'gam_a', playerId: 'P-42', playerName: 'DragonSlayer', method: 'code', verified: 1 });
@@ -143,7 +143,7 @@ describe('sendWithdrawalAcknowledgement', () => {
     expect(m.text).toContain('9 novembre 2026 à 10:30:00'); // date de la demande (refundedAt), heure de Paris
     expect(m.text).toContain('23 novembre 2026'); // délai de remboursement : 14 jours
     expect(m.text.startsWith('Dev AppStore')).toBe(true);
-    expect(m.html).toContain('https://wolleen.test/account/purchases');
+    expect(m.html).toContain('https://devappstore.test/account/purchases');
 
     expect(await sendWithdrawalAcknowledgement(orderId, deps())).toEqual({ ok: true, status: 'skipped', reason: 'already_sent' });
     expect(outbox).toHaveLength(1);
@@ -170,7 +170,7 @@ describe('sendPurchaseReceipt', () => {
     expect(outbox[0].to).toBe('lea@test.dev');
     expect(outbox[0].text).toContain('DragonSlayer');
     expect(outbox[0].text).toContain(orderId);
-    expect(outbox[0].html).toContain('https://wolleen.test/account/purchases');
+    expect(outbox[0].html).toContain('https://devappstore.test/account/purchases');
 
     const r2 = await sendPurchaseReceipt(orderId, deps());
     expect(r2).toEqual({ ok: true, status: 'skipped', reason: 'already_sent' });
@@ -244,7 +244,7 @@ describe('sendDeliveryFailed', () => {
     expect(r1.studio.ok && r1.studio.status === 'sent' && r1.studio.recipients.sort()).toEqual(['dev@studio.dev', 'owner@studio.dev']);
     const alert = outbox.find((m) => m.to === 'owner@studio.dev')!;
     expect(alert.subject).toContain('Crystal Quest');
-    expect(alert.html).toContain('https://wolleen.test/studio/games/gam_a/integration');
+    expect(alert.html).toContain('https://devappstore.test/studio/games/gam_a/integration');
     expect(alert.html).toContain(o2);
     expect(alert.html).not.toContain('<script>');
 

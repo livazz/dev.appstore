@@ -44,10 +44,10 @@ const baseSchema = z.object({
   }),
 
   // URL publique et sessions (Better Auth).
-  APP_URL: optionalUrl('https://wolleen.com'),
+  APP_URL: optionalUrl('https://devappstore.com'),
   AUTH_SECRET: optionalString,
   BETTER_AUTH_SECRET: optionalString,
-  BETTER_AUTH_URL: optionalUrl('https://wolleen.com'),
+  BETTER_AUTH_URL: optionalUrl('https://devappstore.com'),
   BETTER_AUTH_TRUSTED_ORIGINS: optionalString,
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
@@ -68,7 +68,7 @@ const baseSchema = z.object({
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: optionalString.refine((v) => v === undefined || /^pk_(test|live)_/.test(v), {
     message: 'doit commencer par pk_live_ ou pk_test_',
   }),
-  WOLLEEN_ALLOW_TEST_PAYMENTS: optionalFlag,
+  DEVAPPSTORE_ALLOW_TEST_PAYMENTS: optionalFlag,
   /** destination (défaut) | direct — une valeur inconnue retombe sur destination (avertissement, cf. stripe.ts). */
   CHARGE_MODEL: optionalString,
   /** 1 = Stripe Tax activé (désactivé par défaut, choix TVA non tranché). */
@@ -82,11 +82,11 @@ const baseSchema = z.object({
       .pipe(z.number().int().min(0, 'doit être ≥ 0').max(3000, 'doit être ≤ 3000 (30 %)')),
   ),
   /** Version des CGV acceptées au checkout, stockée sur chaque commande (preuve de consentement). */
-  WOLLEEN_CGV_VERSION: optionalString,
-  /** Ancien nom (module notifications) : utilisé seulement si WOLLEEN_CGV_VERSION est vide. */
+  DEVAPPSTORE_CGV_VERSION: optionalString,
+  /** Ancien nom (module notifications) : utilisé seulement si DEVAPPSTORE_CGV_VERSION est vide. */
   CGV_VERSION: optionalString,
   /** Lien des CGV dans les reçus (défaut : {APP_URL}/legal/cgv). */
-  CGV_URL: optionalUrl('https://wolleen.com/legal/cgv'),
+  CGV_URL: optionalUrl('https://devappstore.com/legal/cgv'),
 
   // Tâches planifiées, e-mails, IA.
   CRON_SECRET: optionalString,
@@ -97,26 +97,26 @@ const baseSchema = z.object({
     message: 'doit commencer par sk-ant-',
   }),
 
-  // Points Wolleen (lus par loyalty-logic.ts ; valeurs invalides → défauts).
+  // Points Dev AppStore (lus par loyalty-logic.ts ; valeurs invalides → défauts).
   LOYALTY_ENABLED: optionalString,
   LOYALTY_FEE_CENTS_PER_POINT: optionalString,
   LOYALTY_POINTS_TTL_DAYS: optionalString,
   LOYALTY_MAX_COST_BPS: optionalString,
 
   // Stockage des fichiers (uploads).
-  WOLLEEN_STORAGE: z.preprocess(
+  DEVAPPSTORE_STORAGE: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined),
     z.enum(['local', 's3']).default('local'),
   ),
-  WOLLEEN_DATA_DIR: optionalString,
+  DEVAPPSTORE_DATA_DIR: optionalString,
   S3_ENDPOINT: optionalUrl('https://<account_id>.eu.r2.cloudflarestorage.com'),
   S3_REGION: optionalString,
   S3_BUCKET: optionalString,
   S3_ACCESS_KEY_ID: optionalString,
   S3_SECRET_ACCESS_KEY: optionalString,
-  S3_PUBLIC_URL: optionalUrl('https://cdn.wolleen.eu'),
+  S3_PUBLIC_URL: optionalUrl('https://cdn.devappstore.eu'),
   /** Copie publique de S3_PUBLIC_URL, lue par le rendu client des images (style-safety.ts → safeImageUrl). */
-  NEXT_PUBLIC_S3_PUBLIC_URL: optionalUrl('https://cdn.wolleen.eu'),
+  NEXT_PUBLIC_S3_PUBLIC_URL: optionalUrl('https://cdn.devappstore.eu'),
 });
 
 /** Variables lues par ce module (sert aussi d'empreinte pour relire process.env quand il change). */
@@ -138,18 +138,18 @@ const schema = baseSchema.superRefine((e, ctx) => {
   if (!e.DATABASE_URL) fail('DATABASE_URL', 'obligatoire en production (PGlite embarqué réservé au développement)');
 
   // URL publique en HTTPS (retours Stripe, liens e-mail, cookies sécurisés).
-  if (!e.APP_URL) fail('APP_URL', 'obligatoire en production (ex. https://wolleen.com)');
+  if (!e.APP_URL) fail('APP_URL', 'obligatoire en production (ex. https://devappstore.com)');
   else if (!e.APP_URL.startsWith('https://')) fail('APP_URL', 'doit être en https:// en production');
   if (e.BETTER_AUTH_URL && !e.BETTER_AUTH_URL.startsWith('https://')) fail('BETTER_AUTH_URL', 'doit être en https:// en production');
 
   // Paiements : mode simulation interdit, clé live exigée (CHK-PAY-10).
-  const allowTest = e.WOLLEEN_ALLOW_TEST_PAYMENTS === '1';
+  const allowTest = e.DEVAPPSTORE_ALLOW_TEST_PAYMENTS === '1';
   if (!e.STRIPE_SECRET_KEY) {
     fail('STRIPE_SECRET_KEY', 'obligatoire en production : le mode simulation (/checkout/mock) y est interdit');
   } else if (!/^(sk|rk)_live_/.test(e.STRIPE_SECRET_KEY) && !allowTest) {
     fail(
       'STRIPE_SECRET_KEY',
-      'clé de test en production : utilisez sk_live_… (ou WOLLEEN_ALLOW_TEST_PAYMENTS=1 pour une préproduction)',
+      'clé de test en production : utilisez sk_live_… (ou DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1 pour une préproduction)',
     );
   }
   if (e.STRIPE_SECRET_KEY && !e.STRIPE_WEBHOOK_SECRET) {
@@ -168,14 +168,14 @@ const schema = baseSchema.superRefine((e, ctx) => {
   else if (e.CRON_SECRET.length < 16) fail('CRON_SECRET', 'trop court (minimum 16 caractères)');
 
   // Stockage objet (Cloudflare R2 / S3).
-  if (e.WOLLEEN_STORAGE === 's3') {
+  if (e.DEVAPPSTORE_STORAGE === 's3') {
     for (const k of ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_PUBLIC_URL'] as const) {
-      if (!e[k]) fail(k, 'obligatoire quand WOLLEEN_STORAGE=s3');
+      if (!e[k]) fail(k, 'obligatoire quand DEVAPPSTORE_STORAGE=s3');
     }
     if (e.S3_PUBLIC_URL && !e.S3_PUBLIC_URL.startsWith('https://')) fail('S3_PUBLIC_URL', 'doit être en https:// en production');
     // Sans elle, les boutiques n'affichent pas les images servies par le bucket (safeImageUrl, rendu serveur et client).
     const norm = (v: string | undefined) => v?.replace(/\/+$/, '');
-    if (!e.NEXT_PUBLIC_S3_PUBLIC_URL) fail('NEXT_PUBLIC_S3_PUBLIC_URL', 'obligatoire quand WOLLEEN_STORAGE=s3 (même valeur que S3_PUBLIC_URL)');
+    if (!e.NEXT_PUBLIC_S3_PUBLIC_URL) fail('NEXT_PUBLIC_S3_PUBLIC_URL', 'obligatoire quand DEVAPPSTORE_STORAGE=s3 (même valeur que S3_PUBLIC_URL)');
     else if (norm(e.NEXT_PUBLIC_S3_PUBLIC_URL) !== norm(e.S3_PUBLIC_URL)) fail('NEXT_PUBLIC_S3_PUBLIC_URL', 'doit valoir S3_PUBLIC_URL');
   }
 });
@@ -199,7 +199,7 @@ export class EnvValidationError extends Error {
   constructor(nodeEnv: string, issues: { variable: string; message: string }[]) {
     super(
       [
-        `Configuration invalide (NODE_ENV=${nodeEnv}) : Wolleen refuse de démarrer.`,
+        `Configuration invalide (NODE_ENV=${nodeEnv}) : Dev AppStore refuse de démarrer.`,
         ...issues.map((i) => `  • ${i.variable} : ${i.message}`),
         'Corrigez les variables d’environnement (voir .env.example et docs/deploy.md § Variables).',
       ].join('\n'),

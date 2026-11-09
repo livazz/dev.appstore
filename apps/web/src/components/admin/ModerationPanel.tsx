@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import type { GameStatus } from '@wolleen/core';
+import type { GameStatus } from '@devappstore/core';
 import { moderateGameAction } from '@/app/admin/actions';
 import { REASON_MIN, SUSPENSION_GROUNDS } from '@/server/admin-logic';
 import { ActionForm, ActionResult, SelectField, TextAreaField } from './ActionForm';

@@ -12,13 +12,13 @@ export { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or, sql, cou
 
 export type DB = PgliteDatabase<typeof schema>;
 
-/** Dossier .data à la racine du dépôt (trouvée en remontant depuis le cwd). Surchargable via WOLLEEN_DATA_DIR. */
+/** Dossier .data à la racine du dépôt (trouvée en remontant depuis le cwd). Surchargable via DEVAPPSTORE_DATA_DIR. */
 function dataDir() {
-  if (process.env.WOLLEEN_DATA_DIR) return process.env.WOLLEEN_DATA_DIR;
+  if (process.env.DEVAPPSTORE_DATA_DIR) return process.env.DEVAPPSTORE_DATA_DIR;
   let dir = process.cwd();
   while (dir !== dirname(dir)) {
     const pkg = resolve(dir, 'package.json');
-    if (existsSync(pkg) && JSON.parse(readFileSync(pkg, 'utf8')).name === 'wolleen') return resolve(dir, '.data');
+    if (existsSync(pkg) && JSON.parse(readFileSync(pkg, 'utf8')).name === 'devappstore') return resolve(dir, '.data');
     dir = dirname(dir);
   }
   return resolve(process.cwd(), '.data');
@@ -35,6 +35,6 @@ function create(): DB {
   return drizzlePglite(new PGlite(dir), { schema });
 }
 
-const g = globalThis as unknown as { __wolleenDb?: DB };
+const g = globalThis as unknown as { __devAppStoreDb?: DB };
 /** Instance unique (survit au rechargement à chaud de Next.js). */
-export const db: DB = g.__wolleenDb ?? (g.__wolleenDb = create());
+export const db: DB = g.__devAppStoreDb ?? (g.__devAppStoreDb = create());

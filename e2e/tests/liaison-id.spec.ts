@@ -1,9 +1,9 @@
 /*
- * Liaison par identifiant joueur (méthode id_confirm) : Wolleen interroge le serveur du jeu
- * (games.playerLookupUrl → jeu de démo, http://localhost:4100/wolleen/players/{id}) et affiche
+ * Liaison par identifiant joueur (méthode id_confirm) : Dev AppStore interroge le serveur du jeu
+ * (games.playerLookupUrl → jeu de démo, http://localhost:4100/devappstore/players/{id}) et affiche
  * « Est-ce bien vous : <nom> ? ».
  *
- * Compte Wolleen utilisé : dev@wolleen.test — joueur@wolleen.test reste NON lié à Crystal Clash pour que
+ * Compte Dev AppStore utilisé : dev@devappstore.test — joueur@devappstore.test reste NON lié à Crystal Clash pour que
  * parcours-joueur.spec.ts passe par l'écran de liaison par code.
  */
 import { COMPTES, JEUX, JOUEURS_DEMO } from '../support/demo-data';

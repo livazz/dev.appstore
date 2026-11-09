@@ -1,7 +1,7 @@
 'use server';
 
-import { db } from '@wolleen/db';
-import type { StudioRole } from '@wolleen/core';
+import { db } from '@devappstore/db';
+import type { StudioRole } from '@devappstore/core';
 import { requireGameAccess } from './session';
 import { MESSAGES, runAiStyleGeneration } from './ai-style-logic';
 import type { AiStyleActionResult } from '@/lib/ai-style-types';

@@ -1,6 +1,6 @@
-import type { Period } from '@wolleen/core';
+import type { Period } from '@devappstore/core';
 
-/** `subscriptionPeriod` App Store Connect → `Period` Wolleen (null si non représentable). */
+/** `subscriptionPeriod` App Store Connect → `Period` Dev AppStore (null si non représentable). */
 export function applePeriod(value: string | undefined | null): Period | null {
   switch (value) {
     case 'ONE_WEEK':
@@ -14,7 +14,7 @@ export function applePeriod(value: string | undefined | null): Period | null {
   }
 }
 
-/** Durée ISO 8601 Google Play (`P1W`, `P7D`, `P1M`, `P1Y`, `P12M`…) → `Period` Wolleen (null si non représentable). */
+/** Durée ISO 8601 Google Play (`P1W`, `P7D`, `P1M`, `P1Y`, `P12M`…) → `Period` Dev AppStore (null si non représentable). */
 export function isoPeriod(value: string | undefined | null): Period | null {
   if (!value) return null;
   const m = /^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?$/.exec(value.trim().toUpperCase());

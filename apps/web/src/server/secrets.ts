@@ -30,9 +30,9 @@ export class SecretDecryptError extends Error {
   }
 }
 
-const DEV_SECRET = 'wolleen-dev-secret-ne-pas-utiliser-en-production-0123456789';
-const SALT = 'wolleen/secrets';
-export const STORE_CREDENTIALS_INFO = 'wolleen/store-credentials/v1';
+const DEV_SECRET = 'devappstore-dev-secret-ne-pas-utiliser-en-production-0123456789';
+const SALT = 'devappstore/secrets';
+export const STORE_CREDENTIALS_INFO = 'devappstore/store-credentials/v1';
 
 /** Secret racine : le même que Better Auth (cf. server/auth.ts), avec le même repli de développement. */
 export function rootSecret(env: NodeJS.ProcessEnv = process.env): string {

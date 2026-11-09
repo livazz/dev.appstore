@@ -1,13 +1,13 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { LINK_CODE_TTL_MS, hashApiKey, verifySignature } from '@wolleen/core';
-import { createTestDb } from '@wolleen/db/testing';
+import { LINK_CODE_TTL_MS, hashApiKey, verifySignature } from '@devappstore/core';
+import { createTestDb } from '@devappstore/db/testing';
 
 vi.mock('server-only', () => ({}));
 
 // Nom « public » qui résout vers 127.0.0.1 : simule un DNS rebinding sans dépendre du réseau.
-const { REBIND_HOST } = vi.hoisted(() => ({ REBIND_HOST: 'rebind.wolleen.test' }));
+const { REBIND_HOST } = vi.hoisted(() => ({ REBIND_HOST: 'rebind.devappstore.test' }));
 vi.mock('node:dns', async (importOriginal) => {
   const real = await importOriginal<typeof import('node:dns')>();
   type Cb = (err: NodeJS.ErrnoException | null, addresses: { address: string; family: number }[]) => void;
@@ -16,9 +16,9 @@ vi.mock('node:dns', async (importOriginal) => {
   return { ...real, default: { ...real, lookup }, lookup };
 });
 
-// `@wolleen/db` crée sa base au chargement : on injecte la base en mémoire AVANT de l'importer (imports dynamiques).
+// `@devappstore/db` crée sa base au chargement : on injecte la base en mémoire AVANT de l'importer (imports dynamiques).
 let L: typeof import('./linking');
-let D: typeof import('@wolleen/db');
+let D: typeof import('@devappstore/db');
 
 const SECRET = 'whsec_test_lookup';
 const T0 = new Date('2026-01-01T12:00:00Z');
@@ -37,7 +37,7 @@ async function insertGame(id: string, patch: Partial<typeof D.games.$inferInsert
     .values({
       id, studioId: 'std_t', slug: id, name: `Jeu ${id}`, status: 'live',
       theme: { gradient: { enabled: false, c1: '#000', c2: '#fff', style: 'linear' }, grid: { width: 200, height: 260, margin: 24 } },
-      linkMethods: ['code'], webhookSecret: SECRET, apiKeyHash: hashApiKey(`wk_${id}`), apiKeyPrefix: 'wk_test', ...patch,
+      linkMethods: ['code'], webhookSecret: SECRET, apiKeyHash: hashApiKey(`das_${id}`), apiKeyPrefix: 'das_test', ...patch,
     })
     .returning();
   return g;
@@ -58,7 +58,7 @@ function startLookupServer() {
   server = createServer((req: IncomingMessage, res) => {
     const url = req.url ?? '/';
     const raw = decodeURIComponent(url.replace(/^\/players\//, ''));
-    const signature = req.headers['wolleen-signature'] as string | undefined;
+    const signature = req.headers['devappstore-signature'] as string | undefined;
     hits.push({ url, signature, valid: verifySignature(raw, signature, SECRET, Math.floor(T0.getTime() / 1000)) });
     if (url.startsWith('/slow')) return; // ne répond jamais
     if (url.startsWith('/redirect')) {
@@ -97,8 +97,8 @@ function startLookupServer() {
 }
 
 beforeAll(async () => {
-  (globalThis as { __wolleenDb?: unknown }).__wolleenDb = await createTestDb();
-  D = await import('@wolleen/db');
+  (globalThis as { __devAppStoreDb?: unknown }).__devAppStoreDb = await createTestDb();
+  D = await import('@devappstore/db');
   L = await import('./linking');
   await startLookupServer();
   await D.db.insert(D.studios).values({ id: 'std_t', name: 'Studio T', slug: 'studio-t' });
@@ -402,8 +402,8 @@ describe('pages joueur et réglages studio', () => {
     expect(await save(['id_confirm'], 'http://10.0.0.5/players/{player_id}')).toMatchObject({ ok: false, error: 'unsafe_url' });
     expect(await save(['id_confirm'], 'gopher://example.com/{player_id}')).toMatchObject({ ok: false, error: 'unsafe_url' });
     // En dev, localhost est autorisé (démo sur :4100) ; oauth (phase 2) est ignoré.
-    expect(await save(['code', 'id_confirm', 'oauth'], ' http://localhost:4100/wolleen/players/{player_id} ', true)).toMatchObject({
-      ok: true, linkMethods: ['code', 'id_confirm'], playerLookupUrl: 'http://localhost:4100/wolleen/players/{player_id}',
+    expect(await save(['code', 'id_confirm', 'oauth'], ' http://localhost:4100/devappstore/players/{player_id} ', true)).toMatchObject({
+      ok: true, linkMethods: ['code', 'id_confirm'], playerLookupUrl: 'http://localhost:4100/devappstore/players/{player_id}',
     });
     expect(await L.getLinkSettings(g.id)).toMatchObject({ linkMethods: ['code', 'id_confirm'] });
     expect(await save(['code'], '')).toMatchObject({ ok: true, playerLookupUrl: null });

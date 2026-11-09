@@ -1,5 +1,5 @@
 {
-  "name": "@wolleen/web",
+  "name": "@devappstore/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,11 +13,11 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
-    "@wolleen/ai-style": "*",
-    "@wolleen/core": "*",
-    "@wolleen/db": "*",
-    "@wolleen/emails": "*",
-    "@wolleen/importers": "*",
+    "@devappstore/ai-style": "*",
+    "@devappstore/core": "*",
+    "@devappstore/db": "*",
+    "@devappstore/emails": "*",
+    "@devappstore/importers": "*",
     "better-auth": "^1.7.18",
     "next": "15.5.29",
     "react": "19.1.0",

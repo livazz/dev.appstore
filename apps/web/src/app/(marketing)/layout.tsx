@@ -17,11 +17,11 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
       </a>
       <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link href="/" className="flex min-h-11 min-w-11 items-center gap-2 rounded font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label="Wolleen, retour au catalogue">
+          <Link href="/" className="flex min-h-11 min-w-11 items-center gap-2 rounded font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label="Dev AppStore, retour au catalogue">
             <span aria-hidden="true" className="grid size-9 place-items-center rounded-full bg-brand text-lg font-black text-ink">
-              W
+              D
             </span>
-            <span aria-hidden="true" className="hidden sm:inline">Wolleen</span>
+            <span aria-hidden="true" className="hidden sm:inline">Dev AppStore</span>
           </Link>
           <nav aria-label="Navigation principale" className="flex items-center gap-1 text-sm sm:gap-3">
             <Link href="/" className={navLink}>
@@ -47,7 +47,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
       </main>
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-ink-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>© {new Date().getFullYear()} Wolleen — achats in-app sur le web.</p>
+          <p>© {new Date().getFullYear()} Dev AppStore — achats in-app sur le web.</p>
           <nav aria-label="Liens de pied de page" className="flex flex-wrap gap-x-4">
             <Link href="/" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Catalogue</Link>
             <Link href="/pour-les-studios" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Pour les studios</Link>

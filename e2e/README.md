@@ -1,17 +1,17 @@
-# Tests de bout en bout (`@wolleen/e2e`)
+# Tests de bout en bout (`@devappstore/e2e`)
 
-Harnais Playwright de la vague 2 : il démarre Wolleen (et le jeu de démo s'il existe) sur une **base PGlite isolée**,
+Harnais Playwright de la vague 2 : il démarre Dev AppStore (et le jeu de démo s'il existe) sur une **base PGlite isolée**,
 puis rejoue les parcours clés dans Chromium.
 
 ## Lancer
 
 ```bash
 npm install --prefer-offline --no-audit --no-fund
-npm run test:e2e                          # depuis la racine (ou : npm run test:e2e -w @wolleen/e2e)
+npm run test:e2e                          # depuis la racine (ou : npm run test:e2e -w @devappstore/e2e)
 npm run test:e2e -- tests/securite.spec.ts   # un seul fichier
 npm run test:e2e -- --trace on            # avec traces (désactivées par défaut) → npx playwright show-trace …
 npm run test:e2e -- --headed              # navigateur visible
-npm test -w @wolleen/e2e                  # tests unitaires du harnais (vitest, sans navigateur)
+npm test -w @devappstore/e2e                  # tests unitaires du harnais (vitest, sans navigateur)
 ```
 
 N'exécutez pas `playwright install` : `@playwright/test` est épinglé sur la version du Playwright préinstallé
@@ -20,7 +20,7 @@ N'exécutez pas `playwright install` : `@playwright/test` est épinglé sur la v
 
 ## Ce que fait un lancement
 
-1. **webServer** : `npm run dev` (Wolleen, port 3000) avec `WOLLEEN_DATA_DIR=e2e/.data`, `STRIPE_SECRET_KEY` vide
+1. **webServer** : `npm run dev` (Dev AppStore, port 3000) avec `DEVAPPSTORE_DATA_DIR=e2e/.data`, `STRIPE_SECRET_KEY` vide
    (paiement simulé `/checkout/mock`) et des secrets de test ; `npm run demo` (jeu de démo, port 4100) **si**
    `apps/demo-game` ou le script racine `demo` existe.
 2. **globalSetup** (`global-setup.ts`) : supprime `e2e/.data`, puis `npm run db:push` et `npm run db:seed` sur cette base.
@@ -30,9 +30,9 @@ N'exécutez pas `playwright install` : `@playwright/test` est épinglé sur la v
 | Spec | Parcours |
 |---|---|
 | `sante.spec.ts` | Le serveur répond et la base de test est seedée (toujours active). |
-| `parcours-joueur.spec.ts` | joueur@wolleen.test → recherche « Crystal » → Crystal Clash → Acheter « Sac de gemmes » → liaison par code (code via `POST /api/v1/link-codes`, clé `DEMO_KEYS.crystal`) → paiement simulé → le jeu reçoit l'achat sans rechargement → `/account/purchases` affiche « Livré ». |
-| `liaison-id.spec.ts` | Méthode `id_confirm` avec le joueur `#2PP8QL9` → écran « Est-ce bien vous : Ali ? » → confirmation (non vérifié). Compte dev@wolleen.test, pour laisser joueur@ non lié à Crystal. |
-| `studio.spec.ts` | dev@wolleen.test → Mes jeux → éditeur Crystal Clash → ajout d'un article → visible sur `/games/crystal-clash`. |
+| `parcours-joueur.spec.ts` | joueur@devappstore.test → recherche « Crystal » → Crystal Clash → Acheter « Sac de gemmes » → liaison par code (code via `POST /api/v1/link-codes`, clé `DEMO_KEYS.crystal`) → paiement simulé → le jeu reçoit l'achat sans rechargement → `/account/purchases` affiche « Livré ». |
+| `liaison-id.spec.ts` | Méthode `id_confirm` avec le joueur `#2PP8QL9` → écran « Est-ce bien vous : Ali ? » → confirmation (non vérifié). Compte dev@devappstore.test, pour laisser joueur@ non lié à Crystal. |
+| `studio.spec.ts` | dev@devappstore.test → Mes jeux → éditeur Crystal Clash → ajout d'un article → visible sur `/games/crystal-clash`. |
 | `securite.spec.ts` | Studio refusé à un joueur et à un cookie forgé ; API v1 → 401 sans clé / clé inconnue / non-Bearer / clé en query string ; code de liaison réutilisé → refusé (sur Pixel Farm). |
 
 Livraison dans `parcours-joueur` : avec le jeu de démo, la page du jeu (ouverte avant l'achat, jamais rechargée)
@@ -77,10 +77,10 @@ clés de démo (lus dans `packages/db/src/seed.ts`, sans l'importer : il lance l
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `E2E_WEB_PORT` | `3000` | Port de Wolleen (utile si 3000 est déjà pris : `E2E_WEB_PORT=3317 npm run test:e2e`). |
+| `E2E_WEB_PORT` | `3000` | Port de Dev AppStore (utile si 3000 est déjà pris : `E2E_WEB_PORT=3317 npm run test:e2e`). |
 | `E2E_DEMO_PORT` | `4100` | Port du jeu de démo. Le seed pointe `playerLookupUrl` / `webhookUrl` sur 4100 : ne changez qu'en connaissance de cause. |
-| `E2E_REUSE_SERVER` | — | `1` : réutilise des serveurs déjà lancés et **ne touche pas** à la base (lancez-les vous-même avec `WOLLEEN_DATA_DIR=e2e/.data`, base migrée et seedée). |
-| `E2E_REUSE_DEMO` | — | `1` : réutilise un jeu de démo déjà lancé sur 4100 (Wolleen reste démarré par le harnais). |
+| `E2E_REUSE_SERVER` | — | `1` : réutilise des serveurs déjà lancés et **ne touche pas** à la base (lancez-les vous-même avec `DEVAPPSTORE_DATA_DIR=e2e/.data`, base migrée et seedée). |
+| `E2E_REUSE_DEMO` | — | `1` : réutilise un jeu de démo déjà lancé sur 4100 (Dev AppStore reste démarré par le harnais). |
 | `E2E_FORCER` | — | `1` : exécute aussi les specs marquées fixme (routes absentes), pour voir jusqu'où va un parcours. |
 | `E2E_DATA_DIR` | `e2e/.data` | Base PGlite de test (relative à la racine). |
 | `E2E_KEEP_DATA` | — | `1` : ne pas vider la base avant `db:push`/`db:seed`. |

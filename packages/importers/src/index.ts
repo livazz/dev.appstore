@@ -1,6 +1,6 @@
 /**
- * @wolleen/importers — import du catalogue d'achats in-app existant d'un studio
- * depuis App Store Connect et Google Play, normalisé en `ImportedProduct` (centimes, types Wolleen).
+ * @devappstore/importers — import du catalogue d'achats in-app existant d'un studio
+ * depuis App Store Connect et Google Play, normalisé en `ImportedProduct` (centimes, types Dev AppStore).
  */
 export * from './types';
 export { suggestWebPrice, DEFAULT_WEB_DISCOUNT_BPS, SUPPORTED_CURRENCIES, toCurrency, decimalToCents, moneyToCents, microsToCents } from './pricing';

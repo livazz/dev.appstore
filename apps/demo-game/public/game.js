@@ -1,7 +1,7 @@
 // Client du faux jeu Nova Games.
-// - Crystal Clash (jeu AVEC serveur) : Wolleen appelle le serveur du jeu (webhook signé), qui pousse l'inventaire ici
+// - Crystal Clash (jeu AVEC serveur) : Dev AppStore appelle le serveur du jeu (webhook signé), qui pousse l'inventaire ici
 //   (SSE /api/events). La clé secrète reste sur le serveur du jeu ; le code de liaison est demandé par ce serveur.
-// - Pixel Farm (jeu SANS serveur) : le client écoute Wolleen lui-même avec @wolleen/sdk (servi en ES module par /sdk/),
+// - Pixel Farm (jeu SANS serveur) : le client écoute Dev AppStore lui-même avec @devappstore/sdk (servi en ES module par /sdk/),
 //   avec la clé PUBLIQUE du jeu et le jeton joueur obtenu après la liaison par code.
 
 const $ = (id) => document.getElementById(id);
@@ -33,7 +33,7 @@ let player;
 let inventory = {};
 /** Fonction d'arrêt de la connexion temps réel en cours. */
 let teardown = () => {};
-let wolleen; // client SDK (Pixel Farm)
+let devappstore; // client SDK (Pixel Farm)
 let expiryTimer;
 let mountSeq = 0;
 let linkAbort; // attente de la saisie du code (Pixel Farm)
@@ -147,7 +147,7 @@ function log(text, cls = '') {
 
 function startCrystal() {
   const es = new EventSource(`/api/events?game=crystal&player=${encodeURIComponent(player.id)}`);
-  es.addEventListener('open', () => setStatus('on', 'Serveur du jeu connecté · webhook Wolleen'));
+  es.addEventListener('open', () => setStatus('on', 'Serveur du jeu connecté · webhook Dev AppStore'));
   es.addEventListener('error', () => setStatus('wait', 'Reconnexion au serveur du jeu…'));
   es.addEventListener('state', (m) => setInventory(JSON.parse(m.data).inventory));
   es.addEventListener('inventory', (m) => {
@@ -183,18 +183,18 @@ function applyDelta(inv, delta) {
 }
 
 async function startFarm() {
-  const { Wolleen } = await import('/sdk/index.js');
+  const { DevAppStore } = await import('/sdk/index.js');
   const saved = readPref(farmKey(), null);
   setInventory(saved ? JSON.parse(saved) : { seeds: 0, gold: 0, ...config.startingInventory.farm });
-  // Jeu sans serveur : le client parle directement à Wolleen (CORS) avec la clé PUBLIQUE du jeu. Les achats ne sont
+  // Jeu sans serveur : le client parle directement à Dev AppStore (CORS) avec la clé PUBLIQUE du jeu. Les achats ne sont
   // accessibles qu'après la liaison (jeton joueur, mémorisé dans localStorage) et uniquement ceux de CE joueur.
-  wolleen = new Wolleen({
+  devappstore = new DevAppStore({
     publishableKey: config.games.farm.publishableKey,
-    baseUrl: config.wolleenUrl,
+    baseUrl: config.devAppStoreUrl,
     storage: localStorage, // jeton joueur + dédoublonnage persistant : jamais deux fois le même delivery_id
-    onError: (e) => console.warn('[Wolleen]', e),
+    onError: (e) => console.warn('[Dev AppStore]', e),
   });
-  const sub = wolleen.onPurchase(player.id, (e) => {
+  const sub = devappstore.onPurchase(player.id, (e) => {
     const refund = e.event === 'purchase.refunded';
     let orders = {};
     try {
@@ -228,8 +228,8 @@ async function startFarm() {
     log(`SDK : ${refund ? 'remboursement' : PRODUCT_LABELS[e.product_id] ?? e.product_id} reçu et acquitté (${e.delivery_id})`, 'ok');
   });
   const poll = setInterval(() => {
-    if (!wolleen.isLinked(player.id)) setStatus('wait', 'Compte web non lié · Paramètres → Lier mon compte web');
-    else setStatus(sub.connected ? 'on' : 'wait', sub.connected ? 'SDK connecté à Wolleen · temps réel' : 'SDK : connexion à Wolleen…');
+    if (!devappstore.isLinked(player.id)) setStatus('wait', 'Compte web non lié · Paramètres → Lier mon compte web');
+    else setStatus(sub.connected ? 'on' : 'wait', sub.connected ? 'SDK connecté à Dev AppStore · temps réel' : 'SDK : connexion à Dev AppStore…');
   }, 500);
   updateLinkState();
   return () => {
@@ -241,24 +241,24 @@ async function startFarm() {
 
 /** Pixel Farm : état de la liaison de CET appareil (jeton joueur présent ou non). */
 function updateLinkState() {
-  const farm = gameKey === 'farm' && wolleen;
-  const linked = !!farm && wolleen.isLinked(player.id);
+  const farm = gameKey === 'farm' && devappstore;
+  const linked = !!farm && devappstore.isLinked(player.id);
   $('link-state').hidden = !farm;
   $('link-state').textContent = linked ? 'Cet appareil est lié : il reçoit les achats de ce joueur.' : 'Cet appareil n’est pas encore lié.';
   $('link-state').className = linked ? 'small linked' : 'small muted';
   $('unlink-device').hidden = !linked;
 }
 
-/** Pixel Farm : attend que le joueur saisisse le code sur Wolleen, puis reçoit le jeton joueur (le SDK démarre seul). */
+/** Pixel Farm : attend que le joueur saisisse le code sur Dev AppStore, puis reçoit le jeton joueur (le SDK démarre seul). */
 function waitForLink(code) {
   linkAbort?.abort();
   const ctrl = new AbortController();
   linkAbort = ctrl;
-  const client = wolleen;
+  const client = devappstore;
   client
     .waitForLink(code, { signal: ctrl.signal })
     .then(() => {
-      if (client !== wolleen) return;
+      if (client !== devappstore) return;
       clearInterval(expiryTimer);
       $('code-box').hidden = true;
       updateLinkState();
@@ -272,10 +272,10 @@ function waitForLink(code) {
 }
 
 async function unlinkDevice() {
-  if (!wolleen) return;
+  if (!devappstore) return;
   $('unlink-device').disabled = true;
   try {
-    await wolleen.unlink(player.id);
+    await devappstore.unlink(player.id);
     log('Appareil délié : jeton joueur révoqué', 'warn');
   } catch (e) {
     $('link-error').textContent = e?.message ?? String(e);
@@ -296,7 +296,7 @@ async function requestCode() {
     let code;
     if (gameKey === 'farm') {
       // Clé publique : le code s'accompagne d'une demande de liaison, échangée contre le jeton joueur après la saisie.
-      code = await wolleen.requestLinkCode(player.id, player.name);
+      code = await devappstore.requestLinkCode(player.id, player.name);
       waitForLink(code);
     } else {
       const res = await fetch('/api/link-code', {
@@ -321,7 +321,7 @@ async function requestCode() {
     log(`Code de liaison ${code.code} généré (${gameKey === 'farm' ? 'SDK' : 'serveur du jeu'})`);
   } catch (e) {
     const msg = e?.message ?? String(e);
-    $('link-error').textContent = /fetch|injoignable|Failed/i.test(msg) ? `Wolleen injoignable (${config.wolleenUrl}). ${msg}` : msg;
+    $('link-error').textContent = /fetch|injoignable|Failed/i.test(msg) ? `Dev AppStore injoignable (${config.devAppStoreUrl}). ${msg}` : msg;
     $('link-error').hidden = false;
   } finally {
     btn.disabled = false;
@@ -339,22 +339,22 @@ async function mount() {
   document.querySelectorAll('.game-card').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.game === gameKey)));
   $('mode-hint').textContent =
     g.mode === 'webhook'
-      ? 'Wolleen envoie un webhook signé au serveur du jeu (port 4100), qui crédite l’inventaire puis le pousse au jeu.'
-      : 'Jeu sans serveur : @wolleen/sdk avec la clé publique ; après la liaison par code, le jeton joueur donne accès aux achats de ce joueur (temps réel + rattrapage).';
+      ? 'Dev AppStore envoie un webhook signé au serveur du jeu (port 4100), qui crédite l’inventaire puis le pousse au jeu.'
+      : 'Jeu sans serveur : @devappstore/sdk avec la clé publique ; après la liaison par code, le jeton joueur donne accès aux achats de ce joueur (temps réel + rattrapage).';
   $('simulate').hidden = g.mode !== 'webhook';
   $('player-name').textContent = player.name;
   $('player-level').textContent = `Niv. ${player.level}`;
   $('avatar').textContent = player.name.slice(0, 1);
   $('player-id').textContent = player.id;
-  $('shop-link').href = `${config.wolleenUrl}/games/${g.slug}`;
-  $('link-url').href = `${config.wolleenUrl}/games/${g.slug}/link`;
-  $('link-url').textContent = `${config.wolleenUrl.replace(/^https?:\/\//, '')}/games/${g.slug}/link`;
+  $('shop-link').href = `${config.devAppStoreUrl}/games/${g.slug}`;
+  $('link-url').href = `${config.devAppStoreUrl}/games/${g.slug}/link`;
+  $('link-url').textContent = `${config.devAppStoreUrl.replace(/^https?:\/\//, '')}/games/${g.slug}/link`;
   $('link-via').textContent = g.mode === 'webhook' ? 'via le serveur du jeu (clé secrète)' : 'via le SDK (clé publique)';
   $('code-box').hidden = true;
   $('link-error').hidden = true;
   $('link-state').hidden = true;
   $('unlink-device').hidden = true;
-  wolleen = undefined;
+  devappstore = undefined;
   setStatus('wait', 'Connexion…');
   const seq = ++mountSeq;
   try {
@@ -369,7 +369,7 @@ async function mount() {
 
 async function main() {
   config = await (await fetch('/api/config')).json();
-  $('open-wolleen').href = config.wolleenUrl;
+  $('open-devappstore').href = config.devAppStoreUrl;
   const params = new URLSearchParams(location.search);
   gameKey = params.get('game') ?? readPref('game', 'crystal');
   if (!config.games[gameKey]) gameKey = 'crystal';

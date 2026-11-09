@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { db } from '@wolleen/db';
+import { db } from '@devappstore/db';
 import { requireUser } from '@/server/session';
 import { findCreatorStudio } from '@/server/studio-logic';
 import { NewGameForm } from '@/components/studio/NewGameForm';

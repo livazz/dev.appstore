@@ -1,15 +1,15 @@
 # syntax=docker/dockerfile:1.7
 #
-# Image Docker de Wolleen (apps/web, Next.js 15 en sortie « standalone »).
+# Image Docker de Dev AppStore (apps/web, Next.js 15 en sortie « standalone »).
 #
 # PRÉREQUIS : apps/web/next.config.ts doit contenir (voir docs/deploy.md § Docker) :
 #     output: 'standalone',
 #     outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
 #
 # Cibles :
-#   docker build -t wolleen-web .                       → image de production (cible « runner », par défaut)
-#   docker build --target migrator -t wolleen-migrate . → job de migrations (drizzle-kit migrate)
-#   docker build --target dev -t wolleen-dev .          → image de développement (docker-compose.yml)
+#   docker build -t devappstore-web .                       → image de production (cible « runner », par défaut)
+#   docker build --target migrator -t devappstore-migrate . → job de migrations (drizzle-kit migrate)
+#   docker build --target dev -t devappstore-dev .          → image de développement (docker-compose.yml)
 #
 # Debian slim plutôt qu'Alpine : binaires précompilés de sharp et de PGlite sans surprise musl.
 
@@ -42,7 +42,7 @@ EXPOSE 3000 4100
 CMD ["npm", "run", "dev"]
 
 # ---------------------------------------------------------------------------------------------
-# Migrations : `docker run --rm -e DATABASE_URL=… wolleen-migrate` avant chaque mise en production.
+# Migrations : `docker run --rm -e DATABASE_URL=… devappstore-migrate` avant chaque mise en production.
 FROM deps AS migrator
 COPY packages/core packages/core
 COPY packages/db packages/db
@@ -57,7 +57,7 @@ ENV NODE_ENV=production
 ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=""
 ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
 COPY . .
-RUN npm run build -w @wolleen/web \
+RUN npm run build -w @devappstore/web \
  && if [ ! -f apps/web/.next/standalone/apps/web/server.js ]; then \
       echo "ERREUR : sortie standalone absente. Ajoutez output: 'standalone' et outputFileTracingRoot dans apps/web/next.config.ts (voir docs/deploy.md)." >&2; \
       exit 1; \

@@ -1,7 +1,7 @@
 import 'server-only';
 import type { AnyColumn } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
-import { newId, type Currency, type DeliveryStatus, type GameStatus } from '@wolleen/core';
+import { newId, type Currency, type DeliveryStatus, type GameStatus } from '@devappstore/core';
 import {
   adminAuditLog,
   and,
@@ -30,8 +30,8 @@ import {
   type DB,
   type ModerationAction,
   type PlatformAdminRole,
-} from '@wolleen/db';
-import { contextFromEnv, createMailerFromEnv, sendEmail, type Mailer } from '@wolleen/emails';
+} from '@devappstore/db';
+import { contextFromEnv, createMailerFromEnv, sendEmail, type Mailer } from '@devappstore/emails';
 import { getCurrentUser, type SessionUser } from './session';
 import { dispatchDelivery } from './delivery';
 import { moderationEmail } from './admin-emails';

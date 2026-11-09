@@ -1,7 +1,7 @@
 import 'server-only';
 import { createPrivateKey } from 'node:crypto';
 import { z } from 'zod';
-import { DEFAULT_ITEM_STYLE, PRICE_TIERS_CENTS, newId, type Currency, type ItemType, type Period } from '@wolleen/core';
+import { DEFAULT_ITEM_STYLE, PRICE_TIERS_CENTS, newId, type Currency, type ItemType, type Period } from '@devappstore/core';
 import {
   and,
   desc,
@@ -13,7 +13,7 @@ import {
   type DB,
   type ImportRunWarning,
   type StoreSource,
-} from '@wolleen/db';
+} from '@devappstore/db';
 import {
   DEFAULT_WEB_DISCOUNT_BPS,
   importCatalog,
@@ -25,7 +25,7 @@ import {
   type GooglePlayImportOptions,
   type ImportedProduct,
   type ImportWarning,
-} from '@wolleen/importers';
+} from '@devappstore/importers';
 import { decryptJson, encryptJson, SecretDecryptError } from './secrets';
 import { demoImportOptions } from './import-demo';
 import { PRODUCT_ID_RE, StudioError, createItemFor } from './studio-logic';
@@ -201,15 +201,15 @@ export function regionFor(currency: Currency): { regionCode: 'FR' | 'US' | 'GB';
   return { regionCode: 'FR', territory: 'FRA', label: 'France' };
 }
 
-/** Identifiant produit accepté par Wolleen (ex. Google « vip:monthly » → « vip.monthly »). Le jeu doit reconnaître ce nouvel id. */
-export function toWolleenProductId(storeId: string): string {
+/** Identifiant produit accepté par Dev AppStore (ex. Google « vip:monthly » → « vip.monthly »). Le jeu doit reconnaître ce nouvel id. */
+export function toDevAppStoreProductId(storeId: string): string {
   if (PRODUCT_ID_RE.test(storeId)) return storeId;
   let s = storeId.replace(/[^A-Za-z0-9._-]+/g, '.').replace(/^[^A-Za-z0-9]+/, '');
   s = s.slice(0, 64);
   return s || 'produit';
 }
 
-/** Prix web proposé, ramené dans la grille des paliers Wolleen (49 → 9 999 centimes). */
+/** Prix web proposé, ramené dans la grille des paliers Dev AppStore (49 → 9 999 centimes). */
 export function priceForWeb(storePriceCents: number, discountBps: number): { suggestedCents: number | null; webPriceCents: number; note?: string } {
   const suggestedCents = suggestWebPrice(storePriceCents, discountBps);
   if (suggestedCents === null) {
@@ -249,7 +249,7 @@ export interface PreviewRow {
   key: string;
   source: StoreSource;
   storeProductId: string;
-  /** Identifiant qui sera utilisé dans Wolleen (identique au store sauf caractères non acceptés). */
+  /** Identifiant qui sera utilisé dans Dev AppStore (identique au store sauf caractères non acceptés). */
   productId: string;
   type: ItemType;
   period: Period | null;
@@ -277,7 +277,7 @@ export function buildPreviewRows(
   const seen = new Set<string>();
   return products.map((p) => {
     const notes: string[] = [];
-    const productId = toWolleenProductId(p.productId);
+    const productId = toDevAppStoreProductId(p.productId);
     if (productId !== p.productId) notes.push(`Identifiant adapté (« ${p.productId} » → « ${productId} ») : le jeu doit reconnaître ce nouvel id.`);
     const dup = seen.has(productId);
     seen.add(productId);
@@ -289,7 +289,7 @@ export function buildPreviewRows(
     let period: Period | null = isSub ? (p.period ?? null) : null;
     if (isSub && !period) {
       period = 'month';
-      notes.push('Période non gérée par Wolleen : « mois » proposé, à vérifier.');
+      notes.push('Période non gérée par Dev AppStore : « mois » proposé, à vérifier.');
     }
     for (const w of warnings) {
       if (w.productId === p.productId && w.source === p.source && w.code !== 'inactive' && w.code !== 'unsupported_period') notes.push(w.message);

@@ -7,7 +7,7 @@ const dtf = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'sh
  * Bandeau de l'espace studio : motif de la suspension du jeu décidée par l'équipe Dev AppStore (exigence P2B),
  * avec la voie de contestation. N'affiche rien si le jeu n'est pas suspendu. L'appelant a déjà vérifié l'accès au jeu.
  */
-export async function SuspensionNotice({ gameId, supportEmail = process.env.SUPPORT_EMAIL || 'support@wolleen.com' }: { gameId: string; supportEmail?: string }) {
+export async function SuspensionNotice({ gameId, supportEmail = process.env.SUPPORT_EMAIL || 'support@devappstore.com' }: { gameId: string; supportEmail?: string }) {
   const n = await getActiveSuspension(gameId);
   if (!n) return null;
   const ground = n.ground ? (SUSPENSION_GROUNDS[n.ground as SuspensionGround] ?? n.ground) : null;

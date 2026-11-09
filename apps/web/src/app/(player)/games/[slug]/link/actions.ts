@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import type { PlayerLookupResponse } from '@wolleen/core';
+import type { PlayerLookupResponse } from '@devappstore/core';
 import { confirmIdLink, getLinkableGame, linkReturnPath, redeemLinkCode, startIdConfirm } from '@/server/linking';
 import { requireUser } from '@/server/session';
 

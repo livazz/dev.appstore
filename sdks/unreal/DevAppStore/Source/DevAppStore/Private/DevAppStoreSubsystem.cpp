@@ -1,7 +1,7 @@
-#include "WolleenSubsystem.h"
+#include "DevAppStoreSubsystem.h"
 
-#include "WolleenSaveGame.h"
-#include "WolleenSettings.h"
+#include "DevAppStoreSaveGame.h"
+#include "DevAppStoreSettings.h"
 
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
@@ -17,22 +17,22 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogWolleen, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogDevAppStore, Log, All);
 
-namespace WolleenSDK
+namespace DevAppStoreSDK
 {
 	static const TCHAR* Version = TEXT("0.2.0");
-	static const TCHAR* PlayerTokenHeader = TEXT("Wolleen-Player-Token");
+	static const TCHAR* PlayerTokenHeader = TEXT("DevAppStore-Player-Token");
 	static constexpr float LinkPollSeconds = 3.f;
-	static const TCHAR* SaveSlot = TEXT("WolleenSDK");
+	static const TCHAR* SaveSlot = TEXT("DevAppStoreSDK");
 	static constexpr int32 SaveUserIndex = 0;
 	static constexpr double MinPollGapSeconds = 5.0;
 	static constexpr int32 MaxRememberedAcks = 500;
 	static constexpr float RequestTimeoutSeconds = 15.f;
 
-	static FWolleenPurchase ParsePurchase(const TSharedPtr<FJsonObject>& Obj)
+	static FDevAppStorePurchase ParsePurchase(const TSharedPtr<FJsonObject>& Obj)
 	{
-		FWolleenPurchase P;
+		FDevAppStorePurchase P;
 		Obj->TryGetStringField(TEXT("event"), P.Event);
 		Obj->TryGetStringField(TEXT("delivery_id"), P.DeliveryId);
 		Obj->TryGetStringField(TEXT("order_id"), P.OrderId);
@@ -52,32 +52,32 @@ namespace WolleenSDK
 // Cycle de vie
 // ---------------------------------------------------------------------------
 
-void UWolleenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void UDevAppStoreSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	const UWolleenSettings* Settings = GetDefault<UWolleenSettings>();
+	const UDevAppStoreSettings* Settings = GetDefault<UDevAppStoreSettings>();
 	BaseUrl = Settings->BaseUrl;
 	PublishableKey = Settings->PublishableKey.IsEmpty() ? Settings->ApiKey : Settings->PublishableKey; // ApiKey : réglage 0.1 déprécié
 	PollIntervalSeconds = Settings->PollIntervalSeconds;
 	bPollOnFocus = Settings->bPollOnFocus;
-	if (!PublishableKey.IsEmpty() && !PublishableKey.StartsWith(TEXT("wk_pub_")))
+	if (!PublishableKey.IsEmpty() && !PublishableKey.StartsWith(TEXT("das_pub_")))
 	{
-		UE_LOG(LogWolleen, Error, TEXT("La clé configurée n'est pas une clé publique (wk_pub_…). Une clé secrète embarquée dans le jeu peut être extraite et donne accès aux achats de tous les joueurs : utilisez la clé publique."));
+		UE_LOG(LogDevAppStore, Error, TEXT("La clé configurée n'est pas une clé publique (das_pub_…). Une clé secrète embarquée dans le jeu peut être extraite et donne accès aux achats de tous les joueurs : utilisez la clé publique."));
 	}
 
 	LoadState();
 	ApplyPollInterval();
 
 	// Retour au premier plan : mobile (FCoreDelegates) et bureau (activation de la fenêtre Slate).
-	ReactivatedHandle = FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddUObject(this, &UWolleenSubsystem::HandleAppReactivated);
+	ReactivatedHandle = FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddUObject(this, &UDevAppStoreSubsystem::HandleAppReactivated);
 	if (FSlateApplication::IsInitialized())
 	{
-		ActivationHandle = FSlateApplication::Get().OnApplicationActivationStateChanged().AddUObject(this, &UWolleenSubsystem::HandleActivationStateChanged);
+		ActivationHandle = FSlateApplication::Get().OnApplicationActivationStateChanged().AddUObject(this, &UDevAppStoreSubsystem::HandleActivationStateChanged);
 	}
 }
 
-void UWolleenSubsystem::Deinitialize()
+void UDevAppStoreSubsystem::Deinitialize()
 {
 	FCoreDelegates::ApplicationHasEnteredForegroundDelegate.Remove(ReactivatedHandle);
 	if (FSlateApplication::IsInitialized())
@@ -96,7 +96,7 @@ void UWolleenSubsystem::Deinitialize()
 // API publique
 // ---------------------------------------------------------------------------
 
-void UWolleenSubsystem::Configure(const FString& InPublishableKey, const FString& InBaseUrl, float InPollIntervalSeconds)
+void UDevAppStoreSubsystem::Configure(const FString& InPublishableKey, const FString& InBaseUrl, float InPollIntervalSeconds)
 {
 	PublishableKey = InPublishableKey;
 	if (!InBaseUrl.IsEmpty())
@@ -110,7 +110,7 @@ void UWolleenSubsystem::Configure(const FString& InPublishableKey, const FString
 	ApplyPollInterval();
 }
 
-void UWolleenSubsystem::SetPlayerId(const FString& InPlayerId)
+void UDevAppStoreSubsystem::SetPlayerId(const FString& InPlayerId)
 {
 	if (InPlayerId == PlayerId)
 	{
@@ -125,12 +125,12 @@ void UWolleenSubsystem::SetPlayerId(const FString& InPlayerId)
 	}
 }
 
-bool UWolleenSubsystem::IsLinked() const
+bool UDevAppStoreSubsystem::IsLinked() const
 {
 	return !GetPlayerTokenFor(PlayerId).IsEmpty();
 }
 
-void UWolleenSubsystem::Poll()
+void UDevAppStoreSubsystem::Poll()
 {
 	if (PublishableKey.IsEmpty() || PlayerId.IsEmpty() || !IsLinked())
 	{
@@ -142,7 +142,7 @@ void UWolleenSubsystem::Poll()
 		return;
 	}
 	const double Now = FPlatformTime::Seconds();
-	if (Now - LastPollTime < WolleenSDK::MinPollGapSeconds)
+	if (Now - LastPollTime < DevAppStoreSDK::MinPollGapSeconds)
 	{
 		return;
 	}
@@ -156,7 +156,7 @@ void UWolleenSubsystem::Poll()
 		FString::Printf(TEXT("/api/v1/deliveries?player_id=%s"), *FGenericPlatformHttp::UrlEncode(RequestedFor)),
 		FString(),
 		true,
-		[this, RequestedFor](const FWolleenHttpResult& Result)
+		[this, RequestedFor](const FDevAppStoreHttpResult& Result)
 		{
 			bPolling = false;
 			HandleDeliveries(RequestedFor, Result);
@@ -168,7 +168,7 @@ void UWolleenSubsystem::Poll()
 		});
 }
 
-void UWolleenSubsystem::Ack(const FString& DeliveryId)
+void UDevAppStoreSubsystem::Ack(const FString& DeliveryId)
 {
 	if (DeliveryId.IsEmpty() || State->AckedIds.Contains(DeliveryId))
 	{
@@ -183,7 +183,7 @@ void UWolleenSubsystem::Ack(const FString& DeliveryId)
 	SendAck(DeliveryId);
 }
 
-void UWolleenSubsystem::RequestLinkCode(const FString& PlayerName)
+void UDevAppStoreSubsystem::RequestLinkCode(const FString& PlayerName)
 {
 	if (PlayerId.IsEmpty())
 	{
@@ -203,7 +203,7 @@ void UWolleenSubsystem::RequestLinkCode(const FString& PlayerName)
 
 	const FString ForPlayer = PlayerId;
 	SendRequest(TEXT("POST"), TEXT("/api/v1/link-codes"), BodyString, false,
-		[this, ForPlayer](const FWolleenHttpResult& Result)
+		[this, ForPlayer](const FDevAppStoreHttpResult& Result)
 		{
 			FString Code;
 			FString ExpiresAt;
@@ -226,7 +226,7 @@ void UWolleenSubsystem::RequestLinkCode(const FString& PlayerName)
 					LinkDeadline = FPlatformTime::Seconds() + Remaining + 30.0;
 					if (UGameInstance* GI = GetGameInstance())
 					{
-						GI->GetTimerManager().SetTimer(LinkTimer, this, &UWolleenSubsystem::PollLinkRequest, WolleenSDK::LinkPollSeconds, /*bLoop*/ true);
+						GI->GetTimerManager().SetTimer(LinkTimer, this, &UDevAppStoreSubsystem::PollLinkRequest, DevAppStoreSDK::LinkPollSeconds, /*bLoop*/ true);
 					}
 				}
 			}
@@ -237,12 +237,12 @@ void UWolleenSubsystem::RequestLinkCode(const FString& PlayerName)
 		});
 }
 
-void UWolleenSubsystem::CancelLinkWait()
+void UDevAppStoreSubsystem::CancelLinkWait()
 {
 	StopLinkPoll();
 }
 
-void UWolleenSubsystem::StopLinkPoll()
+void UDevAppStoreSubsystem::StopLinkPoll()
 {
 	LinkRequestId.Reset();
 	LinkForPlayer.Reset();
@@ -252,7 +252,7 @@ void UWolleenSubsystem::StopLinkPoll()
 	}
 }
 
-void UWolleenSubsystem::PollLinkRequest()
+void UDevAppStoreSubsystem::PollLinkRequest()
 {
 	if (LinkRequestId.IsEmpty())
 	{
@@ -275,7 +275,7 @@ void UWolleenSubsystem::PollLinkRequest()
 		FString::Printf(TEXT("/api/v1/link-requests/%s"), *FGenericPlatformHttp::UrlEncode(RequestId)),
 		FString(),
 		false,
-		[this, RequestId](const FWolleenHttpResult& Result)
+		[this, RequestId](const FDevAppStoreHttpResult& Result)
 		{
 			bLinkPollInFlight = false;
 			if (RequestId != LinkRequestId)
@@ -319,7 +319,7 @@ void UWolleenSubsystem::PollLinkRequest()
 		});
 }
 
-void UWolleenSubsystem::Unlink()
+void UDevAppStoreSubsystem::Unlink()
 {
 	if (!IsLinked())
 	{
@@ -327,7 +327,7 @@ void UWolleenSubsystem::Unlink()
 	}
 	const FString ForPlayer = PlayerId;
 	SendRequest(TEXT("DELETE"), TEXT("/api/v1/player-tokens"), FString(), true,
-		[this, ForPlayer](const FWolleenHttpResult& Result)
+		[this, ForPlayer](const FDevAppStoreHttpResult& Result)
 		{
 			if (!Result.bOk)
 			{
@@ -337,13 +337,13 @@ void UWolleenSubsystem::Unlink()
 		});
 }
 
-FString UWolleenSubsystem::GetPlayerTokenFor(const FString& ForPlayer) const
+FString UDevAppStoreSubsystem::GetPlayerTokenFor(const FString& ForPlayer) const
 {
 	const FString* Token = State ? State->PlayerTokens.Find(ForPlayer) : nullptr;
 	return Token ? *Token : FString();
 }
 
-void UWolleenSubsystem::ClearToken(const FString& ForPlayer)
+void UDevAppStoreSubsystem::ClearToken(const FString& ForPlayer)
 {
 	if (!State || State->PlayerTokens.Remove(ForPlayer) == 0)
 	{
@@ -356,7 +356,7 @@ void UWolleenSubsystem::ClearToken(const FString& ForPlayer)
 	}
 }
 
-int32 UWolleenSubsystem::GetPendingAckCount() const
+int32 UDevAppStoreSubsystem::GetPendingAckCount() const
 {
 	return State ? State->PendingAckIds.Num() : 0;
 }
@@ -365,7 +365,7 @@ int32 UWolleenSubsystem::GetPendingAckCount() const
 // Livraisons
 // ---------------------------------------------------------------------------
 
-void UWolleenSubsystem::HandleDeliveries(const FString& RequestedFor, const FWolleenHttpResult& Result)
+void UDevAppStoreSubsystem::HandleDeliveries(const FString& RequestedFor, const FDevAppStoreHttpResult& Result)
 {
 	if (!Result.bOk)
 	{
@@ -386,12 +386,12 @@ void UWolleenSubsystem::HandleDeliveries(const FString& RequestedFor, const FWol
 		const TSharedPtr<FJsonObject>* Obj = nullptr;
 		if (Value.IsValid() && Value->TryGetObject(Obj) && Obj != nullptr && Obj->IsValid())
 		{
-			HandleEvent(WolleenSDK::ParsePurchase(*Obj));
+			HandleEvent(DevAppStoreSDK::ParsePurchase(*Obj));
 		}
 	}
 }
 
-void UWolleenSubsystem::HandleEvent(const FWolleenPurchase& Purchase)
+void UDevAppStoreSubsystem::HandleEvent(const FDevAppStorePurchase& Purchase)
 {
 	const FString& Id = Purchase.DeliveryId;
 	if (Id.IsEmpty() || Purchase.PlayerId != PlayerId)
@@ -418,7 +418,7 @@ void UWolleenSubsystem::HandleEvent(const FWolleenPurchase& Purchase)
 	}
 }
 
-void UWolleenSubsystem::SendAck(const FString& DeliveryId)
+void UDevAppStoreSubsystem::SendAck(const FString& DeliveryId)
 {
 	if (AcksInFlight.Contains(DeliveryId) || !IsLinked())
 	{
@@ -430,7 +430,7 @@ void UWolleenSubsystem::SendAck(const FString& DeliveryId)
 		FString::Printf(TEXT("/api/v1/deliveries/%s/ack"), *FGenericPlatformHttp::UrlEncode(DeliveryId)),
 		FString(),
 		true,
-		[this, DeliveryId](const FWolleenHttpResult& Result)
+		[this, DeliveryId](const FDevAppStoreHttpResult& Result)
 		{
 			AcksInFlight.Remove(DeliveryId);
 			// 404/409 : livraison inconnue ou déjà acquittée côté serveur -> inutile de réessayer.
@@ -438,9 +438,9 @@ void UWolleenSubsystem::SendAck(const FString& DeliveryId)
 			{
 				State->PendingAckIds.Remove(DeliveryId);
 				State->AckedIds.Add(DeliveryId);
-				if (State->AckedIds.Num() > WolleenSDK::MaxRememberedAcks)
+				if (State->AckedIds.Num() > DevAppStoreSDK::MaxRememberedAcks)
 				{
-					State->AckedIds.RemoveAt(0, State->AckedIds.Num() - WolleenSDK::MaxRememberedAcks);
+					State->AckedIds.RemoveAt(0, State->AckedIds.Num() - DevAppStoreSDK::MaxRememberedAcks);
 				}
 				SaveState();
 				if (Result.bOk)
@@ -455,7 +455,7 @@ void UWolleenSubsystem::SendAck(const FString& DeliveryId)
 		});
 }
 
-void UWolleenSubsystem::FlushPendingAcks()
+void UDevAppStoreSubsystem::FlushPendingAcks()
 {
 	const TArray<FString> Pending = State->PendingAckIds; // copie : SendAck peut modifier la liste
 	for (const FString& Id : Pending)
@@ -468,14 +468,14 @@ void UWolleenSubsystem::FlushPendingAcks()
 // HTTP
 // ---------------------------------------------------------------------------
 
-void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, const FString& Body, bool bWithToken, TFunction<void(const FWolleenHttpResult&)>&& OnDone)
+void UDevAppStoreSubsystem::SendRequest(const FString& Verb, const FString& Path, const FString& Body, bool bWithToken, TFunction<void(const FDevAppStoreHttpResult&)>&& OnDone)
 {
 	const FString ForPlayer = PlayerId;
 	const FString Token = bWithToken ? GetPlayerTokenFor(ForPlayer) : FString();
 	if (bWithToken && Token.IsEmpty())
 	{
 		// Pas de jeton joueur : inutile d'appeler l'API (la clé publique seule ne donne pas accès aux achats).
-		FWolleenHttpResult Missing;
+		FDevAppStoreHttpResult Missing;
 		Missing.Status = 401;
 		Missing.Json = MakeShared<FJsonObject>();
 		const TSharedRef<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
@@ -493,15 +493,15 @@ void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, co
 	const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
 	Request->SetURL(Url);
 	Request->SetVerb(Verb);
-	Request->SetTimeout(WolleenSDK::RequestTimeoutSeconds);
+	Request->SetTimeout(DevAppStoreSDK::RequestTimeoutSeconds);
 	// La clé et le jeton voyagent en en-têtes, jamais dans l'URL.
 	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *PublishableKey));
 	if (bWithToken)
 	{
-		Request->SetHeader(WolleenSDK::PlayerTokenHeader, Token);
+		Request->SetHeader(DevAppStoreSDK::PlayerTokenHeader, Token);
 	}
 	Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
-	Request->SetHeader(TEXT("User-Agent"), FString::Printf(TEXT("wolleen-unreal/%s"), WolleenSDK::Version));
+	Request->SetHeader(TEXT("User-Agent"), FString::Printf(TEXT("devappstore-unreal/%s"), DevAppStoreSDK::Version));
 	if (!Body.IsEmpty())
 	{
 		Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
@@ -513,7 +513,7 @@ void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, co
 	Request->OnProcessRequestComplete().BindWeakLambda(this,
 		[this, Callback = MoveTemp(OnDone), bWithToken, ForPlayer, Token](FHttpRequestPtr /*Req*/, FHttpResponsePtr Response, bool bConnectedSuccessfully)
 		{
-			FWolleenHttpResult Result;
+			FDevAppStoreHttpResult Result;
 			if (bConnectedSuccessfully && Response.IsValid())
 			{
 				Result.Status = Response->GetResponseCode();
@@ -551,7 +551,7 @@ void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, co
 	Request->ProcessRequest();
 }
 
-void UWolleenSubsystem::ReportFailure(const FString& Endpoint, const FWolleenHttpResult& Result)
+void UDevAppStoreSubsystem::ReportFailure(const FString& Endpoint, const FDevAppStoreHttpResult& Result)
 {
 	FString Code = Result.Status > 0 ? FString::Printf(TEXT("http_%d"), Result.Status) : TEXT("network_error");
 	FString Message = Result.Error;
@@ -564,9 +564,9 @@ void UWolleenSubsystem::ReportFailure(const FString& Endpoint, const FWolleenHtt
 	}
 	if (Result.Status == 401 && Code == TEXT("unauthorized"))
 	{
-		UE_LOG(LogWolleen, Warning, TEXT("Clé publique refusée (401) : vérifiez Paramètres du projet > Plugins > Wolleen."));
+		UE_LOG(LogDevAppStore, Warning, TEXT("Clé publique refusée (401) : vérifiez Paramètres du projet > Plugins > Dev AppStore."));
 	}
-	UE_LOG(LogWolleen, Verbose, TEXT("%s : %d %s %s"), *Endpoint, Result.Status, *Code, *Message);
+	UE_LOG(LogDevAppStore, Verbose, TEXT("%s : %d %s %s"), *Endpoint, Result.Status, *Code, *Message);
 	OnRequestFailed.Broadcast(Endpoint, Result.Status, Code, Message);
 }
 
@@ -574,7 +574,7 @@ void UWolleenSubsystem::ReportFailure(const FString& Endpoint, const FWolleenHtt
 // Polling et premier plan
 // ---------------------------------------------------------------------------
 
-void UWolleenSubsystem::ApplyPollInterval()
+void UDevAppStoreSubsystem::ApplyPollInterval()
 {
 	UGameInstance* GI = GetGameInstance();
 	if (!GI)
@@ -585,17 +585,17 @@ void UWolleenSubsystem::ApplyPollInterval()
 	Timers.ClearTimer(PollTimer);
 	if (PollIntervalSeconds > 0.f)
 	{
-		Timers.SetTimer(PollTimer, this, &UWolleenSubsystem::Poll, PollIntervalSeconds, /*bLoop*/ true);
+		Timers.SetTimer(PollTimer, this, &UDevAppStoreSubsystem::Poll, PollIntervalSeconds, /*bLoop*/ true);
 	}
 }
 
-void UWolleenSubsystem::ForcePoll()
+void UDevAppStoreSubsystem::ForcePoll()
 {
 	LastPollTime = -1000.0;
 	Poll();
 }
 
-void UWolleenSubsystem::HandleAppReactivated()
+void UDevAppStoreSubsystem::HandleAppReactivated()
 {
 	if (bPollOnFocus)
 	{
@@ -603,7 +603,7 @@ void UWolleenSubsystem::HandleAppReactivated()
 	}
 }
 
-void UWolleenSubsystem::HandleActivationStateChanged(bool bIsActive)
+void UDevAppStoreSubsystem::HandleActivationStateChanged(bool bIsActive)
 {
 	if (bIsActive && bPollOnFocus)
 	{
@@ -615,22 +615,22 @@ void UWolleenSubsystem::HandleActivationStateChanged(bool bIsActive)
 // Persistance
 // ---------------------------------------------------------------------------
 
-void UWolleenSubsystem::LoadState()
+void UDevAppStoreSubsystem::LoadState()
 {
-	if (UGameplayStatics::DoesSaveGameExist(WolleenSDK::SaveSlot, WolleenSDK::SaveUserIndex))
+	if (UGameplayStatics::DoesSaveGameExist(DevAppStoreSDK::SaveSlot, DevAppStoreSDK::SaveUserIndex))
 	{
-		State = Cast<UWolleenSaveGame>(UGameplayStatics::LoadGameFromSlot(WolleenSDK::SaveSlot, WolleenSDK::SaveUserIndex));
+		State = Cast<UDevAppStoreSaveGame>(UGameplayStatics::LoadGameFromSlot(DevAppStoreSDK::SaveSlot, DevAppStoreSDK::SaveUserIndex));
 	}
 	if (!State)
 	{
-		State = Cast<UWolleenSaveGame>(UGameplayStatics::CreateSaveGameObject(UWolleenSaveGame::StaticClass()));
+		State = Cast<UDevAppStoreSaveGame>(UGameplayStatics::CreateSaveGameObject(UDevAppStoreSaveGame::StaticClass()));
 	}
 }
 
-void UWolleenSubsystem::SaveState()
+void UDevAppStoreSubsystem::SaveState()
 {
-	if (State && !UGameplayStatics::SaveGameToSlot(State, WolleenSDK::SaveSlot, WolleenSDK::SaveUserIndex))
+	if (State && !UGameplayStatics::SaveGameToSlot(State, DevAppStoreSDK::SaveSlot, DevAppStoreSDK::SaveUserIndex))
 	{
-		UE_LOG(LogWolleen, Warning, TEXT("Impossible d'enregistrer l'état du SDK (slot %s)."), WolleenSDK::SaveSlot);
+		UE_LOG(LogDevAppStore, Warning, TEXT("Impossible d'enregistrer l'état du SDK (slot %s)."), DevAppStoreSDK::SaveSlot);
 	}
 }

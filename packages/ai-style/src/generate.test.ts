@@ -113,9 +113,9 @@ describe('generateCardStyle (client simulé)', () => {
   });
 
   it('transmet une URL HTTPS telle quelle', () => {
-    const body = buildRequest({ url: 'https://cdn.wolleen.test/captures/a.png' });
+    const body = buildRequest({ url: 'https://cdn.devappstore.test/captures/a.png' });
     const content = body.messages[0].content as Anthropic.Beta.Messages.BetaContentBlockParam[];
-    expect(content[0]).toEqual({ type: 'image', source: { type: 'url', url: 'https://cdn.wolleen.test/captures/a.png' } });
+    expect(content[0]).toEqual({ type: 'image', source: { type: 'url', url: 'https://cdn.devappstore.test/captures/a.png' } });
   });
 
   it('lève AiStyleError sur refus, troncature ou sortie non JSON', async () => {

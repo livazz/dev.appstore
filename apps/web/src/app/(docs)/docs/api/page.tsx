@@ -38,7 +38,7 @@ export default function ApiReferencePage() {
         transmettre de <C>game_id</C>. Seule une empreinte SHA-256 de la clé est stockée ; si vous la perdez, régénérez-la depuis l’onglet{' '}
         <strong>Intégration</strong> (l’ancienne cesse immédiatement de fonctionner).
       </P>
-      <CodeBlock lang="http" code={'Authorization: Bearer wk_live_…'} />
+      <CodeBlock lang="http" code={'Authorization: Bearer das_live_…'} />
       <Callout kind="danger" title="La clé API n’est pas un secret de navigateur">
         <p>
           Elle permet de demander des codes de liaison et de lire/acquitter les livraisons de <em>tous</em> vos joueurs. Gardez-la sur votre

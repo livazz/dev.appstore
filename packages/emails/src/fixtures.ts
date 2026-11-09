@@ -7,8 +7,8 @@ import type { StudioDeliveryAlertData, StudioWeeklyReportData, StudioWelcomeData
 
 export const sampleContext: Partial<EmailContext> = {
   appUrl: 'http://localhost:3000',
-  supportEmail: 'support@wolleen.com',
-  companyName: 'Wolleen SAS',
+  supportEmail: 'support@devappstore.com',
+  companyName: 'Dev AppStore SAS',
   companyAddress: '[adresse du siège]',
   mediator: { name: '[Médiateur de la consommation]', url: 'https://www.economie.gouv.fr/mediation-conso' },
 };
@@ -72,7 +72,7 @@ export const sampleDeliveryAlert: StudioDeliveryAlertData = {
   studioName: 'Nova Games',
   gameName: 'Crystal Clash',
   integrationUrl: 'http://localhost:3000/studio/games/gam_crystal/integration',
-  webhookUrl: 'http://localhost:4100/wolleen/webhook',
+  webhookUrl: 'http://localhost:4100/devappstore/webhook',
   totalFailed: 14,
   failures: [
     { deliveryId: 'dlv_1', orderId: 'ord_7Hq2kD9x', itemName: '500 gemmes', playerId: 'PLR-48213', attempts: 5, lastAttemptAt: '2026-11-09T14:05:00Z', lastError: 'HTTP 502 Bad Gateway' },
