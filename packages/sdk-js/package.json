@@ -1,18 +1,36 @@
 {
   "name": "@devappstore/sdk",
-  "version": "0.2.0",
-  "description": "SDK JavaScript/TypeScript Dev AppStore : livraisons d’achats en temps réel (clé publique + jeton joueur, ou clé secrète côté serveur), remboursements, accusés de réception et codes de liaison.",
-  "private": true,
+  "version": "0.1.0",
+  "description": "SDK JavaScript/TypeScript Dev AppStore : livraisons d’achats en temps réel (clé publique + jeton joueur, ou clé secrète côté serveur), remboursements, accusés de réception, codes de liaison et vérification des webhooks.",
+  "keywords": ["devappstore", "in-app purchases", "achats in-app", "webhooks", "sse", "game"],
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server.ts"
+    ".": {
+      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+      "require": { "types": "./dist/cjs/index.d.ts", "default": "./dist/cjs/index.js" }
+    },
+    "./server": {
+      "import": { "types": "./dist/server.d.ts", "default": "./dist/server.js" },
+      "require": { "types": "./dist/cjs/server.d.ts", "default": "./dist/cjs/server.js" }
+    },
+    "./package.json": "./package.json"
   },
-  "files": ["src", "dist", "README.md"],
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "npm run build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20",

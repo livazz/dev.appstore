@@ -1,7 +1,23 @@
 # @devappstore/sdk
 
 SDK JavaScript / TypeScript de Dev AppStore pour les jeux : **les achats faits sur Dev AppStore arrivent dans le jeu tout seuls**.
-Aucune dépendance. Fonctionne dans le navigateur (HTML5, WebGL, WebView) et sous Node ≥ 20.
+Aucune dépendance. Fonctionne dans le navigateur (HTML5, WebGL, WebView) et sous Node ≥ 20. Modules ES et CommonJS,
+types TypeScript inclus.
+
+## Installation
+
+```bash
+npm i @devappstore/sdk
+```
+
+```ts
+import { DevAppStore } from '@devappstore/sdk';                    // client du jeu (navigateur, Node)
+import { verifyWebhookSignature } from '@devappstore/sdk/server';   // serveur du studio (Node, node:crypto)
+// CommonJS : const { DevAppStore } = require('@devappstore/sdk');
+```
+
+La référence complète de l'API HTTP est publiée au format OpenAPI 3.1 sur `https://devappstore.com/api/openapi.json`
+(générateurs de clients, Postman, Insomnia…).
 
 ## Deux clés, deux usages
 
@@ -122,9 +138,17 @@ L'appel « player lookup » (`GET …/players/{player_id}`) est signé de la mê
 ## Développement
 
 ```bash
-npm test -w @devappstore/sdk        # tests vitest (fetch simulé)
+npm test -w @devappstore/sdk        # tests vitest (fetch simulé, build et contenu du paquet)
 npm run typecheck -w @devappstore/sdk
-npm run build -w @devappstore/sdk   # émet dist/ (ESM + .d.ts)
+npm run build -w @devappstore/sdk   # émet dist/ : ESM (dist/*.js), CommonJS (dist/cjs/*.js), déclarations .d.ts
+npm pack --dry-run -w @devappstore/sdk  # contenu publié : dist/, README.md, package.json
 ```
+
+Dans le monorepo, les autres paquets consomment **le build** (`dist/`, comme un utilisateur npm) : `apps/demo-game`
+reconstruit le SDK avant `dev`, `start`, `test` et `typecheck` (scripts `pre*`). Après une modification du SDK, relancez
+`npm run build -w @devappstore/sdk` si un processus du jeu de démo tourne déjà. Les tests du SDK, eux, portent sur `src/`.
+
+Publication (à faire par un mainteneur, jamais depuis la CI sans accord) : mettre à jour `version` dans `package.json`,
+`SDK_VERSION` dans `src/client.ts` et `CHANGELOG.md`, puis `npm publish -w @devappstore/sdk` (le `prepack` reconstruit `dist/`).
 
 Un exemple complet tourne dans `apps/demo-game` (`npm run demo`) : Pixel Farm utilise ce SDK avec la clé publique.
