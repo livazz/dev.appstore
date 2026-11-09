@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { contentSecurityPolicy, generateNonce } from '@/lib/security-headers';
+import { publicS3Origin } from '@/components/store/style-safety';
 
 /*
  * CSP à nonce par requête (vague 6, CHK-HDR-01).
@@ -14,7 +15,8 @@ import { contentSecurityPolicy, generateNonce } from '@/lib/security-headers';
  */
 export function middleware(request: NextRequest) {
   const nonce = generateNonce();
-  const csp = contentSecurityPolicy(process.env.NODE_ENV !== 'production', nonce);
+  const s3 = publicS3Origin();
+  const csp = contentSecurityPolicy(process.env.NODE_ENV !== 'production', nonce, s3 ? [s3] : []);
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
@@ -27,7 +29,9 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Tout sauf : /api/*, /_next/* (statique, images, HMR), fichiers de métadonnées et fichiers de public/ à extension.
-    '/((?!api/|_next/|favicon\\.ico|icon|apple-icon|opengraph-image|twitter-image|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml|.*\\.(?:png|jpe?g|gif|svg|webp|avif|ico|txt|xml|webmanifest|woff2?)$).*)',
+    // Tout sauf : /api/*, /_next/* (statique, images, HMR) et les fichiers de métadonnées / de public/ nommés
+    // EXPLICITEMENT (revue 2026-11, C-08 : une simple extension en fin de chemin — /games/x.png — ne prive plus une
+    // page de sa CSP). Fichier ajouté à public/ → l'ajouter ici (sinon il reçoit simplement une CSP, sans effet).
+    '/((?!(?:api|_next)/|(?:favicon\\.ico|icon(?:[-.][\\w.-]+)?|apple-icon(?:[-.][\\w.-]+)?|opengraph-image(?:[-.][\\w.-]+)?|twitter-image(?:[-.][\\w.-]+)?|manifest\\.webmanifest|robots\\.txt|sitemap\\.xml)$).*)',
   ],
 };

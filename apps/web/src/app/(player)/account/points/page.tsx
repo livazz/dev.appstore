@@ -6,6 +6,7 @@ import { minOrderForDiscount } from '@/server/loyalty-logic';
 import { platformFeeBps } from '@/server/payments';
 import { requireUser } from '@/server/session';
 import { RedeemButton } from './RedeemButton';
+import { safeImageUrl } from '@/components/store/style-safety';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Mes Points Dev AppStore', robots: { index: false } };
@@ -142,9 +143,9 @@ export default async function PointsPage({ searchParams }: { searchParams: Promi
             {rewards.map((r) => (
               <li key={r.id} className="flex flex-col rounded-[var(--radius)] border border-line bg-surface p-4">
                 <div className="flex items-start gap-3">
-                  {r.game?.iconUrl ? (
+                  {safeImageUrl(r.game?.iconUrl) ? (
                     // eslint-disable-next-line @next/next/no-img-element -- icônes en data: URL ou /api/uploads
-                    <img src={r.game.iconUrl} alt="" className="size-11 shrink-0 rounded-[22%] border border-line object-cover" />
+                    <img src={safeImageUrl(r.game?.iconUrl)!} alt="" className="size-11 shrink-0 rounded-[22%] border border-line object-cover" />
                   ) : (
                     <div aria-hidden className="grid size-11 shrink-0 place-items-center rounded-[22%] bg-brand text-lg font-bold text-ink">
                       {r.kind === 'discount' ? '%' : 'D'}

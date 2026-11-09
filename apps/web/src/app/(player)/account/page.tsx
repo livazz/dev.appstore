@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { LINK_METHOD_LABELS, listUserGameLinks } from '@/server/linking';
 import { requireUser } from '@/server/session';
 import { UnlinkButton } from './UnlinkButton';
+import { safeImageUrl } from '@/components/store/style-safety';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Mon compte', robots: { index: false } };
@@ -53,9 +54,9 @@ export default async function AccountPage() {
           <ul className="divide-y divide-line overflow-hidden rounded-[var(--radius)] border border-line bg-surface">
             {links.map((l) => (
               <li key={l.id} className="flex items-center gap-4 px-4 py-3.5">
-                {l.gameIconUrl ? (
+                {safeImageUrl(l.gameIconUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element -- icônes en data: URL ou /api/uploads
-                  <img src={l.gameIconUrl} alt="" className="h-12 w-12 shrink-0 rounded-[11px] border border-line object-cover" />
+                  <img src={safeImageUrl(l.gameIconUrl)!} alt="" className="h-12 w-12 shrink-0 rounded-[11px] border border-line object-cover" />
                 ) : (
                   <div aria-hidden className="h-12 w-12 shrink-0 rounded-[11px] bg-brand" />
                 )}

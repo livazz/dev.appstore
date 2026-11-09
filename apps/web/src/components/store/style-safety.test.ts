@@ -8,7 +8,9 @@ import {
   minContrast,
   panelBackground,
   safeColor,
+  dataImagesAllowed,
   publicS3Base,
+  publicS3Origin,
   safeImageUrl,
   safeItemStyle,
 } from './style-safety';
@@ -110,7 +112,7 @@ describe('D-18 / CHK-UPL-08 — couleurs revalidées au rendu (défense en profo
 
 describe('T-UPL-05 / CHK-UPL-07 — images tierces non rendues aux joueurs', () => {
   it('accepte les uploads Dev AppStore et les data:image du seed', () => {
-    expect(safeImageUrl('/api/uploads/icon/abc.webp')).toBe('/api/uploads/icon/abc.webp');
+    expect(safeImageUrl('/api/uploads/icon/usr_x/abc-123.webp')).toBe('/api/uploads/icon/usr_x/abc-123.webp');
     expect(safeImageUrl('data:image/svg+xml;utf8,<svg/>')).toBe('data:image/svg+xml;utf8,<svg/>');
     expect(safeImageUrl('data:image/png;base64,AAAA')).toBe('data:image/png;base64,AAAA');
   });
@@ -128,6 +130,40 @@ describe('T-UPL-05 / CHK-UPL-07 — images tierces non rendues aux joueurs', () 
       undefined,
     ])
       expect(safeImageUrl(u)).toBeNull();
+  });
+
+  it('C-06 (revue 2026-11) : aucun autre chemin du site, ni clé d’upload hors format', () => {
+    for (const u of [
+      '/api/auth/sign-out',
+      '/studio',
+      '/api/uploads/icon/abc.webp',
+      '/api/uploads/icon/usr_x/../../x.webp',
+      '/api/uploads/icon/usr_x/abc.webp?x=1',
+      '/api/uploads/icon/usr_x/abc.svg',
+      '/logo.png',
+    ])
+      expect(safeImageUrl(u), u).toBeNull();
+  });
+
+  it('C-04 (revue 2026-11) : data:image/ refusées en production, acceptées hors production', () => {
+    expect(dataImagesAllowed('production')).toBe(false);
+    expect(dataImagesAllowed('development')).toBe(true);
+    expect(dataImagesAllowed('test')).toBe(true);
+    expect(safeImageUrl('data:image/png;base64,AAAA', null, false)).toBeNull();
+    expect(safeImageUrl('data:image/svg+xml;utf8,<svg/>', null, false)).toBeNull();
+    expect(safeImageUrl('/api/uploads/icon/usr_x/abc-123.webp', null, false)).toBe('/api/uploads/icon/usr_x/abc-123.webp');
+    vi.stubEnv('NODE_ENV', 'production');
+    try {
+      expect(safeImageUrl('data:image/png;base64,AAAA')).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('C-05 (revue 2026-11) : origine S3 pour la CSP img-src', () => {
+    expect(publicS3Origin('https://cdn.devappstore.test/bucket/')).toBe('https://cdn.devappstore.test');
+    expect(publicS3Origin('http://cdn.test')).toBeNull();
+    expect(publicS3Origin(undefined)).toBeNull();
   });
 
   describe('uploads du stockage objet (S3_PUBLIC_URL / NEXT_PUBLIC_S3_PUBLIC_URL)', () => {

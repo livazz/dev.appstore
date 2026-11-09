@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, hashApiKey } from '@devappstore/core';
 import { createTestDb } from '@devappstore/db/testing';
 import { eq, games, items, orders, studioMembers, studios, user, type DB } from '@devappstore/db';
@@ -257,6 +257,18 @@ describe('CHK-UPL-07 : imageUrlSchema n’accepte que les URL de notre stockage'
     expect(ok(`/api/uploads/../auth/x.webp`)).toBe(false);
     expect(ok(`/api/uploads/icon/usr_dev/x.png`)).toBe(false);
     expect(ok(`/api/auth/sign-out`)).toBe(false);
+  });
+
+  it('C-04 (revue 2026-11) : data:image refusées en production, upload toujours accepté', () => {
+    delete process.env.S3_PUBLIC_URL;
+    vi.stubEnv('NODE_ENV', 'production');
+    try {
+      expect(ok('data:image/svg+xml;utf8,%3Csvg%3E')).toBe(false);
+      expect(ok('data:image/png;base64,iVBORw0KGgo=')).toBe(false);
+      expect(ok(`/api/uploads/${KEY}`)).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('refuse toute URL https tierce, même avec un chemin de clé valide', () => {

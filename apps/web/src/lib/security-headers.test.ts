@@ -39,6 +39,17 @@ describe('Content-Security-Policy', () => {
     expect(img).not.toMatch(/http:|\*/);
   });
 
+  it('C-05 (revue 2026-11) : img-src sans https: générique, seule l’origine S3 exacte est ajoutée', () => {
+    expect(directive(contentSecurityPolicy(false), 'img-src')).toBe("img-src 'self' data: blob:");
+    expect(directive(contentSecurityPolicy(false, 'n', ['https://cdn.devappstore.test']), 'img-src')).toBe(
+      "img-src 'self' data: blob: https://cdn.devappstore.test",
+    );
+    // Valeurs hors origine https exacte ignorées (pas de joker, de schéma, de chemin ni d'injection de directive).
+    for (const o of ['https:', '*', 'http://cdn.test', 'https://cdn.test/x', "https://cdn.test; script-src 'unsafe-inline'"]) {
+      expect(directive(contentSecurityPolicy(false, 'n', [o]), 'img-src'), o).toBe("img-src 'self' data: blob:");
+    }
+  });
+
   it('développement : eval et websocket HMR autorisés, pas d’upgrade-insecure-requests', () => {
     const csp = contentSecurityPolicy(true);
     expect(directive(csp, 'script-src')).toContain("'unsafe-eval'");

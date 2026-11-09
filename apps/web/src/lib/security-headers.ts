@@ -11,9 +11,9 @@
  * en dépendent, et un nonce de style désactiverait les attributs style. Les styles ne peuvent pas exécuter de code.
  * Les autres directives sont strictes : aucune origine de script externe, pas de plugin, pas d'intégration en cadre
  * (clickjacking de « Est-ce bien vous ? », achat, intégration), formulaires vers le site et Stripe uniquement (Stripe
- * Checkout est une redirection de premier niveau, non soumise à la CSP). img-src accepte les data: (visuels de démo)
- * et https: (avatar renvoyé par le studio lors de la liaison) ; les visuels de boutique sont, eux, limités aux uploads
- * Dev AppStore côté serveur (studio-logic).
+ * Checkout est une redirection de premier niveau, non soumise à la CSP). img-src : le site, data: (visuels de démo hors
+ * production), blob: (aperçu de capture de l'IA de style) et la seule origine du stockage objet (NEXT_PUBLIC_S3_PUBLIC_URL)
+ * — plus de `https:` générique (revue 2026-11, C-05 : l'avatar tiers renvoyé par un studio n'est plus affiché).
  * Routes /api/* (hors middleware) : CSP minimale `default-src 'none'` posée par next.config.ts (réponses JSON/SSE) ;
  * /api/uploads/* garde sa propre CSP sandbox (storage.ts).
  */
@@ -41,7 +41,7 @@ export function generateNonce(): string {
  * CSP des pages HTML. `nonce` (middleware) : scripts autorisés par nonce + 'strict-dynamic' (les chunks chargés par
  * un script de confiance héritent de la confiance) ; 'self' sert de repli aux navigateurs sans 'strict-dynamic'.
  */
-export function contentSecurityPolicy(dev: boolean, nonce?: string): string {
+export function contentSecurityPolicy(dev: boolean, nonce?: string, imgOrigins: readonly string[] = []): string {
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
     // 'unsafe-eval' : uniquement en dev (React Refresh / HMR).
@@ -51,7 +51,8 @@ export function contentSecurityPolicy(dev: boolean, nonce?: string): string {
       ...(dev ? ["'unsafe-eval'"] : []),
     ],
     'style-src': ["'self'", "'unsafe-inline'"],
-    'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+    // Origines d'images supplémentaires : uniquement des origines https exactes (stockage objet des uploads).
+    'img-src': ["'self'", 'data:', 'blob:', ...imgOrigins.filter((o) => /^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(o))],
     'font-src': ["'self'", 'data:'],
     'connect-src': ["'self'", ...(dev ? ['ws:', 'wss:'] : [])],
     'media-src': ["'self'"],

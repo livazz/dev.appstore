@@ -41,15 +41,19 @@ const DATA_IMAGE_RE = /^data:image\/(png|jpeg|webp|gif|avif|svg\+xml)[;,]/i;
 
 /**
  * URL d'image acceptée (CHK-UPL-07, T-UPL-05) : uniquement un fichier produit par notre stockage — disque local
- * (/api/uploads/<kind>/<utilisateur>/<id>.webp) ou S3/R2 (<S3_PUBLIC_URL>/<kind>/<utilisateur>/<id>.webp) —, ou une
- * data URL d'image (visuels de démo du seed, toujours affichés dans <img> : aucune requête ni script). Les URL https
+ * (/api/uploads/<kind>/<utilisateur>/<id>.webp) ou S3/R2 (<S3_PUBLIC_URL>/<kind>/<utilisateur>/<id>.webp) —, ou, hors
+ * production seulement, une data URL d'image (visuels de démo du seed, affichés dans <img> : aucune requête ni script).
+ * En production les data URL sont refusées (revue 2026-11, C-04) : ni ré-encodées, ni rattachées au studio, et lourdes. Les URL https
  * tierces (pistage des joueurs, contenu modifiable après coup) et les autres chemins du site (requêtes GET déclenchées
  * par <img>) sont refusés.
  */
 export const imageUrlSchema = z
   .string()
   .max(500_000, 'Image trop lourde.')
-  .refine((u) => uploaderOfUrl(u) !== null || DATA_IMAGE_RE.test(u), 'URL d’image invalide : téléversez l’image depuis l’éditeur.');
+  .refine(
+    (u) => uploaderOfUrl(u) !== null || (DATA_IMAGE_RE.test(u) && process.env.NODE_ENV !== 'production'),
+    'URL d’image invalide : téléversez l’image depuis l’éditeur.',
+  );
 
 const intIn = (min: number, max: number) => z.number().int().min(min).max(max);
 

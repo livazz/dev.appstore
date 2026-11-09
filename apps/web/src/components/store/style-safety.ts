@@ -6,9 +6,9 @@
  *   à l'écriture, mais une ligne ancienne, importée ou modifiée à la main pourrait contenir `red, url(https://…)`.
  *   Au rendu, toute valeur qui n'est pas `#rgb` / `#rrggbb` / `transparent` est remplacée par une valeur par défaut :
  *   aucune requête tierce ne peut partir du navigateur du joueur via `background`.
- * - Images (T-UPL-05, CHK-UPL-07) : seules les images servies par Dev AppStore (chemin relatif), les uploads du stockage
- *   objet (`https://<NEXT_PUBLIC_S3_PUBLIC_URL>/<kind>/<uploadeur>/<id>.webp`) ou les `data:image/` de démo sont rendues ;
- *   une URL tierce (pistage d'IP) ou `javascript:` est ignorée.
+ * - Images (T-UPL-05, CHK-UPL-07) : seuls les uploads Dev AppStore (`/api/uploads/<clé>`), les uploads du stockage
+ *   objet (`https://<NEXT_PUBLIC_S3_PUBLIC_URL>/<kind>/<uploadeur>/<id>.webp`) ou, hors production, les `data:image/`
+ *   de démo sont rendus ; une URL tierce (pistage d'IP), un autre chemin du site ou `javascript:` est ignoré.
  * - Contraste (WCAG 2.x, 1.4.3) : les boutons de filtre reprennent le style des articles, mais le texte doit rester
  *   lisible (≥ 4,5:1), même si le studio a choisi un titre blanc sur un fond clair.
  */
@@ -70,7 +70,17 @@ const RASTER_DATA_RE = /^data:image\/(?:png|jpeg|jpg|webp|gif|avif|svg\+xml)[;,]
  * Clé d'un upload produit par notre stockage : `<kind>/<uploadeur>/<uuid>.webp` — même format que `UPLOAD_KEY_RE`
  * d'`apps/web/src/server/image-upload.ts` (module serveur, non importable ici : sharp). À garder synchronisés.
  */
-const S3_UPLOAD_KEY_RE = /^(?:icon|banner|item)\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9-]{1,64}\.webp$/;
+const UPLOAD_KEY_RE = /^(?:icon|banner|item)\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9-]{1,64}\.webp$/;
+const LOCAL_UPLOAD_PREFIX = '/api/uploads/';
+
+/**
+ * Les `data:image/…` (visuels de démo du seed) ne sont rendues qu'en dehors de la production (revue 2026-11, C-04) :
+ * en production, toute image passe par le pipeline d'upload (ré-encodage WebP, rattachement au studio).
+ * `process.env.NODE_ENV` est figé au build : même décision côté serveur et côté client (pas d'écart d'hydratation).
+ */
+export function dataImagesAllowed(nodeEnv: string | undefined = process.env.NODE_ENV): boolean {
+  return nodeEnv !== 'production';
+}
 
 /**
  * Base publique du stockage objet (S3 / R2) visible du navigateur, normalisée comme `s3PublicBase()` (sans `/` final,
@@ -93,21 +103,30 @@ export function publicS3Base(raw: string | undefined = process.env.NEXT_PUBLIC_S
 }
 
 /**
- * URL d'image affichable aux joueurs : chemin relatif servi par Dev AppStore (`/api/uploads/…`, `/…`), upload du stockage
- * objet (`<base S3 publique>/<kind>/<uploadeur>/<id>.webp`, https, cf. `publicS3Base`) ou `data:image/` (visuels de
- * démo du seed ; un SVG dans `<img>` n'exécute pas de script). Sinon `null`.
+ * URL d'image affichable : upload servi par Dev AppStore (`/api/uploads/<kind>/<uploadeur>/<id>.webp` exactement),
+ * upload du stockage objet (`<base S3 publique>/<kind>/<uploadeur>/<id>.webp`, https, cf. `publicS3Base`) ou, hors
+ * production, `data:image/` (visuels de démo du seed ; un SVG dans `<img>` n'exécute pas de script). Sinon `null`.
+ * Aucun autre chemin du site (revue 2026-11, C-06 : une `<img>` ne doit pas déclencher de GET arbitraire) ni hôte tiers
+ * (pistage d'IP, T-UPL-05).
  *
  * `s3Base` : base publique du stockage (défaut : `NEXT_PUBLIC_S3_PUBLIC_URL`) ; `null` pour refuser toute URL absolue.
+ * `allowData` : accepter les `data:image/` (défaut : hors production).
  */
-export function safeImageUrl(url: unknown, s3Base: string | null = publicS3Base()): string | null {
+export function safeImageUrl(url: unknown, s3Base: string | null = publicS3Base(), allowData: boolean = dataImagesAllowed()): string | null {
   if (typeof url !== 'string') return null;
   const u = url.trim();
-  if (!u) return null;
-  if (/^\/(?![/\\])/.test(u) && !/[\\\s]/.test(u)) return u;
-  if (RASTER_DATA_RE.test(u)) return u;
+  if (!u || u.length > 600_000) return null;
+  if (u.startsWith(LOCAL_UPLOAD_PREFIX)) return UPLOAD_KEY_RE.test(u.slice(LOCAL_UPLOAD_PREFIX.length)) ? u : null;
+  if (RASTER_DATA_RE.test(u)) return allowData ? u : null;
   const base = s3Base ? publicS3Base(s3Base) : null;
-  if (base && u.length <= 1024 && u.startsWith(`${base}/`) && S3_UPLOAD_KEY_RE.test(u.slice(base.length + 1))) return u;
+  if (base && u.length <= 1024 && u.startsWith(`${base}/`) && UPLOAD_KEY_RE.test(u.slice(base.length + 1))) return u;
   return null;
+}
+
+/** Origine (`https://hôte[:port]`) de la base S3 publique, pour la directive CSP `img-src` ; null si absente. */
+export function publicS3Origin(raw: string | undefined = process.env.NEXT_PUBLIC_S3_PUBLIC_URL): string | null {
+  const base = publicS3Base(raw);
+  return base ? new URL(base).origin : null;
 }
 
 /* ------------------------------------------------------------------ */
