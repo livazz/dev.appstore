@@ -27,6 +27,7 @@ n'est nécessaire pour l'upload.
 | `S3_ACCESS_KEY_ID` | — | *Access Key ID* du jeton d'API R2 |
 | `S3_SECRET_ACCESS_KEY` | — | *Secret Access Key* du jeton (secret : variable chiffrée Vercel) |
 | `S3_PUBLIC_URL` | `https://cdn.wolleen.eu` | URL publique du bucket ou du CDN, sans `/` final |
+| `NEXT_PUBLIC_S3_PUBLIC_URL` | `https://cdn.wolleen.eu` | **Même valeur** que `S3_PUBLIC_URL` (https). Les composants de boutique, rendus aussi dans le navigateur, n'affichent une image absolue que si elle est sous cette base et au format de clé des uploads (`<kind>/<uploadeur>/<id>.webp`, `safeImageUrl` dans `style-safety.ts`) ; toute autre URL (pistage) est ignorée. Injectée au build : reconstruire après un changement. Vérifiée au démarrage en production. |
 
 ## 1. Créer le bucket R2
 

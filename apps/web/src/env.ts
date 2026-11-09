@@ -115,6 +115,8 @@ const baseSchema = z.object({
   S3_ACCESS_KEY_ID: optionalString,
   S3_SECRET_ACCESS_KEY: optionalString,
   S3_PUBLIC_URL: optionalUrl('https://cdn.wolleen.eu'),
+  /** Copie publique de S3_PUBLIC_URL, lue par le rendu client des images (style-safety.ts → safeImageUrl). */
+  NEXT_PUBLIC_S3_PUBLIC_URL: optionalUrl('https://cdn.wolleen.eu'),
 });
 
 /** Variables lues par ce module (sert aussi d'empreinte pour relire process.env quand il change). */
@@ -171,6 +173,10 @@ const schema = baseSchema.superRefine((e, ctx) => {
       if (!e[k]) fail(k, 'obligatoire quand WOLLEEN_STORAGE=s3');
     }
     if (e.S3_PUBLIC_URL && !e.S3_PUBLIC_URL.startsWith('https://')) fail('S3_PUBLIC_URL', 'doit être en https:// en production');
+    // Sans elle, les boutiques n'affichent pas les images servies par le bucket (safeImageUrl, rendu serveur et client).
+    const norm = (v: string | undefined) => v?.replace(/\/+$/, '');
+    if (!e.NEXT_PUBLIC_S3_PUBLIC_URL) fail('NEXT_PUBLIC_S3_PUBLIC_URL', 'obligatoire quand WOLLEEN_STORAGE=s3 (même valeur que S3_PUBLIC_URL)');
+    else if (norm(e.NEXT_PUBLIC_S3_PUBLIC_URL) !== norm(e.S3_PUBLIC_URL)) fail('NEXT_PUBLIC_S3_PUBLIC_URL', 'doit valoir S3_PUBLIC_URL');
   }
 });
 

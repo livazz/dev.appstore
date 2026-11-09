@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ITEM_STYLE, type ItemStyle } from '@wolleen/core/client';
 import {
   activeFilterColors,
@@ -8,6 +8,7 @@ import {
   minContrast,
   panelBackground,
   safeColor,
+  publicS3Base,
   safeImageUrl,
   safeItemStyle,
 } from './style-safety';
@@ -127,5 +128,48 @@ describe('T-UPL-05 / CHK-UPL-07 — images tierces non rendues aux joueurs', () 
       undefined,
     ])
       expect(safeImageUrl(u)).toBeNull();
+  });
+
+  describe('uploads du stockage objet (S3_PUBLIC_URL / NEXT_PUBLIC_S3_PUBLIC_URL)', () => {
+    const CDN = 'https://cdn.wolleen.test';
+    const key = 'item/usr_demo_dev/1b2c3d4e-0000-4a5b-8c9d-0123456789ab.webp';
+
+    it('accepte une URL https sous la base publique, au format de clé des uploads', () => {
+      expect(safeImageUrl(`${CDN}/${key}`, CDN)).toBe(`${CDN}/${key}`);
+      expect(safeImageUrl(`${CDN}/icon/usr_x/abc-123.webp`, `${CDN}/`)).toBe(`${CDN}/icon/usr_x/abc-123.webp`);
+      // Base avec chemin (bucket path-style derrière un CDN).
+      expect(safeImageUrl(`https://pub.r2.test/bucket/banner/u1/id-1.webp`, 'https://pub.r2.test/bucket')).toBe('https://pub.r2.test/bucket/banner/u1/id-1.webp');
+    });
+
+    it('refuse hors base, hors format de clé, en http ou sans base configurée', () => {
+      for (const u of [
+        `https://cdn.wolleen.test.pistage.tld/${key}`,
+        `https://pistage.tld/${key}`,
+        `${CDN}/autre/usr_x/abc.webp`,
+        `${CDN}/item/usr_x/abc.png`,
+        `${CDN}/item/usr_x/../../x.webp`,
+        `${CDN}/item/usr_x/abc.webp?x=1`,
+        `${CDN}/item/usr_x/sous/abc.webp`,
+        `${CDN}/${key}`.replace('https:', 'http:'),
+      ])
+        expect(safeImageUrl(u, CDN), u).toBeNull();
+      expect(safeImageUrl(`${CDN}/${key}`, null)).toBeNull();
+      expect(safeImageUrl(`http://cdn.wolleen.test/${key}`, 'http://cdn.wolleen.test')).toBeNull();
+      expect(safeImageUrl(`${CDN}/${key}`, 'pas une url')).toBeNull();
+    });
+
+    it('lit la base dans NEXT_PUBLIC_S3_PUBLIC_URL par défaut (même valeur côté serveur et client)', () => {
+      expect(safeImageUrl(`${CDN}/${key}`)).toBeNull();
+      vi.stubEnv('NEXT_PUBLIC_S3_PUBLIC_URL', `${CDN}/`);
+      try {
+        expect(publicS3Base()).toBe(CDN);
+        expect(safeImageUrl(`${CDN}/${key}`)).toBe(`${CDN}/${key}`);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+      expect(publicS3Base('https://u:p@cdn.test')).toBeNull();
+      expect(publicS3Base('http://cdn.test')).toBeNull();
+      expect(publicS3Base('')).toBeNull();
+    });
   });
 });

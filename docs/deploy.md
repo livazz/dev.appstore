@@ -75,6 +75,7 @@ Règles appliquées par `env.ts` (les messages d'erreur listent les variables fa
 | `CRON_SECRET` | vide = cron ouvert | **obligatoire**, ≥ 16 caractères | `openssl rand -hex 32` ; Vercel l'envoie en `Authorization: Bearer` |
 | `WOLLEEN_STORAGE` | `local` | `s3` (voir § 5) | `local` \| `s3` |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | — | obligatoires si `s3` | R2 : `https://<compte>.eu.r2.cloudflarestorage.com` |
+| `NEXT_PUBLIC_S3_PUBLIC_URL` | — | obligatoire si `s3`, **= `S3_PUBLIC_URL`** | lue par le rendu client des boutiques (`safeImageUrl`) ; injectée au build |
 | `RESEND_API_KEY` | optionnel | optionnel | `re_…` (e-mails, phase 2) |
 | `ANTHROPIC_API_KEY` | optionnel | optionnel | `sk-ant-…` (assistant de style) |
 
