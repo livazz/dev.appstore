@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "e2e"
   ],
   "scripts": {
     "dev": "npm run dev -w @wolleen/web",
@@ -11,6 +12,7 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
+    "test:e2e": "npm run test:e2e -w @wolleen/e2e",
     "db:push": "npm run push -w @wolleen/db",
     "db:seed": "npm run seed -w @wolleen/db",
     "demo": "npm run dev -w @wolleen/demo-game"
