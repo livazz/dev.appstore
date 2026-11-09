@@ -36,5 +36,27 @@ function create(): DB {
 }
 
 const g = globalThis as unknown as { __devAppStoreDb?: DB };
-/** Instance unique (survit au rechargement à chaud de Next.js). */
-export const db: DB = g.__devAppStoreDb ?? (g.__devAppStoreDb = create());
+
+/** Instance unique du processus (survit au rechargement à chaud de Next.js), créée au premier usage. */
+export function getDb(): DB {
+  return (g.__devAppStoreDb ??= create());
+}
+
+/**
+ * `db` est ouvert PARESSEUSEMENT, au premier accès (requête, transaction…), jamais à l'import.
+ *
+ * Pendant `next build`, l'étape « Collecting page data » importe chaque module de route dans plusieurs processus
+ * workers en parallèle, sans exécuter de requête. Ouvrir PGlite à l'import faisait ouvrir `.data/pglite` par plusieurs
+ * processus à la fois (PGlite est mono-processus) → « RuntimeError: Aborted() ». Seuls les modules qui interrogent
+ * vraiment la base l'ouvrent désormais. (Une page statique qui lirait la base au build resterait exposée : les pages
+ * qui lisent la base sont dynamiques — voir README.)
+ */
+export const db: DB = new Proxy({} as DB, {
+  get(_target, prop) {
+    const real = getDb() as unknown as Record<PropertyKey, unknown>;
+    const value = Reflect.get(real, prop, real);
+    return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(real) : value;
+  },
+  has: (_target, prop) => Reflect.has(getDb() as object, prop),
+  getPrototypeOf: () => Reflect.getPrototypeOf(getDb() as object),
+});
