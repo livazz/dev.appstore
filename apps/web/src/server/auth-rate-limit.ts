@@ -4,7 +4,10 @@
  * Les Server Actions appellent `auth.api.signInEmail(...)` directement : la limitation intégrée à Better Auth ne
  * s'applique qu'aux requêtes HTTP passant par /api/auth/*, pas à ces appels. On ajoute donc un compteur à fenêtre
  * glissante, en mémoire du processus (une instance) : suffisant contre la force brute depuis une source ; en
- * multi-instance, chaque instance applique sa propre limite (à remplacer par un stockage partagé en phase 2).
+ * multi-instance, chaque instance applique sa propre limite (N instances → au plus N × la limite). Ce limiteur reste
+ * volontairement synchrone et local (API vérification puis enregistrement, appelée par auth-flows.ts) ; le limiteur
+ * partagé entre instances est celui de l'API (`rate-limit.ts`, RATE_LIMIT_STORE=postgres). Voir docs/deploy.md,
+ * « Plusieurs instances ».
  *
  * Les vérifications et l'enregistrement sont synchrones (aucun `await` entre lecture et écriture) : des requêtes
  * concurrentes ne peuvent pas toutes passer la même vérification.

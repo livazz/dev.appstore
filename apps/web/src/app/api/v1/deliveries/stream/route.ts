@@ -8,11 +8,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const HEARTBEAT_MS = 15_000;
+/** Rattrapage périodique en base (notification inter-instances perdue). */
+const STREAM_RESYNC_MS = 5 * 60_000;
 
 /**
  * GET /api/v1/deliveries/stream — Server-Sent Events.
  * Clé secrète : `?player_id=` obligatoire. Clé publique : jeton joueur obligatoire (`DevAppStore-Player-Token`),
  * le flux ne porte que les achats du joueur du jeton faits par son compte Dev AppStore.
+ * Multi-instance : les achats confirmés sur une autre instance arrivent par LISTEN/NOTIFY (`@/server/events`) ; le flux
+ * refait un rattrapage en base à chaque reconnexion de l'écoute et toutes les 5 min.
  * Envoie d'abord l'arriéré (pending + delivered non acquittées), puis chaque nouvel événement en direct
  * (`event: purchase`, `id: <delivery_id>`, `data: <PurchaseEvent>` — achat ou remboursement), et `: ping` toutes les 15 s.
  * La clé n'est jamais acceptée dans l'URL (EventSource natif : utiliser le SDK, qui lit le flux via fetch).
@@ -54,24 +58,58 @@ export async function GET(req: Request) {
         send(`event: purchase\nid: ${e.delivery_id}\ndata: ${JSON.stringify(e)}\n\n`);
       };
 
-      // Abonnement AVANT la lecture de l'arriéré : aucun achat ne peut passer entre les deux.
+      // Rattrapage en base (arriéré : pending + delivered non acquittées). Coalescent : une demande pendant une
+      // lecture en cours relance une lecture à la fin (les doublons sont filtrés par `sent`).
+      let catchingUp: Promise<void> | null = null;
+      let again = false;
+      const catchUp = (): Promise<void> => {
+        if (catchingUp) {
+          again = true;
+          return catchingUp;
+        }
+        catchingUp = (async () => {
+          do {
+            again = false;
+            try {
+              for (const e of await takeOpenDeliveries(game, playerId, 100, { userId: buyer })) sendPurchase(e);
+            } catch (e) {
+              console.error('[deliveries/stream] arriéré', e);
+            }
+          } while (again && !closed);
+        })().finally(() => {
+          catchingUp = null;
+        });
+        return catchingUp;
+      };
+
+      // Abonnement AVANT la lecture de l'arriéré : aucun achat ne peut passer entre les deux. Les événements
+      // d'une autre instance arrivent par le même abonnement (bus multi-instance, LISTEN/NOTIFY) ; quand l'écoute
+      // inter-instances est rétablie après une coupure, `onResync` relance un rattrapage en base.
       let backlogSent = false;
       const queued: PurchaseEvent[] = [];
-      const unsubscribe = subscribe(game.id, playerId, (e, meta) => {
-        if (buyer !== undefined && meta.userId !== buyer) return; // jeton joueur : seulement les achats de son compte
-        if (!backlogSent) {
-          queued.push(e);
-          return;
-        }
-        sendPurchase(e);
-        markFetchedBySdk(game, [e.delivery_id]).catch(() => {});
-      });
+      const unsubscribe = subscribe(
+        game.id,
+        playerId,
+        (e, meta) => {
+          if (buyer !== undefined && meta.userId !== buyer) return; // jeton joueur : seulement les achats de son compte
+          if (!backlogSent) {
+            queued.push(e);
+            return;
+          }
+          sendPurchase(e);
+          markFetchedBySdk(game, [e.delivery_id]).catch(() => {});
+        },
+        { onResync: () => void catchUp() },
+      );
       const heartbeat = setInterval(() => send(': ping\n\n'), HEARTBEAT_MS);
+      // Filet de sécurité multi-instance : un NOTIFY perdu (émetteur coupé) est rattrapé au plus tard ici.
+      const resync = setInterval(() => void catchUp(), STREAM_RESYNC_MS);
       const maxDuration = setTimeout(() => cleanup(), STREAM_LIMITS.maxDurationMs);
       cleanup = () => {
         if (closed) return;
         closed = true;
         clearInterval(heartbeat);
+        clearInterval(resync);
         clearTimeout(maxDuration);
         slot.release();
         unsubscribe();
@@ -84,11 +122,7 @@ export async function GET(req: Request) {
       req.signal.addEventListener('abort', cleanup);
 
       send('retry: 5000\n\n');
-      try {
-        for (const e of await takeOpenDeliveries(game, playerId, 100, { userId: buyer })) sendPurchase(e);
-      } catch (e) {
-        console.error('[deliveries/stream] arriéré', e);
-      }
+      await catchUp();
       backlogSent = true;
       for (const e of queued) sendPurchase(e);
       if (queued.length) await markFetchedBySdk(game, queued.map((e) => e.delivery_id)).catch(() => {});

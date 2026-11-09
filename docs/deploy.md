@@ -128,13 +128,60 @@ déjà les livraisons ; les autres routes s'appellent à la main (sans en-tête 
 ### Limites serverless à connaître
 
 - **SSE** (`/api/v1/deliveries/stream`) : une fonction Vercel est coupée à `maxDuration` ; le SDK se reconnecte et
-  récupère l'arriéré, c'est prévu. Le bus d'événements (`src/server/events.ts`) est **en mémoire** : un achat confirmé
-  sur une instance n'est poussé en temps réel qu'aux flux ouverts sur cette instance. Rien n'est perdu (rattrapage à la
-  reconnexion + webhook serveur + cron), mais le « temps réel » n'est garanti qu'après passage à Postgres
-  `LISTEN/NOTIFY` ou Redis (phase 2).
+  récupère l'arriéré, c'est prévu. Les achats confirmés sur une autre instance sont relayés par Postgres
+  `LISTEN/NOTIFY` : voir [« Plusieurs instances »](#plusieurs-instances-temps-réel-et-limiteurs).
 - **Disque** : le système de fichiers des fonctions est éphémère → `DEVAPPSTORE_STORAGE=local` ne convient pas en
   production (voir § 5).
 - **Connexions Postgres** : utiliser l'URL **poolée** de Neon pour l'application (voir § 4).
+
+### Plusieurs instances (temps réel et limiteurs)
+
+Vercel lance autant d'instances de fonctions que nécessaire, et une image Docker se réplique (`replicas: N`). Ce qui
+est partagé, et ce qui reste propre à chaque instance :
+
+| Brique | Partagée entre instances ? | Réglage |
+|---|---|---|
+| Temps réel des livraisons (bus `src/server/events.ts`) | **oui**, Postgres `LISTEN/NOTIFY` | `EVENTS_TRANSPORT`, `EVENTS_DATABASE_URL` |
+| Limiteur de débit de l'API v1 (`src/server/rate-limit.ts`) | **oui** avec `RATE_LIMIT_STORE=postgres` | `RATE_LIMIT_STORE` |
+| Plafond de flux SSE simultanés (`STREAM_LIMITS`) | non, **par instance** | — |
+| Limiteur des formulaires de connexion (`auth-rate-limit.ts`) | non, **par instance** | — |
+| Limiteur Better Auth (`/api/auth/*`) | selon sa configuration (`rateLimit.storage`) | `src/server/auth-config.ts` |
+
+**Temps réel.** Quand une livraison est créée ou relancée, l'instance qui la traite notifie ses propres flux SSE puis
+émet `NOTIFY devappstore_deliveries` avec une charge utile réduite à des identifiants
+(`{"v":1,"o":"<instance>","g":"<jeu>","p":"<joueur>","d":"<livraison>"}` : ni montant, ni acheteur, ni secret).
+Chaque instance garde **une** connexion `LISTEN` (quel que soit le nombre de flux ouverts) ; à réception, elle ignore
+ses propres notifications, ne fait rien si aucun flux n'est ouvert chez elle pour ce joueur, sinon **relit la
+livraison en base** et la pousse au flux (le filtre « achats du compte du jeton joueur » s'applique comme en local).
+
+- **Coupure** : postgres-js rétablit seul la connexion `LISTEN` ; à chaque rétablissement, tous les flux ouverts sur
+  l'instance refont un rattrapage en base (arriéré `pending` + `delivered` non acquittées), dédoublonné par flux.
+  Un `NOTIFY` en échec est retenté 3 fois ; en dernier recours, chaque flux refait aussi un rattrapage toutes les
+  5 minutes, et le SDK relit l'arriéré à chaque reconnexion. Aucun achat n'est perdu, au pire il arrive en retard.
+- **URL** : `LISTEN` exige une connexion **directe** — PgBouncer en mode transaction (URL « poolée » de Neon,
+  port 6543 de Supabase) ne relaie pas les notifications. Renseigner `EVENTS_DATABASE_URL` avec l'URL directe
+  (Neon : variable `DATABASE_URL_UNPOOLED` de l'intégration Vercel, hôte sans `-pooler`) ; à défaut, `DATABASE_URL`
+  est utilisée. Coût : une connexion `LISTEN` + une connexion `NOTIFY` (`max: 2`) par instance active.
+- **Transport** (`EVENTS_TRANSPORT`) : `postgres` (défaut si `DATABASE_URL`), `pglite` (défaut en local sans
+  `DATABASE_URL` : LISTEN/NOTIFY de PGlite, dans le processus), `memory` (aucun relais entre instances ; défaut
+  sous vitest). Une seule instance ? `memory` économise les deux connexions.
+- **Serverless** : une fonction Vercel qui porte un flux SSE garde sa connexion `LISTEN` tant qu'elle vit ; le
+  `maxDuration` coupe le flux, le SDK se reconnecte et rattrape. Le temps réel suppose que l'instance qui confirme le
+  paiement puisse joindre Postgres (c'est déjà le cas pour enregistrer la commande).
+
+**Limiteur de débit partagé.** `RATE_LIMIT_STORE=postgres` remplace le magasin en mémoire par la table
+`rate_limit_counters` (une ligne par clé et par fenêtre fixe d'une minute ; fenêtre glissante estimée sur la fenêtre
+courante et la précédente). Vérification et incrément tiennent en **une** requête
+`INSERT … ON CONFLICT DO UPDATE … WHERE` : jamais plus que la limite, quel que soit le nombre d'instances. Les lignes
+expirées sont purgées au plus une fois par minute et par instance. Chaque requête v1 coûte 2 à 4 allers-retours SQL
+(IP, route, clé) : garder l'application et la base dans la même région. Base injoignable : repli automatique sur le
+magasin mémoire (limite par instance) plutôt que de refuser le trafic. Défaut : `memory` (une instance, ou limites
+approximatives N × la limite acceptées). La table doit exister (`db:migrate`) avant d'activer la variable.
+
+**Ce qui reste par instance** : le plafond de flux SSE simultanés (3 par joueur, 500 / 10 000 par clé) — un flux vit
+dans un processus, un compteur partagé exigerait des baux renouvelés ; avec N instances, le plafond effectif est au
+plus N × la limite (le débit d'ouverture des flux, lui, est partagé). Et le limiteur des formulaires de connexion
+(Server Actions), en complément de celui de Better Auth.
 
 ## 4. Base de données : Neon (UE)
 
