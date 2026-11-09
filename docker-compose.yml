@@ -8,7 +8,7 @@
 # Les sources sont copiées dans l'image (pas de montage) : relancez `docker compose up --build` après modification,
 # ou utilisez `npm run dev` sur l'hôte avec DATABASE_URL=postgres://wolleen:wolleen@localhost:5432/wolleen.
 #
-# NE PAS utiliser en production (secrets de démo, clés wk_test_demo_*, next dev).
+# NE PAS utiliser en production (secrets de démo, clés wk_secret_demo_*, next dev).
 
 name: wolleen
 

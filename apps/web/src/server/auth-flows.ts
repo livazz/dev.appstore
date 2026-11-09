@@ -84,6 +84,8 @@ export function authErrorMessage(e: unknown): string {
     case 'EMAIL_NOT_VERIFIED':
       return 'Vérifiez votre adresse e-mail avant de vous connecter.';
   }
+  // Refus de databaseHooks.session.create.before (auth.ts) : compte désactivé par l'équipe.
+  if (err?.statusCode === 403 || err?.status === 'FORBIDDEN') return 'Ce compte a été désactivé. Contactez le support Dev AppStore.';
   if (err?.statusCode === 429 || err?.status === 'TOO_MANY_REQUESTS') return 'Trop de tentatives. Réessayez dans un instant.';
   return 'Une erreur est survenue. Réessayez.';
 }

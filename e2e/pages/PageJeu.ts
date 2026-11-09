@@ -22,7 +22,7 @@ export class PageJeu {
     return this.page.getByRole('dialog', { name: titre });
   }
 
-  /** Ouvre le détail de l'article (si besoin) puis clique sur « Acheter » / « Lier mon compte et acheter ». */
+  /** Ouvre le détail de l'article (si besoin) puis clique sur « Payer » (après la case de renonciation) / « Lier mon compte et acheter ». */
   async acheter(titre: string) {
     const detail = this.detail(titre);
     if (!(await detail.isVisible())) {
@@ -33,8 +33,11 @@ export class PageJeu {
         await expect(detail).toBeVisible({ timeout: 2_000 });
       }).toPass({ timeout: 20_000 });
     }
-    const bouton = detail.getByRole('button', { name: /acheter/i });
+    const bouton = detail.getByRole('button', { name: /acheter|payer/i });
     await expect(bouton).toBeEnabled();
+    // Compte lié : case obligatoire « livraison immédiate / renonciation au droit de rétractation » avant « Payer ».
+    const renonciation = detail.getByRole('checkbox', { name: /renonce à mon droit de rétractation/i });
+    if (await renonciation.isVisible()) await renonciation.check();
     await bouton.click();
   }
 }

@@ -47,7 +47,7 @@ export const json = (v: unknown) => JSON.stringify(v, null, 2);
 
 /** Placeholders des exemples curl (variables shell). */
 export const SHELL_ENV = `export BASE_URL="http://localhost:3000"   # en production : l'URL de Dev AppStore
-export API_KEY="wk_test_demo_crystal_clash"  # clé de démonstration (npm run db:seed)`;
+export API_KEY="wk_secret_demo_crystal_clash"  # clé de démonstration (npm run db:seed)`;
 
 /* ------------------------------------------------------------------------------------------------
  * Vérification de signature webhook, une version par langage.

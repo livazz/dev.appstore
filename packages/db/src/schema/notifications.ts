@@ -12,7 +12,8 @@ export type NotificationKind =
   | 'studio_delivery_alert'
   | 'player_welcome'
   | 'studio_welcome'
-  | 'studio_weekly_report';
+  | 'studio_weekly_report'
+  | 'withdrawal_acknowledgement';
 
 export type NotificationStatus = 'sending' | 'sent' | 'failed' | 'skipped';
 

@@ -169,7 +169,7 @@ const skip = (reason: SkipReason): Prepared => ({ skip: reason });
  * Types d'envoi : ceux du schéma + l'accusé de rétractation (colonne `kind` en texte libre : aucun changement de
  * schéma nécessaire ; à reporter dans `NotificationKind` de packages/db quand le schéma sera retouché).
  */
-type Kind = NotificationKind | 'withdrawal_acknowledgement';
+type Kind = NotificationKind;
 
 /** Réserve (kind, refId). `false` si déjà envoyé ou en cours d'envoi. */
 async function claim(c: Ctx, kindArg: Kind, refId: string, recipients: string[]): Promise<boolean> {
