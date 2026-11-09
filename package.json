@@ -15,6 +15,7 @@
     "test:e2e": "npm run test:e2e -w @devappstore/e2e",
     "db:push": "npm run push -w @devappstore/db",
     "db:seed": "npm run seed -w @devappstore/db",
+    "db:migrate": "npm run db:migrate -w @devappstore/db",
     "demo": "npm run dev -w @devappstore/demo-game"
   },
   "engines": {

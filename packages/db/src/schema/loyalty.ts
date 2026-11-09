@@ -1,4 +1,4 @@
-import { boolean, check, index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { Currency } from '@devappstore/core';
 import { user } from './auth';
@@ -38,9 +38,9 @@ export const loyaltyEntries = pgTable(
   },
   (t) => [
     // Une attribution et une reprise au plus par commande (idempotence de awardPointsForOrder / revokePointsForOrder).
-    unique('loyalty_entries_order_reason_uq').on(t.orderId, t.reason),
+    uniqueIndex('loyalty_entries_order_reason_uq').on(t.orderId, t.reason),
     // Une expiration au plus par lot.
-    unique('loyalty_entries_ref_reason_uq').on(t.refEntryId, t.reason),
+    uniqueIndex('loyalty_entries_ref_reason_uq').on(t.refEntryId, t.reason),
     index('loyalty_entries_user_idx').on(t.userId, t.seq),
     check(
       'loyalty_entries_sign_ck',

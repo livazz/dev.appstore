@@ -4,6 +4,7 @@ import { hashPassword } from 'better-auth/crypto';
 import { account, and, db, eq, games, isNull, items, platformAdmins, studios, studioMembers, user } from './index';
 import * as A from './demo-assets';
 import { seedLoyalty } from './seed-loyalty';
+import { assertSeedAllowed } from './guards';
 
 /** Clés de développement connues — utilisées par apps/demo-game. Jamais en production. */
 export const DEMO_KEYS = {
@@ -54,6 +55,7 @@ async function seedDemoCredentials() {
 }
 
 async function main() {
+  assertSeedAllowed();
   for (const u of Object.values(DEMO_USERS)) await db.insert(user).values({ ...u, emailVerified: true }).onConflictDoNothing();
   await seedDemoCredentials();
   await db.insert(studios).values({ id: 'std_nova', name: 'Nova Games', slug: 'nova-games' }).onConflictDoNothing();

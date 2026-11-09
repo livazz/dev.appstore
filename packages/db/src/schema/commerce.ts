@@ -1,7 +1,14 @@
-import { integer, pgTable, text, timestamp, unique, index, jsonb } from 'drizzle-orm/pg-core';
+import { integer, pgTable, text, timestamp, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
 import type { Currency, DeliveryStatus, LinkMethod, OrderStatus, PurchaseEvent } from '@devappstore/core';
 import { user } from './auth';
 import { games, items } from './studio';
+
+/*
+ * Contraintes d'unicité multi-colonnes déclarées en `uniqueIndex` (et non `unique`) dans tout le schéma : drizzle-kit
+ * relit les colonnes d'une contrainte UNIQUE depuis information_schema sans ordre garanti, d'où un faux écart à chaque
+ * `push` (et une confirmation interactive dès que la table contient des lignes). Les index uniques sont relus dans le bon
+ * ordre ; ON CONFLICT (colonnes) fonctionne de la même façon.
+ */
 
 /** Compte joueur Dev AppStore ↔ compte dans un jeu (un seul par jeu et par utilisateur). */
 export const gameLinks = pgTable(
@@ -16,7 +23,7 @@ export const gameLinks = pgTable(
     verified: integer('verified').notNull().default(0), // 1 = vérifié (code/oauth), 0 = déclaratif (id_confirm)
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
-  (t) => [unique('game_links_user_game_uq').on(t.userId, t.gameId), index('game_links_player_idx').on(t.gameId, t.playerId)],
+  (t) => [uniqueIndex('game_links_user_game_uq').on(t.userId, t.gameId), index('game_links_player_idx').on(t.gameId, t.playerId)],
 );
 
 /** Code affiché dans le jeu (demandé par le serveur ou le SDK du jeu) et saisi sur le site. */
@@ -41,7 +48,11 @@ export const linkCodes = pgTable(
     source: text('source').$type<'secret' | 'publishable'>(),
     tokenIssuedAt: timestamp('token_issued_at'),
   },
-  (t) => [unique('link_codes_game_code_uq').on(t.gameId, t.code)],
+  (t) => [
+    uniqueIndex('link_codes_game_code_uq').on(t.gameId, t.code),
+    // Codes actifs d'un joueur (remplacés à chaque nouvelle demande).
+    index('link_codes_player_idx').on(t.gameId, t.playerId),
+  ],
 );
 
 export const orders = pgTable(
@@ -71,7 +82,16 @@ export const orders = pgTable(
     consentIp: text('consent_ip'), // IP tronquée (/24 en IPv4, /48 en IPv6)
     refundedAt: timestamp('refunded_at'),
   },
-  (t) => [index('orders_game_idx').on(t.gameId, t.createdAt), index('orders_user_idx').on(t.userId)],
+  (t) => [
+    index('orders_game_idx').on(t.gameId, t.createdAt),
+    // Historique d'achats d'un joueur (/account/purchases, trié par date) et commandes en attente.
+    index('orders_user_created_idx').on(t.userId, t.createdAt),
+    // Expiration des commandes `pending` (cron) et agrégats sur les commandes payées.
+    index('orders_status_created_idx').on(t.status, t.createdAt),
+    index('orders_status_paid_idx').on(t.status, t.paidAt),
+    // Remboursements Stripe (charge.refunded → payment_intent).
+    index('orders_payment_intent_idx').on(t.stripePaymentIntentId),
+  ],
 );
 
 /** Livraison d'un achat au jeu : webhook vers le serveur du studio et/ou récupération par le SDK. */
@@ -104,7 +124,11 @@ export const webhookAttempts = pgTable('webhook_attempts', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   /** Ajout « sec/delivery-keys » : tentative d'envoi d'un remboursement (deliveryId = livraison d'achat d'origine). */
   refundDeliveryId: text('refund_delivery_id').references(() => refundDeliveries.id, { onDelete: 'cascade' }),
-});
+}, (t) => [
+  // Journal des tentatives d'une livraison (onglet Intégration, back-office) et suppressions en cascade.
+  index('webhook_attempts_delivery_idx').on(t.deliveryId, t.createdAt),
+  index('webhook_attempts_refund_idx').on(t.refundDeliveryId),
+]);
 
 /*
  * Ajout tâche « linking » — tentatives de liaison d'un compte de jeu, par utilisateur Dev AppStore :
@@ -177,7 +201,11 @@ export const playerTokens = pgTable(
     lastUsedAt: timestamp('last_used_at'),
     revokedAt: timestamp('revoked_at'),
   },
-  (t) => [index('player_tokens_player_idx').on(t.gameId, t.playerId)],
+  (t) => [
+    index('player_tokens_player_idx').on(t.gameId, t.playerId),
+    // Jetons d'un compte Dev AppStore (révocation à la suppression d'une liaison).
+    index('player_tokens_user_idx').on(t.userId, t.gameId),
+  ],
 );
 
 /*
