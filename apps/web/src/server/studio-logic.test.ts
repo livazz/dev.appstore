@@ -90,11 +90,11 @@ describe('updateGameInfo', () => {
   it('met à jour les champs en ligne et le thème', async () => {
     const g = await newGame();
     const theme = { gradient: { enabled: true, c1: '#112233', c2: '#ffffff', style: 'radial' as const }, grid: { width: 220, height: 300, margin: 10 } };
-    const up = await updateGameInfo(t, g.id, { name: ' Nouveau nom ', subtitle: 'Sous-titre', theme, bannerUrl: '/api/uploads/banner/x.webp' });
+    const up = await updateGameInfo(t, g.id, { name: ' Nouveau nom ', subtitle: 'Sous-titre', theme, bannerUrl: '/api/uploads/banner/usr_dev/x.webp' });
     expect(up.name).toBe('Nouveau nom');
     expect(up.slug).toBe(g.slug); // l'URL publique ne change pas
     expect(up.theme).toEqual(theme);
-    expect(up.bannerUrl).toBe('/api/uploads/banner/x.webp');
+    expect(up.bannerUrl).toBe('/api/uploads/banner/usr_dev/x.webp');
     const cleared = await updateGameInfo(t, g.id, { bannerUrl: null });
     expect(cleared.bannerUrl).toBeNull();
   });
