@@ -23,6 +23,28 @@ export class PageJeu {
   }
 
   /** Ouvre le détail de l'article (si besoin) puis clique sur « Payer » (après la case de renonciation) / « Lier mon compte et acheter ». */
+  /** Ouvre le détail de l'article puis va à la liaison : « Lier mon compte et acheter », ou « Changer » si un compte est déjà lié. */
+  async allerALaLiaison(titre: string) {
+    const detail = await this.ouvrirDetail(titre);
+    const lier = detail.getByRole('button', { name: /lier mon compte/i });
+    const changer = detail.getByRole('link', { name: /changer/i });
+    await expect(lier.or(changer).first()).toBeVisible({ timeout: 15_000 });
+    if (await changer.isVisible()) await changer.click();
+    else await lier.click();
+  }
+
+  async ouvrirDetail(titre: string) {
+    const detail = this.detail(titre);
+    if (!(await detail.isVisible())) {
+      await expect(this.carteArticle(titre)).toBeVisible();
+      await expect(async () => {
+        if (!(await detail.isVisible())) await this.carteArticle(titre).click();
+        await expect(detail).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 20_000 });
+    }
+    return detail;
+  }
+
   async acheter(titre: string) {
     const detail = this.detail(titre);
     if (!(await detail.isVisible())) {

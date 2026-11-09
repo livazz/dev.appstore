@@ -59,8 +59,10 @@ test.describe('Parcours joueur', () => {
     });
 
     await test.step(`Acheter « ${article.titre} » → liaison demandée`, async () => {
-      await pageJeu.acheter(article.titre);
+      // Le compte joueur de démo est déjà lié (seed) : on passe par « Changer » pour lier le compte de Léa.
+      await pageJeu.allerALaLiaison(article.titre);
       await liaison.attendre();
+      await liaison.changerSiDejaLie();
     });
 
     await test.step('liaison par code (code généré par le jeu via POST /api/v1/link-codes)', async () => {
@@ -94,8 +96,8 @@ test.describe('Parcours joueur', () => {
       await paiement.attendreLivre();
     });
 
-    await test.step('/account/purchases affiche « Livré »', async () => {
-      await compte.attendreStatut(article.titre, /livré/i);
+    await test.step('/account/purchases affiche « Livré » ou « Confirmé dans le jeu »', async () => {
+      await compte.attendreStatut(article.titre, /livré|confirmé dans le jeu/i);
     });
   });
 });

@@ -13,7 +13,8 @@ export async function register() {
   } catch (e) {
     if (e instanceof EnvValidationError && process.env.VITEST !== 'true') {
       console.error(e.message);
-      process.exit(1);
+      // Accès indirect : ce fichier est aussi analysé pour l'Edge Runtime, où process.exit n'existe pas.
+      Reflect.get(process, 'exit').call(process, 1);
     }
     throw e;
   }

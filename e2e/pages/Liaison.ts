@@ -33,6 +33,15 @@ export class Liaison {
     await expect(this.page.getByRole('heading', { level: 1 }).first()).toBeVisible();
   }
 
+  /** Compte déjà lié : « Changer de compte » pour afficher de nouveau les méthodes de liaison. */
+  async changerSiDejaLie() {
+    const changer = this.compteLie.getByRole('link', { name: /changer de compte/i });
+    if (await changer.isVisible()) {
+      await changer.click();
+      await expect(this.page).toHaveURL(/change=1/);
+    }
+  }
+
   /** Saisit le code et valide. Ne vérifie pas le résultat (succès : redirection ; échec : `erreur`). */
   async saisirCode(code: string) {
     await this.champCode.fill(code);
