@@ -598,23 +598,33 @@ export async function listDeliveryLog(gameId: string, limit = 50): Promise<Deliv
 
 /**
  * Relance manuelle depuis le studio (pending ou failed) : tentative immédiate + nouvelle notification SDK.
- * Un achat dont la commande n'est plus payée (remboursée) n'est jamais relancé.
+ * Un achat dont la commande n'est plus payée (remboursée) n'est jamais relancé, ni une livraison arrêtée pour
+ * rétractation (motif WITHDRAWAL_STOP_REASON, remboursement éventuellement encore en cours).
  */
 export async function retryDelivery(gameId: string, deliveryId: string): Promise<'ok' | 'not_found' | 'not_retryable'> {
   for (const kind of KINDS) {
     const t = TABLES[kind];
     const [d] = await db
-      .select({ id: t.id, status: t.status, attempts: t.attempts, gameId: t.gameId, playerId: t.playerId, payload: t.payload, userId: orders.userId, orderStatus: orders.status })
+      .select({ id: t.id, status: t.status, attempts: t.attempts, lastError: t.lastError, gameId: t.gameId, playerId: t.playerId, payload: t.payload, userId: orders.userId, orderStatus: orders.status })
       .from(t)
       .innerJoin(orders, eq(orders.id, t.orderId))
       .where(and(eq(t.id, deliveryId), eq(t.gameId, gameId)));
     if (!d) continue;
     if (d.status !== 'pending' && d.status !== 'failed') return 'not_retryable';
-    if (kind === 'purchase' && d.orderStatus !== 'paid') return 'not_retryable';
-    await db
+    if (kind === 'purchase' && (d.orderStatus !== 'paid' || d.lastError === WITHDRAWAL_STOP_REASON)) return 'not_retryable';
+    const [reopened] = await db
       .update(t)
       .set({ status: 'pending', nextAttemptAt: new Date() })
-      .where(and(eq(t.id, d.id), inArray(t.status, ['pending', 'failed'])));
+      .where(
+        and(
+          eq(t.id, d.id),
+          inArray(t.status, ['pending', 'failed']),
+          // Rétractation intervenue entre la lecture et la mise à jour : la livraison reste arrêtée.
+          kind === 'purchase' ? or(isNull(t.lastError), ne(t.lastError, WITHDRAWAL_STOP_REASON)) : undefined,
+        ),
+      )
+      .returning({ id: t.id });
+    if (!reopened) return 'not_retryable';
     if (d.attempts > 0) publish(d.gameId, d.playerId, d.payload, { userId: d.userId }); // au premier envoi, dispatch publie déjà
     await dispatch(kind, d.id, false);
     return 'ok';
@@ -645,3 +655,9 @@ export async function sendTestWebhook(gameId: string): Promise<WebhookResult & {
   const result = await postSignedWebhook(game.webhookUrl, game.webhookSecret, JSON.stringify(payload), { 'Wolleen-Test': '1' });
   return { ...result, payload };
 }
+
+/**
+ * Motif posé par la rétractation du joueur (withdrawal.ts) sur la livraison qu'elle arrête : une telle livraison n'est
+ * plus jamais relancée (`retryDelivery`). Défini ici pour éviter un import circulaire withdrawal ↔ delivery.
+ */
+export const WITHDRAWAL_STOP_REASON = 'Rétractation du joueur : livraison arrêtée avant exécution.';

@@ -10,6 +10,7 @@ import type { EmailContent } from './layout';
 import * as f from './fixtures';
 import { deliveryFailedEmail, playerWelcomeEmail, purchaseDeliveredEmail, purchaseReceiptEmail } from './templates/player';
 import { passwordResetEmail, verifyEmailEmail } from './templates/auth';
+import { withdrawalAcknowledgementEmail } from './templates/withdrawal';
 import { studioDeliveryAlertEmail, studioWeeklyReportEmail, studioWelcomeEmail } from './templates/studio';
 
 export function renderAllSamples(): Record<string, EmailContent> {
@@ -24,6 +25,7 @@ export function renderAllSamples(): Record<string, EmailContent> {
     'bienvenue-studio': studioWelcomeEmail(f.sampleStudioWelcome, ctx),
     'alerte-livraisons-studio': studioDeliveryAlertEmail(f.sampleDeliveryAlert, ctx),
     'rapport-hebdo-studio': studioWeeklyReportEmail(f.sampleWeeklyReport, ctx),
+    'accuse-retractation': withdrawalAcknowledgementEmail(f.sampleWithdrawal, ctx),
   };
 }
 

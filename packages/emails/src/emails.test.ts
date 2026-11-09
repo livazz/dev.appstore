@@ -20,6 +20,7 @@ import {
   studioWeeklyReportEmail,
   trusted,
   verifyEmailEmail,
+  withdrawalAcknowledgementEmail,
 } from './index';
 import * as f from './fixtures';
 import { renderAllSamples } from './preview';
@@ -66,6 +67,7 @@ describe('échappement', () => {
         failures: [{ ...f.sampleDeliveryAlert.failures[0]!, lastError: XSS, itemName: XSS, playerId: XSS }],
       }),
       studioWeeklyReportEmail({ ...f.sampleWeeklyReport, studioName: XSS, games: [{ name: XSS, revenueCents: 100, orders: 1 }] }),
+      withdrawalAcknowledgementEmail({ ...f.sampleWithdrawal, playerName: XSS, orderId: XSS, item: { name: XSS }, gameName: XSS, sellerName: XSS, gameAccount: { playerId: XSS } }),
     ];
     for (const m of mails) {
       expect(m.html).not.toContain('<script');
@@ -141,10 +143,52 @@ describe('reçu d’achat — contenu légal (art. L221-28 13°)', () => {
   });
 });
 
+describe('accusé de réception de rétractation (directive 2023/2673)', () => {
+  const m = withdrawalAcknowledgementEmail(f.sampleWithdrawal, f.sampleContext);
+
+  it('reprend commande, article, montant remboursé, date de la demande et délai de remboursement', () => {
+    for (const body of [m.text, m.html]) {
+      expect(body).toContain('ord_7Hq2kD9x');
+      expect(body).toContain('500 gemmes');
+      expect(body).toContain('Crystal Clash');
+      expect(body).toContain(escapeHtml(formatMoney(499, 'EUR')));
+      // Demande le 9 novembre à 16:10:42 (heure de Paris) ; remboursement au plus tard 14 jours après.
+      expect(body).toContain('9 novembre 2026 à 16:10:42');
+      expect(body).toContain('23 novembre 2026');
+      expect(body).toContain('14 jours');
+      expect(body).toContain('support durable');
+      expect(body).toContain('L221-21');
+      expect(body).toContain('L221-24');
+    }
+    expect(m.text).toContain('Montant remboursé (TTC)');
+    expect(m.text).toContain('2026-11-09T15:10:42.120Z');
+    expect(m.subject).toContain('rétractation');
+    expect(m.subject).toContain('500 gemmes');
+  });
+
+  it('à la marque Dev AppStore, logo carré jaune « D »', () => {
+    expect(m.html).toMatch(/#ffd43b[^>]*>D<\/td>/);
+    expect(m.html).toContain('>Dev AppStore</td>');
+    expect(m.text.startsWith('Dev AppStore')).toBe(true);
+    expect(m.text).toContain('Dev AppStore');
+    expect(m.html).toContain('width="600"');
+    expect(m.html).not.toContain('<style');
+  });
+
+  it('délai borné à 14 jours ; mention du mode simulation', () => {
+    const long = withdrawalAcknowledgementEmail({ ...f.sampleWithdrawal, refundDays: 30 });
+    expect(long.text).toContain('sous 14 jours');
+    const short = withdrawalAcknowledgementEmail({ ...f.sampleWithdrawal, refundDays: 5 });
+    expect(short.text).toContain('14 novembre 2026');
+    const sim = withdrawalAcknowledgementEmail({ ...f.sampleWithdrawal, simulated: true });
+    expect(sim.text).toContain('simulé');
+  });
+});
+
 describe('modèles', () => {
   it('tous les modèles se rendent avec sujet, html et texte', () => {
     const all = renderAllSamples();
-    expect(Object.keys(all)).toHaveLength(9);
+    expect(Object.keys(all)).toHaveLength(10);
     for (const [name, m] of Object.entries(all)) {
       expect(m.subject, name).toBeTruthy();
       expect(m.html, name).toContain('</html>');

@@ -41,6 +41,7 @@ import {
   type Mailer,
   type ResolvedContext,
   type WeeklyGameStats,
+  withdrawalAcknowledgementEmail,
 } from '@wolleen/emails';
 import { env } from '@/env';
 import { CGV_VERSION } from '@/lib/legal-versions';
@@ -92,6 +93,7 @@ export type SkipReason =
   | 'not_paid'
   | 'not_delivered'
   | 'not_failed'
+  | 'not_refunded'
   | 'no_recipient'
   | 'no_activity';
 
@@ -163,8 +165,15 @@ type Prepared = { messages: Outgoing[] } | { skip: SkipReason };
 
 const skip = (reason: SkipReason): Prepared => ({ skip: reason });
 
+/**
+ * Types d'envoi : ceux du schéma + l'accusé de rétractation (colonne `kind` en texte libre : aucun changement de
+ * schéma nécessaire ; à reporter dans `NotificationKind` de packages/db quand le schéma sera retouché).
+ */
+type Kind = NotificationKind | 'withdrawal_acknowledgement';
+
 /** Réserve (kind, refId). `false` si déjà envoyé ou en cours d'envoi. */
-async function claim(c: Ctx, kind: NotificationKind, refId: string, recipients: string[]): Promise<boolean> {
+async function claim(c: Ctx, kindArg: Kind, refId: string, recipients: string[]): Promise<boolean> {
+  const kind = kindArg as NotificationKind;
   const recipient = recipients.join(',').slice(0, 2000);
   const inserted = await c.database
     .insert(notificationsSent)
@@ -191,7 +200,8 @@ async function claim(c: Ctx, kind: NotificationKind, refId: string, recipients: 
  * Charge les données (`prepare`), réserve la clé d'idempotence, envoie, puis enregistre le résultat.
  * Les cas « pas encore » (livraison non terminée, commande non payée…) ne réservent rien : un appel ultérieur pourra envoyer.
  */
-async function notifyOnce(c: Ctx, kind: NotificationKind, refId: string, prepare: () => Promise<Prepared>): Promise<NotificationResult> {
+async function notifyOnce(c: Ctx, kindArg: Kind, refId: string, prepare: () => Promise<Prepared>): Promise<NotificationResult> {
+  const kind = kindArg as NotificationKind;
   let claimed = false;
   try {
     const prepared = await prepare();
@@ -361,6 +371,49 @@ export function sendPurchaseDelivered(deliveryId: string, deps: NotifyDeps = {})
         gameName: game.name,
         gameAccount,
         deliveredAt: delivery.deliveredAt ?? delivery.acknowledgedAt ?? c.now,
+        purchasesUrl: link(c, '/account/purchases'),
+      },
+      c.context,
+    );
+    return { messages: [{ to: buyer.email, content }] };
+  });
+}
+
+export interface WithdrawalAcknowledgementOptions extends NotifyDeps {
+  /** Date de la demande de rétractation (défaut : `orders.refundedAt`, sinon maintenant). */
+  requestedAt?: Date;
+  /** Délai de remboursement annoncé, en jours (défaut 14, plafonné à 14). */
+  refundDays?: number;
+  /** Remboursement simulé (mode simulation, sans Stripe). Défaut : commande sans paiement Stripe. */
+  simulated?: boolean;
+}
+
+/**
+ * Accusé de réception de la rétractation sur support durable (directive 2023/2673, art. L221-21) : commande, article,
+ * montant remboursé, date de la demande, délai de remboursement. Appelé par `withdrawOrder` (withdrawal.ts) une fois la
+ * commande `refunded`, en arrière-plan. Idempotent par commande ; ne lève jamais.
+ */
+export function sendWithdrawalAcknowledgement(orderId: string, opts: WithdrawalAcknowledgementOptions = {}): Promise<NotificationResult> {
+  const c = resolveDeps(opts);
+  return notifyOnce(c, 'withdrawal_acknowledgement', orderId, async () => {
+    const data = await loadOrder(c, orderId);
+    if (!data) return skip('not_found');
+    const { order, buyer, game, studio, gameAccount } = data;
+    if (order.status !== 'refunded') return skip('not_refunded');
+    const content = withdrawalAcknowledgementEmail(
+      {
+        playerName: buyer.name || undefined,
+        orderId: order.id,
+        item: itemOf(order),
+        gameName: game.name,
+        gameAccount,
+        sellerName: studio.name,
+        refundedCents: order.amountCents,
+        currency: order.currency,
+        paidAt: order.paidAt ?? order.createdAt,
+        requestedAt: opts.requestedAt ?? order.refundedAt ?? c.now,
+        refundDays: opts.refundDays,
+        simulated: opts.simulated ?? (!order.stripePaymentIntentId && !order.stripeCheckoutSessionId),
         purchasesUrl: link(c, '/account/purchases'),
       },
       c.context,

@@ -13,6 +13,7 @@ import {
   sendPurchaseReceipt,
   sendStudioWelcome,
   sendWeeklyStudioReport,
+  sendWithdrawalAcknowledgement,
   startOfWeekUtc,
   type NotifyDeps,
 } from './notifications';
@@ -119,6 +120,45 @@ beforeEach(() => {
   outbox = [];
   failNext = 0;
   logs.length = 0;
+});
+
+describe('sendWithdrawalAcknowledgement', () => {
+  it('accusé de réception sur support durable, une seule fois par commande remboursée', async () => {
+    const orderId = await makeOrder();
+    // Pas encore remboursée : rien n'est réservé.
+    expect(await sendWithdrawalAcknowledgement(orderId, deps())).toEqual({ ok: true, status: 'skipped', reason: 'not_refunded' });
+    const requestedAt = new Date('2026-11-09T09:30:00Z');
+    await database.update(orders).set({ status: 'refunded', refundedAt: requestedAt }).where(eq(orders.id, orderId));
+
+    const r1 = await sendWithdrawalAcknowledgement(orderId, { ...deps(), refundDays: 14, simulated: false });
+    expect(r1).toEqual({ ok: true, status: 'sent', recipients: ['lea@test.dev'] });
+    const m = outbox[0]!;
+    expect(m.to).toBe('lea@test.dev');
+    expect(m.subject).toContain('rétractation');
+    expect(m.text).toContain(orderId);
+    expect(m.text).toContain('500 gemmes');
+    expect(m.text).toContain('Crystal Quest');
+    expect(m.text).toContain('DragonSlayer');
+    expect(m.text).toMatch(/4,99\s?€/);
+    expect(m.text).toContain('9 novembre 2026 à 10:30:00'); // date de la demande (refundedAt), heure de Paris
+    expect(m.text).toContain('23 novembre 2026'); // délai de remboursement : 14 jours
+    expect(m.text.startsWith('Dev AppStore')).toBe(true);
+    expect(m.html).toContain('https://wolleen.test/account/purchases');
+
+    expect(await sendWithdrawalAcknowledgement(orderId, deps())).toEqual({ ok: true, status: 'skipped', reason: 'already_sent' });
+    expect(outbox).toHaveLength(1);
+    const rows = await database.select().from(notificationsSent).where(eq(notificationsSent.refId, orderId));
+    expect(rows).toMatchObject([{ kind: 'withdrawal_acknowledgement', status: 'sent' }]);
+  });
+
+  it('un échec d’envoi ne lève pas et peut être retenté', async () => {
+    const orderId = await makeOrder();
+    await database.update(orders).set({ status: 'refunded', refundedAt: NOW }).where(eq(orders.id, orderId));
+    failNext = 1;
+    expect((await sendWithdrawalAcknowledgement(orderId, deps())).ok).toBe(false);
+    expect(await sendWithdrawalAcknowledgement(orderId, deps())).toMatchObject({ ok: true, status: 'sent' });
+    expect(outbox[0]!.text).toContain('simulé'); // commande sans paiement Stripe : mode simulation
+  });
 });
 
 describe('sendPurchaseReceipt', () => {

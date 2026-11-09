@@ -2,7 +2,8 @@ import 'server-only';
 import type Stripe from 'stripe';
 import type { DeliveryStatus, OrderStatus } from '@wolleen/core';
 import { and, db, deliveries, eq, games, gt, inArray, orders, studios } from '@wolleen/db';
-import { enqueueRefund } from './delivery';
+import { enqueueRefund, WITHDRAWAL_STOP_REASON } from './delivery';
+import { runInBackground, sendWithdrawalAcknowledgement } from './notifications';
 import { checkoutRequestOptions } from './payments';
 import { getStripe, isSimulationAllowed, isStripeEnabled } from './stripe';
 
@@ -10,13 +11,15 @@ import { getStripe, isSimulationAllowed, isStripeEnabled } from './stripe';
  * Rétractation en ligne (« bouton de rétractation », directive (UE) 2023/2673 ; docs/legal/consumer.md § 2.4–2.5).
  *
  * Le droit subsiste tant que l'exécution n'a pas commencé : une commande payée dont la livraison est encore
- * `pending` (jeu hors ligne, webhook en relance) et passée il y a moins de 14 jours (art. L221-18). Dès que le jeu a
- * crédité l'achat (`delivered` / `acknowledged`), la renonciation recueillie au paiement s'applique.
+ * `pending` (jeu hors ligne, webhook en relance) ou `failed` (relances épuisées : rien n'a été crédité) et passée il y
+ * a moins de 14 jours (art. L221-18). Dès que le jeu a crédité l'achat (`delivered` / `acknowledged`), la renonciation
+ * recueillie au paiement s'applique.
  *
  * Déroulé (`withdrawOrder`) :
  * 1. transaction, commande verrouillée (FOR UPDATE) : contrôle d'éligibilité et ARRÊT de la livraison
- *    (`pending` → `failed` avec le motif WITHDRAWAL_STOP_REASON) par une mise à jour conditionnelle — une livraison
- *    confirmée entre-temps fait échouer la rétractation, jamais les deux ;
+ *    (`pending` / `failed` → `failed` avec le motif WITHDRAWAL_STOP_REASON) par une mise à jour conditionnelle — une
+ *    livraison confirmée entre-temps fait échouer la rétractation, jamais les deux ; une livraison arrêtée n'est plus
+ *    relancée (ni par le cron, ni par le bouton « Relancer » du studio : `retryDelivery` reconnaît le motif) ;
  * 2. remboursement intégral : Stripe (clé d'idempotence par commande ; transfert et commission annulés) ou, en mode
  *    simulation, aucun mouvement d'argent ;
  * 3. commande `paid` → `refunded` (conditionnel) puis `enqueueRefund` : événement `purchase.refunded` par le même canal
@@ -24,11 +27,18 @@ import { getStripe, isSimulationAllowed, isStripeEnabled } from './stripe';
  * Si le remboursement Stripe échoue, la livraison reste arrêtée et le joueur peut relancer la rétractation
  * (une livraison arrêtée pour rétractation reste éligible) : la clé d'idempotence évite un double remboursement.
  * Le webhook `charge.refunded` qui suit est sans effet (commande déjà `refunded`).
+ * 4. accusé de réception sur support durable (`sendWithdrawalAcknowledgement`, en arrière-plan : un échec d'envoi ne
+ *    remet jamais en cause la rétractation, et l'envoi est idempotent par commande).
  */
 
 export const WITHDRAWAL_PERIOD_MS = 14 * 24 * 3600_000;
-/** Motif posé sur la livraison arrêtée ; sert aussi à reconnaître une rétractation en cours (relance possible). */
-export const WITHDRAWAL_STOP_REASON = 'Rétractation du joueur : livraison arrêtée avant exécution.';
+/**
+ * Motif posé sur la livraison arrêtée ; sert aussi à reconnaître une rétractation en cours (relance possible). Défini
+ * dans delivery.ts (qui refuse de relancer une telle livraison) pour éviter un import circulaire.
+ */
+export { WITHDRAWAL_STOP_REASON };
+/** Délai de remboursement annoncé au joueur (art. L221-24 : 14 jours au plus à compter de la demande). */
+export const WITHDRAWAL_REFUND_DAYS = 14;
 
 export type WithdrawalErrorCode = 'not_found' | 'not_paid' | 'free_order' | 'period_expired' | 'already_delivered' | 'refund_failed' | 'refund_unavailable';
 
@@ -62,8 +72,8 @@ export function withdrawalBlocker(o: WithdrawalCandidate, now = new Date()): Wit
   if (o.status !== 'paid') return 'not_paid';
   if (o.amountCents <= 0) return 'free_order';
   if (o.createdAt.getTime() <= now.getTime() - WITHDRAWAL_PERIOD_MS) return 'period_expired';
-  const stoppedForWithdrawal = o.deliveryStatus === 'failed' && o.deliveryLastError === WITHDRAWAL_STOP_REASON;
-  if (o.deliveryStatus !== 'pending' && !stoppedForWithdrawal) return 'already_delivered';
+  // `failed` : relances épuisées (rien n'a été crédité) ou livraison déjà arrêtée pour rétractation (relance du remboursement).
+  if (o.deliveryStatus !== 'pending' && o.deliveryStatus !== 'failed') return 'already_delivered';
   return null;
 }
 
@@ -107,6 +117,8 @@ export interface WithdrawalDeps {
   stripe?: StripeLike | null;
   /** Mode simulation autorisé (jamais en production). Par défaut : isSimulationAllowed(). */
   simulationAllowed?: boolean;
+  /** Envoi de l'accusé de réception par e-mail (défaut : oui, en arrière-plan). */
+  acknowledge?: boolean;
 }
 
 export interface WithdrawalResult {
@@ -134,11 +146,13 @@ export async function withdrawOrder(userId: string, orderId: string, deps: Withd
     const [dlv] = await tx.select({ id: deliveries.id, status: deliveries.status, lastError: deliveries.lastError }).from(deliveries).where(eq(deliveries.orderId, orderId));
     const blocker = withdrawalBlocker({ ...order, deliveryStatus: dlv?.status ?? null, deliveryLastError: dlv?.lastError ?? null }, now);
     if (blocker) throw new WithdrawalError(blocker);
-    if (dlv!.status === 'pending') {
+    if (!(dlv!.status === 'failed' && dlv!.lastError === WITHDRAWAL_STOP_REASON)) {
+      // pending (en attente / en relance) ou failed (relances épuisées) → arrêt définitif, conditionnel : une livraison
+      // passée à delivered entre-temps (webhook 2xx, récupération par le SDK) fait échouer la rétractation.
       const [stopped] = await tx
         .update(deliveries)
         .set({ status: 'failed', nextAttemptAt: null, lastError: WITHDRAWAL_STOP_REASON })
-        .where(and(eq(deliveries.id, dlv!.id), eq(deliveries.status, 'pending')))
+        .where(and(eq(deliveries.id, dlv!.id), inArray(deliveries.status, ['pending', 'failed'])))
         .returning({ id: deliveries.id });
       if (!stopped) throw new WithdrawalError('already_delivered');
     }
@@ -178,6 +192,12 @@ export async function withdrawOrder(userId: string, orderId: string, deps: Withd
   } catch (e) {
     // La commande est remboursée : le webhook charge.refunded (ou la relance) réémettra l'événement.
     console.error('[withdrawal] enqueueRefund', orderId, e instanceof Error ? e.message : 'erreur inconnue');
+  }
+  // 4. Accusé de réception sur support durable (directive 2023/2673) — jamais bloquant.
+  if (deps.acknowledge !== false) {
+    runInBackground('accusé de rétractation', () =>
+      sendWithdrawalAcknowledgement(orderId, { requestedAt: now, refundDays: WITHDRAWAL_REFUND_DAYS, simulated: mode === 'simulation' }),
+    );
   }
   return { orderId, mode, refundId: refundIdValue, refundDeliveryId };
 }

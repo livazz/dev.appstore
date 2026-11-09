@@ -18,7 +18,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
   const page = Math.max(1, Math.floor(Number(first(sp.page))) || 1);
   const { rows, total } = await getPlayerPurchases(user.id, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  // Bouton « Me rétracter » : commande payée, livraison pas encore effectuée, passée il y a moins de 14 jours.
+  // Bouton « Me rétracter » : commande payée, livraison pas encore effectuée (en attente ou en échec), passée il y a moins de 14 jours.
   const withdrawable = await withdrawableOrderIds(user.id, rows.map((r) => r.id));
   const confirming = rows.find((r) => r.id === first(sp.withdraw) && withdrawable.has(r.id));
   const withdrawnId = first(sp.withdrawn);
@@ -51,7 +51,8 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
       {withdrawnId && (
         <p role="status" className="mb-4 rounded-[var(--radius)] border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ink">
           Rétractation enregistrée{withdrawn ? ` pour « ${withdrawn.itemTitle} »` : ''} : la livraison est annulée et vous êtes remboursé
-          intégralement, par le même moyen de paiement (sous 14 jours au plus, généralement quelques jours selon votre banque).
+          intégralement, par le même moyen de paiement (sous 14 jours au plus, généralement quelques jours selon votre banque). Un accusé de
+          réception vous est envoyé par e-mail.
         </p>
       )}
       {withdrawalError && (

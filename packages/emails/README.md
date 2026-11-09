@@ -11,11 +11,14 @@ pur HTML). **Code serveur uniquement** (l'adaptateur console utilise `node:fs`).
 | `purchaseReceiptEmail` | joueur | commande payée — reçu **et** confirmation sur support durable de la demande de livraison immédiate et de la renonciation au droit de rétractation (art. L221-28 13°, L221-13 C. conso ; `docs/legal/consumer.md` §2.3) |
 | `purchaseDeliveredEmail` | joueur | livraison `delivered` / `acknowledged` |
 | `deliveryFailedEmail` | joueur | livraison `failed` (relances épuisées) |
+| `withdrawalAcknowledgementEmail` | joueur | rétractation enregistrée — accusé de réception sur support durable (directive 2023/2673, art. L221-21) : commande, article, montant remboursé, date de la demande, délai de remboursement (≤ 14 jours). Marque « Dev AppStore » (`DEV_APPSTORE_BRAND`, logo carré jaune « D ») |
 | `playerWelcomeEmail` | joueur | inscription |
 | `verifyEmailEmail`, `passwordResetEmail` | tous | Better Auth (`sendVerificationEmail`, `sendResetPassword`) |
 | `studioWelcomeEmail` | studio | création du studio |
 | `studioDeliveryAlertEmail` | studio | livraisons en échec |
 | `studioWeeklyReportEmail` | studio | cron hebdo (revenu, économie vs stores via `savingsVsStores`) |
+
+`renderEmail({ …, brand })` accepte une marque d'en-tête (`WOLLEEN_BRAND` par défaut, `DEV_APPSTORE_BRAND`).
 
 `WITHDRAWAL_WAIVER_TEXT` est le texte exact de la case à cocher du checkout : l'afficher tel quel, ou passer
 la variante réellement affichée dans `consent.waiverText`.
