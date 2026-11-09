@@ -1,0 +1,24 @@
+{
+  "name": "wolleen",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @wolleen/web",
+    "build": "npm run build -w @wolleen/web",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:push": "npm run push -w @wolleen/db",
+    "db:seed": "npm run seed -w @wolleen/db"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "drizzle-orm": "^0.44.5",
+    "@electric-sql/pglite": "^0.3.7"
+  }
+}

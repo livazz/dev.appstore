@@ -1,0 +1,97 @@
+'use client';
+
+import { useMemo, useState, type ReactNode } from 'react';
+import type { Currency, GameTheme } from '@wolleen/core';
+import { cardBackground, ItemCard, textEffects, type CardItem } from './ItemCard';
+import s from './store.module.css';
+
+export function panelBackground(g: GameTheme['gradient']) {
+  if (!g.enabled) return '#ffffff';
+  return g.style === 'linear' ? `linear-gradient(180deg, ${g.c1} 0%, ${g.c2} 100%)` : `radial-gradient(ellipse at 50% 0%, ${g.c1} 0%, ${g.c2} 75%)`;
+}
+
+export type PanelItem = CardItem & { id: string; keywords: string[] };
+
+/**
+ * Boutique d'un jeu (maquettes PDF) : bannière, en-tête, filtres par mots-clés, grille d'articles.
+ * Partagé par la page publique (lecture) et l'éditeur studio (slots d'édition).
+ */
+export function StorePanel({
+  theme,
+  currency,
+  bannerUrl,
+  items,
+  header,
+  bannerTools,
+  side,
+  addTile,
+  onItemClick,
+  emptyText = 'Aucun article pour le moment.',
+}: {
+  theme: GameTheme;
+  currency: Currency;
+  bannerUrl?: string | null;
+  items: PanelItem[];
+  header: ReactNode;
+  bannerTools?: ReactNode;
+  side?: ReactNode;
+  addTile?: ReactNode;
+  onItemClick?: (item: PanelItem) => void;
+  emptyText?: string;
+}) {
+  const [tag, setTag] = useState<string | null>(null);
+  const tags = useMemo(() => {
+    const m = new Map<string, string>();
+    items.forEach((i) => i.keywords.forEach((k) => m.set(k.toLowerCase(), k)));
+    return [...m.values()];
+  }, [items]);
+  const visible = tag ? items.filter((i) => i.keywords.some((k) => k.toLowerCase() === tag.toLowerCase())) : items;
+  const ts = items[0]?.style;
+
+  return (
+    <div className={s.panel} style={{ background: panelBackground(theme.gradient) }}>
+      <div className={s.banner}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {bannerUrl ? <img src={bannerUrl} alt="" className={s.bannerImg} /> : null}
+        {bannerTools}
+      </div>
+      <div className={s.head}>{header}</div>
+      <div className={s.body}>
+        <aside className={s.side}>
+          {side}
+          {tags.length > 0 && (
+            <nav className={s.tags} aria-label="Filtres">
+              {[null, ...tags].map((t) => {
+                const active = tag === t;
+                return (
+                  <button
+                    key={t ?? '__all'}
+                    className={s.tag}
+                    aria-pressed={active}
+                    onClick={() => setTag(t)}
+                    style={ts ? {
+                      background: active ? cardBackground(ts) : 'rgba(255,255,255,.85)',
+                      color: active ? ts.titleColor : '#1d1d1f',
+                      textShadow: active ? textEffects(ts.titleOutline, ts.titleShadow) : undefined,
+                      borderColor: ts.borderWidth ? ts.borderColor : '#1d1d1f',
+                      borderRadius: ts.rounded ? 10 : 0,
+                    } : undefined}
+                  >
+                    {t ?? 'Tout'}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+        </aside>
+        <div className={s.grid} style={{ gap: theme.grid.margin }}>
+          {visible.map((item) => (
+            <ItemCard key={item.id} item={item} grid={theme.grid} currency={currency} onClick={onItemClick ? () => onItemClick(item) : undefined} />
+          ))}
+          {addTile}
+          {!visible.length && !addTile && <p className={s.empty}>{emptyText}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
