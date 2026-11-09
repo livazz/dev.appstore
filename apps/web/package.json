@@ -18,14 +18,14 @@
     "@wolleen/db": "*",
     "@wolleen/emails": "*",
     "@wolleen/importers": "*",
-    "better-auth": "^1.3.27",
-    "next": "15.5.7",
+    "better-auth": "^1.7.18",
+    "next": "15.5.29",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "server-only": "^0.0.1",
-    "sharp": "^0.34.4",
+    "sharp": "^0.35.5",
     "stripe": "^18.5.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -34,7 +34,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.5.7",
+    "eslint-config-next": "15.5.29",
     "tailwindcss": "^4",
     "tsx": "^4.20.5",
     "typescript": "^5",

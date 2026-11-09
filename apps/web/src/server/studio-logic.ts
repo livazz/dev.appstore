@@ -132,8 +132,8 @@ export type GameInfoInput = z.input<typeof gameInfoSchema>;
 
 export const newGameSchema = z.object({
   name: z.string().trim().min(1, 'Le nom du jeu est obligatoire.').max(60, 'Nom trop long (60 caractères max).'),
-  category: z.enum(GAME_CATEGORIES, { errorMap: () => ({ message: 'Catégorie inconnue.' }) }),
-  currency: z.enum(['EUR', 'USD', 'GBP'], { errorMap: () => ({ message: 'Devise inconnue.' }) }),
+  category: z.enum(GAME_CATEGORIES, { error: 'Catégorie inconnue.' }),
+  currency: z.enum(['EUR', 'USD', 'GBP'], { error: 'Devise inconnue.' }),
 });
 export type NewGameInput = z.input<typeof newGameSchema>;
 

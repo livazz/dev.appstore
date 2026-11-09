@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import sharp from 'sharp';
+import sharp, { type Metadata } from 'sharp';
 import type { StorageAdapter } from './storage';
 
 export type UploadKind = 'icon' | 'banner' | 'item';
@@ -31,7 +31,7 @@ export function parseKind(v: string | null): UploadKind | null {
 export async function processImage(input: Buffer, _declaredType: string, kind: UploadKind): Promise<Buffer> {
   if (input.length === 0) throw new UploadError(400, 'Fichier vide');
   if (input.length > MAX_UPLOAD_BYTES) throw new UploadError(413, 'Fichier trop volumineux (5 Mo max)');
-  let meta: sharp.Metadata;
+  let meta: Metadata;
   try {
     // metadata() ne lit que l'en-tête : on contrôle nous-mêmes les dimensions juste après (pas de décodage ici).
     meta = await sharp(input, { limitInputPixels: false }).metadata();

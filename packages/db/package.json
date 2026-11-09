@@ -18,13 +18,13 @@
   },
   "dependencies": {
     "@wolleen/core": "*",
-    "drizzle-orm": "^0.44.5",
+    "drizzle-orm": "^0.45.4",
     "@electric-sql/pglite": "^0.3.7",
     "postgres": "^3.4.7"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.31.4",
-    "better-auth": "^1.3.27",
+    "drizzle-kit": "^0.31.11",
+    "better-auth": "^1.7.18",
     "tsx": "^4.20.5",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4",

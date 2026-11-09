@@ -21,24 +21,27 @@ export interface AuthFormResult {
   fieldErrors?: Partial<Record<FieldName, string>>;
 }
 
+/** Message pour un champ absent seulement (équivalent zod 4 de l'ancien `required_error`). */
+const requiredOnly = (message: string) => (issue: { input?: unknown }) => (issue.input === undefined ? message : undefined);
+
 const email = z
-  .string({ required_error: 'Saisissez votre adresse e-mail.' })
+  .string({ error: requiredOnly('Saisissez votre adresse e-mail.') })
   .trim()
   .toLowerCase()
   .min(1, 'Saisissez votre adresse e-mail.')
   .max(254, 'Adresse e-mail trop longue.')
   .email('Adresse e-mail invalide.');
 const password = z
-  .string({ required_error: 'Saisissez un mot de passe.' })
+  .string({ error: requiredOnly('Saisissez un mot de passe.') })
   .min(PASSWORD_MIN_LENGTH, `Le mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères.`)
   .max(128, 'Le mot de passe ne doit pas dépasser 128 caractères.');
 const name = z
-  .string({ required_error: 'Saisissez votre nom.' })
+  .string({ error: requiredOnly('Saisissez votre nom.') })
   .trim()
   .min(1, 'Saisissez votre nom.')
   .max(80, 'Le nom ne doit pas dépasser 80 caractères.');
 const studioName = z
-  .string({ required_error: 'Saisissez le nom du studio.' })
+  .string({ error: requiredOnly('Saisissez le nom du studio.') })
   .trim()
   .min(2, 'Le nom du studio doit contenir au moins 2 caractères.')
   .max(60, 'Le nom du studio ne doit pas dépasser 60 caractères.');
@@ -46,7 +49,7 @@ const studioName = z
 export const signInSchema = z.object({
   email,
   password: z
-    .string({ required_error: 'Saisissez votre mot de passe.' })
+    .string({ error: requiredOnly('Saisissez votre mot de passe.') })
     .min(1, 'Saisissez votre mot de passe.')
     .max(128, 'Le mot de passe ne doit pas dépasser 128 caractères.'),
 });

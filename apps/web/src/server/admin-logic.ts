@@ -88,7 +88,7 @@ export const REASON_MIN = 20;
 export const REASON_MAX = 2000;
 
 const reasonField = z
-  .string({ required_error: 'Le motif est obligatoire.', invalid_type_error: 'Le motif est obligatoire.' })
+  .string({ error: 'Le motif est obligatoire.' })
   .trim()
   .min(1, 'Le motif est obligatoire.')
   .min(REASON_MIN, `Le motif doit faire au moins ${REASON_MIN} caractères : il est communiqué tel quel.`)
@@ -96,7 +96,7 @@ const reasonField = z
 
 export const suspendGameSchema = z.object({
   ground: z.enum(Object.keys(SUSPENSION_GROUNDS) as [SuspensionGround, ...SuspensionGround[]], {
-    errorMap: () => ({ message: 'Choisissez le fondement de la suspension.' }),
+    error: 'Choisissez le fondement de la suspension.',
   }),
   reason: reasonField,
 });
