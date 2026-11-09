@@ -2,13 +2,11 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import type { Currency, GameTheme } from '@wolleen/core/client';
-import { cardBackground, ItemCard, textEffects, type CardItem } from './ItemCard';
+import { ItemCard, textEffects, type CardItem } from './ItemCard';
+import { activeFilterColors, panelBackground, safeColor, safeImageUrl } from './style-safety';
 import s from './store.module.css';
 
-export function panelBackground(g: GameTheme['gradient']) {
-  if (!g.enabled) return '#ffffff';
-  return g.style === 'linear' ? `linear-gradient(180deg, ${g.c1} 0%, ${g.c2} 100%)` : `radial-gradient(ellipse at 50% 0%, ${g.c1} 0%, ${g.c2} 75%)`;
-}
+export { panelBackground } from './style-safety';
 
 export type PanelItem = CardItem & { id: string; keywords: string[] };
 
@@ -50,12 +48,15 @@ export function StorePanel({
   }, [items]);
   const visible = tag ? items.filter((i) => i.keywords.some((k) => k.toLowerCase() === tag.toLowerCase())) : items;
   const ts = items[0]?.style;
+  // Filtre actif : style du 1er article, contraste du texte ≥ 4,5:1 garanti (titre blanc sur fond clair, etc.).
+  const activeColors = useMemo(() => (ts ? activeFilterColors(ts) : null), [ts]);
+  const banner = safeImageUrl(bannerUrl);
 
   return (
     <div className={s.panel} style={{ background: panelBackground(theme.gradient) }}>
       <div className={s.banner}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {bannerUrl ? <img src={bannerUrl} alt="" className={s.bannerImg} /> : null}
+        {banner ? <img src={banner} alt="" className={s.bannerImg} /> : null}
         {bannerTools}
       </div>
       <div className={s.head}>{header}</div>
@@ -72,12 +73,13 @@ export function StorePanel({
                     className={s.tag}
                     aria-pressed={active}
                     onClick={() => setTag(t)}
-                    style={ts ? {
-                      background: active ? cardBackground(ts) : 'rgba(255,255,255,.85)',
-                      color: active ? ts.titleColor : '#1d1d1f',
-                      textShadow: active ? textEffects(ts.titleOutline, ts.titleShadow) : undefined,
-                      borderColor: ts.borderWidth ? ts.borderColor : '#1d1d1f',
-                      borderRadius: ts.rounded ? 10 : 0,
+                    type="button"
+                    style={ts && activeColors ? {
+                      background: active ? activeColors.background : 'rgba(255,255,255,.85)',
+                      color: active ? activeColors.color : '#1d1d1f',
+                      textShadow: active && activeColors.keepTextEffects ? textEffects(ts.titleOutline, ts.titleShadow) : undefined,
+                      borderColor: ts.borderWidth ? safeColor(ts.borderColor, '#1d1d1f') : '#1d1d1f',
+                      borderRadius: ts.rounded !== false ? 10 : 0,
                     } : undefined}
                   >
                     {t ?? 'Tout'}

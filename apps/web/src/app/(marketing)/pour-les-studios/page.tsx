@@ -1,17 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { DEFAULT_PLATFORM_FEE_BPS, STORE_FEE_BPS, feeCents, formatMoney } from '@wolleen/core';
+import { DEFAULT_PLATFORM_FEE_BPS, REDUCED_STORE_FEE_BPS, STORE_FEE_BPS, STORE_FEE_OPTIONS_BPS, feeCents, formatMoney } from '@wolleen/core';
 import { EditorPreview } from '@/components/marketing/EditorPreview';
 import { Faq, type FaqEntry } from '@/components/marketing/Faq';
 import { SavingsCalculator } from '@/components/marketing/SavingsCalculator';
 import { bpsToPercentLabel, keptPercentLabel } from '@/components/marketing/savings';
 
 const KEPT_WOLLEEN = keptPercentLabel(DEFAULT_PLATFORM_FEE_BPS);
-const KEPT_STORES = keptPercentLabel(STORE_FEE_BPS);
+/** « 70 à 85 % » : ce que gardent les studios via les stores, du taux standard (30 %) au taux réduit (15 %). */
+const KEPT_STORES = `${keptPercentLabel(STORE_FEE_BPS).replace(/\s*%$/, '')} à ${keptPercentLabel(REDUCED_STORE_FEE_BPS)}`;
+const STORE_RANGE = `${bpsToPercentLabel(REDUCED_STORE_FEE_BPS).replace(/\s*%$/, '')} à ${bpsToPercentLabel(STORE_FEE_BPS)}`;
 
 export const metadata: Metadata = {
   title: 'Wolleen pour les studios — gardez ~95 % de vos ventes in-app',
-  description: `Vendez vos objets in-app sur le web : gardez environ ${KEPT_WOLLEEN} du revenu au lieu de ${KEPT_STORES}, livraison automatique dans le jeu par webhook signé ou SDK.`,
+  description: `Vendez vos objets in-app sur le web : gardez environ ${KEPT_WOLLEEN} du revenu au lieu de ${KEPT_STORES} via les stores, livraison automatique dans le jeu par webhook signé ou SDK.`,
 };
 
 const SIGNUP_HREF = '/studio/signup';
@@ -80,8 +82,9 @@ const FAQ: FaqEntry[] = [
     answer: (
       <p>
         Aucun abonnement ni frais d’installation : Wolleen prélève une commission de {bpsToPercentLabel(DEFAULT_PLATFORM_FEE_BPS)} sur
-        chaque vente, contre {bpsToPercentLabel(STORE_FEE_BPS)} au taux standard des stores. Vous gardez donc environ {KEPT_WOLLEEN} du
-        prix payé par le joueur (hors taxes applicables).
+        chaque vente, contre {STORE_RANGE} sur les stores selon votre programme ({bpsToPercentLabel(REDUCED_STORE_FEE_BPS)} pour
+        les petits studios et les abonnements après un an, {bpsToPercentLabel(STORE_FEE_BPS)} au taux standard). Vous gardez donc
+        environ {KEPT_WOLLEEN} du prix payé par le joueur (hors taxes applicables).
       </p>
     ),
   },
@@ -126,7 +129,7 @@ const FAQ: FaqEntry[] = [
 function SectionTitle({ id, kicker, title, intro }: { id: string; kicker: string; title: string; intro?: string }) {
   return (
     <div className="mx-auto mb-10 max-w-2xl text-center">
-      <p className="text-sm font-semibold uppercase tracking-wider text-primary">{kicker}</p>
+      <p className="text-sm font-semibold uppercase tracking-wider text-[color-mix(in_srgb,var(--primary)_55%,black)]">{kicker}</p>
       <h2 id={id} className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
         {title}
       </h2>
@@ -168,19 +171,24 @@ export default function StudiosPage() {
               Sur une vente de {formatMoney(SAMPLE_CENTS)}, vous recevez
             </p>
             <dl className="mt-5 space-y-5">
-              <div>
-                <div className="flex items-baseline justify-between">
-                  <dt className="text-ink-2">Via les stores ({bpsToPercentLabel(STORE_FEE_BPS)})</dt>
-                  <dd className="text-xl font-bold tabular-nums">{formatMoney(SAMPLE_CENTS - feeCents(SAMPLE_CENTS, STORE_FEE_BPS))}</dd>
+              {[...STORE_FEE_OPTIONS_BPS].reverse().map((bps) => (
+                <div key={bps}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-ink-2">
+                      Via les stores ({bpsToPercentLabel(bps)}
+                      <span className="text-sm">{bps === REDUCED_STORE_FEE_BPS ? ', taux réduit' : ', taux standard'}</span>)
+                    </dt>
+                    <dd className="text-xl font-bold tabular-nums">{formatMoney(SAMPLE_CENTS - feeCents(SAMPLE_CENTS, bps))}</dd>
+                  </div>
+                  <div className="mt-2 h-3 overflow-hidden rounded-full bg-line" aria-hidden="true">
+                    <div className="h-full rounded-full bg-ink-3" style={{ width: `${(10_000 - bps) / 100}%` }} />
+                  </div>
                 </div>
-                <div className="mt-2 h-3 overflow-hidden rounded-full bg-line" aria-hidden="true">
-                  <div className="h-full rounded-full bg-ink-3" style={{ width: `${(10_000 - STORE_FEE_BPS) / 100}%` }} />
-                </div>
-              </div>
+              ))}
               <div>
-                <div className="flex items-baseline justify-between">
+                <div className="flex items-baseline justify-between gap-3">
                   <dt className="text-ink-2">Via Wolleen ({bpsToPercentLabel(DEFAULT_PLATFORM_FEE_BPS)})</dt>
-                  <dd className="text-xl font-bold text-ok tabular-nums">
+                  <dd className="text-xl font-bold text-[color-mix(in_srgb,var(--ok)_75%,black)] tabular-nums">
                     {formatMoney(SAMPLE_CENTS - feeCents(SAMPLE_CENTS, DEFAULT_PLATFORM_FEE_BPS))}
                   </dd>
                 </div>
@@ -189,7 +197,11 @@ export default function StudiosPage() {
                 </div>
               </div>
             </dl>
-            <p className="mt-5 text-xs text-ink-3">Taux standard des stores, hors taxes. Certains programmes appliquent un taux réduit.</p>
+            <p className="mt-5 text-xs text-ink-2">
+              Hors taxes. Apple et Google appliquent {bpsToPercentLabel(REDUCED_STORE_FEE_BPS)} aux petits studios (moins de 1 M$ de
+              revenus annuels) et aux abonnements après un an, {bpsToPercentLabel(STORE_FEE_BPS)} sinon ; d’autres taux existent selon
+              la région.
+            </p>
           </div>
         </div>
       </section>
@@ -222,7 +234,7 @@ export default function StudiosPage() {
             title="Combien gagneriez-vous en plus ?"
             intro="Indiquez votre revenu mensuel d'achats in-app et la part de ventes que vous pensez faire passer sur le web."
           />
-          <SavingsCalculator storeFeeBps={STORE_FEE_BPS} platformFeeBps={DEFAULT_PLATFORM_FEE_BPS} />
+          <SavingsCalculator storeFeeOptions={STORE_FEE_OPTIONS_BPS} defaultStoreFeeBps={STORE_FEE_BPS} platformFeeBps={DEFAULT_PLATFORM_FEE_BPS} />
         </div>
       </section>
 

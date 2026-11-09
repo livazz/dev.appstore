@@ -5,6 +5,7 @@ import { formatMoney, ITEM_TYPES, PERIODS, type Currency } from '@wolleen/core';
 import { StorePanel, type PanelItem } from '@/components/store/StorePanel';
 import { BuyButton } from '@/components/checkout/BuyButton';
 import type { PublicGame, PublicItem } from '@/server/catalog';
+import { safeImageUrl } from '@/components/store/style-safety';
 import { GameIcon } from './GameCard';
 
 type StoreGame = Omit<PublicGame, 'items'>;
@@ -88,7 +89,10 @@ function priceLabel(item: PublicItem, currency: Currency) {
 function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visual, setVisual] = useState(0);
-  const models = item.models.filter((m) => m.imageUrl);
+  const models = item.models.flatMap((m) => {
+    const imageUrl = safeImageUrl(m.imageUrl);
+    return imageUrl ? [{ ...m, imageUrl }] : [];
+  });
   const typeLabel = ITEM_TYPES.find((t) => t.value === item.type)?.label ?? item.type;
   const hasOld = item.oldPriceCents != null && item.oldPriceCents > item.priceCents;
   const pct = hasOld ? Math.floor(((item.oldPriceCents! - item.priceCents) * 100) / item.oldPriceCents!) : 0;
@@ -97,7 +101,22 @@ function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     ref.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onClose();
+      if (e.key !== 'Tab' || !ref.current) return;
+      // Piège de focus : le Tab reste dans le panneau de détail (dialogue modal).
+      const focusables = [...ref.current.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input,select,textarea,[tabindex]:not([tabindex="-1"])')];
+      if (!focusables.length) return;
+      const firstEl = focusables[0]!;
+      const lastEl = focusables[focusables.length - 1]!;
+      if (e.shiftKey && (document.activeElement === firstEl || document.activeElement === ref.current)) {
+        e.preventDefault();
+        lastEl.focus();
+      } else if (!e.shiftKey && document.activeElement === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
+    };
     document.addEventListener('keydown', onKey);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -122,12 +141,12 @@ function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem
         className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[18px] bg-surface shadow-2xl outline-none sm:max-h-none sm:w-[420px] sm:rounded-none"
       >
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <span className="truncate text-sm text-ink-3">{game.name}</span>
+          <span className="truncate text-sm text-ink-2">{game.name}</span>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fermer le détail"
-            className="grid size-8 place-items-center rounded-full text-ink-2 hover:bg-bg"
+            className="-my-1 grid size-11 flex-none place-items-center rounded-full text-ink-2 hover:bg-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="m5 5 10 10M15 5 5 15" />
@@ -154,7 +173,7 @@ function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem
                   aria-selected={i === visual}
                   aria-label={m.label || `Visuel ${i + 1}`}
                   onClick={() => setVisual(i)}
-                  className={`size-14 flex-none rounded-lg border-2 bg-bg p-1 ${i === visual ? 'border-primary' : 'border-transparent'}`}
+                  className={`size-14 flex-none rounded-lg border-2 bg-bg p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${i === visual ? 'border-ink' : 'border-transparent'}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={m.imageUrl} alt="" className="size-full object-contain" />
@@ -172,31 +191,31 @@ function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem
             <span className="text-2xl font-bold">{priceLabel(item, game.currency)}</span>
             {hasOld && (
               <>
-                <span className="text-ink-3 line-through">{formatMoney(item.oldPriceCents!, game.currency)}</span>
-                <span className="rounded-full bg-ok/10 px-2 py-0.5 text-xs font-bold text-ok">−{pct} %</span>
+                <span className="text-ink-2 line-through">{formatMoney(item.oldPriceCents!, game.currency)}</span>
+                <span className="rounded-full bg-ok/10 px-2 py-0.5 text-xs font-bold text-[color-mix(in_srgb,var(--ok)_60%,black)]">−{pct} %</span>
               </>
             )}
           </div>
 
           <dl className="mt-5 divide-y divide-line rounded-[var(--radius)] border border-line text-sm">
             <div className="flex justify-between gap-4 px-3 py-2">
-              <dt className="text-ink-3">Type</dt>
+              <dt className="text-ink-2">Type</dt>
               <dd className="text-right font-medium">{typeLabel}</dd>
             </div>
             {(item.type === 'auto_renewable' || item.type === 'non_renewing') && period && (
               <div className="flex justify-between gap-4 px-3 py-2">
-                <dt className="text-ink-3">Durée</dt>
+                <dt className="text-ink-2">Durée</dt>
                 <dd className="text-right font-medium">{period}</dd>
               </div>
             )}
             {item.quantity > 1 && (
               <div className="flex justify-between gap-4 px-3 py-2">
-                <dt className="text-ink-3">Quantité</dt>
+                <dt className="text-ink-2">Quantité</dt>
                 <dd className="text-right font-medium">{item.quantity.toLocaleString('fr-FR')}</dd>
               </div>
             )}
             <div className="flex justify-between gap-4 px-3 py-2">
-              <dt className="text-ink-3">Livraison</dt>
+              <dt className="text-ink-2">Livraison</dt>
               <dd className="text-right font-medium">Automatique dans le jeu</dd>
             </div>
           </dl>
@@ -206,7 +225,7 @@ function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem
           <button
             type="button"
             onClick={onClose}
-            className="h-11 flex-none rounded-[var(--radius)] bg-cancel px-5 font-semibold text-white hover:opacity-90"
+            className="h-11 flex-none rounded-[var(--radius)] bg-cancel px-5 font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             Annuler
           </button>

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 const navLink =
-  'rounded px-2 py-1 text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary';
+  'inline-flex min-h-11 items-center rounded px-2 text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary';
 
 /** Mise en page des pages marketing (studios…) : en-tête léger et pied de page. */
 export default function MarketingLayout({ children }: { children: ReactNode }) {
@@ -16,7 +16,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
       </a>
       <header className="sticky top-0 z-40 border-b border-line bg-surface/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 rounded font-bold focus-visible:outline-2 focus-visible:outline-primary" aria-label="Wolleen, retour au catalogue">
+          <Link href="/" className="flex min-h-11 min-w-11 items-center gap-2 rounded font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label="Wolleen, retour au catalogue">
             <span aria-hidden="true" className="grid size-9 place-items-center rounded-full bg-brand text-lg font-black text-ink">
               W
             </span>
@@ -31,7 +31,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
             </Link>
             <Link
               href="/studio/signup"
-              className="rounded-[var(--radius)] bg-primary px-3 py-2 font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="inline-flex min-h-11 items-center rounded-[var(--radius)] bg-primary px-3 font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Espace studio
             </Link>
@@ -42,12 +42,12 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <footer className="border-t border-line bg-surface">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-ink-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-ink-2 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>© {new Date().getFullYear()} Wolleen — achats in-app sur le web.</p>
-          <nav aria-label="Liens de pied de page" className="flex flex-wrap gap-x-4 gap-y-2">
-            <Link href="/" className="hover:text-ink">Catalogue</Link>
-            <Link href="/pour-les-studios" className="hover:text-ink">Pour les studios</Link>
-            <Link href="/studio/signup" className="hover:text-ink">Créer un espace studio</Link>
+          <nav aria-label="Liens de pied de page" className="flex flex-wrap gap-x-4">
+            <Link href="/" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Catalogue</Link>
+            <Link href="/pour-les-studios" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Pour les studios</Link>
+            <Link href="/studio/signup" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Créer un espace studio</Link>
           </nav>
         </div>
       </footer>
