@@ -97,7 +97,9 @@ export async function guardApi(
 }
 
 /**
- * Réserve une place de flux SSE pour (jeu, joueur) et pour la clé. Renvoie la libération (idempotente) ou une
+ * Réserve une place de flux SSE pour (jeu, joueur) et pour la clé. Plafonds PAR INSTANCE (un flux vit dans un
+ * processus ; un compteur partagé exigerait des baux renouvelés) : avec N instances, au plus N × STREAM_LIMITS.
+ * Le débit d'ouverture des flux, lui, est partagé quand RATE_LIMIT_STORE=postgres (limite `stream` de guardApi). Renvoie la libération (idempotente) ou une
  * réponse 429 `too_many_streams`.
  */
 export function acquireStreamSlot(
