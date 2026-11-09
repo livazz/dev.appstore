@@ -1,0 +1,12 @@
+# Revue de sécurité 2026-11 (C-10) : mises à jour des actions épinglées par SHA et des dépendances npm.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
