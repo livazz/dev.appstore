@@ -24,6 +24,10 @@ namespace Wolleen
         public string currency;
         public string created_at;
 
+        /// <summary>
+        /// Remboursement de la commande <c>order_id</c> : retirez l'objet si cette commande avait été créditée, sinon ignorez-le.
+        /// Mêmes product_id / quantity que l'achat ; delivery_id propre (à acquitter aussi).
+        /// </summary>
         public bool IsRefund => @event == "purchase.refunded";
     }
 
@@ -34,6 +38,20 @@ namespace Wolleen
         public string code;
         /// <summary>Date d'expiration ISO 8601.</summary>
         public string expires_at;
+        /// <summary>Demande de liaison interrogée par le client pour obtenir le jeton joueur après la saisie du code.</summary>
+        public string link_request_id;
+    }
+
+    /// <summary>Réponse de GET /api/v1/link-requests/{id}.</summary>
+    [Serializable]
+    public class LinkRequestStatus
+    {
+        /// <summary>« pending », « linked », « expired » ou « claimed ».</summary>
+        public string status;
+        public string player_id;
+        public string expires_at;
+        /// <summary>Jeton joueur (wk_pt_…), présent une seule fois, au premier appel après la saisie du code.</summary>
+        public string player_token;
     }
 
     [Serializable]

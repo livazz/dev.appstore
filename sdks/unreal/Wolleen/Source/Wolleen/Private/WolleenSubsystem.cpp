@@ -21,7 +21,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogWolleen, Log, All);
 
 namespace WolleenSDK
 {
-	static const TCHAR* Version = TEXT("0.1.0");
+	static const TCHAR* Version = TEXT("0.2.0");
+	static const TCHAR* PlayerTokenHeader = TEXT("Wolleen-Player-Token");
+	static constexpr float LinkPollSeconds = 3.f;
 	static const TCHAR* SaveSlot = TEXT("WolleenSDK");
 	static constexpr int32 SaveUserIndex = 0;
 	static constexpr double MinPollGapSeconds = 5.0;
@@ -56,9 +58,13 @@ void UWolleenSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	const UWolleenSettings* Settings = GetDefault<UWolleenSettings>();
 	BaseUrl = Settings->BaseUrl;
-	ApiKey = Settings->ApiKey;
+	PublishableKey = Settings->PublishableKey.IsEmpty() ? Settings->ApiKey : Settings->PublishableKey; // ApiKey : réglage 0.1 déprécié
 	PollIntervalSeconds = Settings->PollIntervalSeconds;
 	bPollOnFocus = Settings->bPollOnFocus;
+	if (!PublishableKey.IsEmpty() && !PublishableKey.StartsWith(TEXT("wk_pub_")))
+	{
+		UE_LOG(LogWolleen, Error, TEXT("La clé configurée n'est pas une clé publique (wk_pub_…). Une clé secrète embarquée dans le jeu peut être extraite et donne accès aux achats de tous les joueurs : utilisez la clé publique."));
+	}
 
 	LoadState();
 	ApplyPollInterval();
@@ -81,6 +87,7 @@ void UWolleenSubsystem::Deinitialize()
 	if (UGameInstance* GI = GetGameInstance())
 	{
 		GI->GetTimerManager().ClearTimer(PollTimer);
+		GI->GetTimerManager().ClearTimer(LinkTimer);
 	}
 	Super::Deinitialize();
 }
@@ -89,9 +96,9 @@ void UWolleenSubsystem::Deinitialize()
 // API publique
 // ---------------------------------------------------------------------------
 
-void UWolleenSubsystem::Configure(const FString& InApiKey, const FString& InBaseUrl, float InPollIntervalSeconds)
+void UWolleenSubsystem::Configure(const FString& InPublishableKey, const FString& InBaseUrl, float InPollIntervalSeconds)
 {
-	ApiKey = InApiKey;
+	PublishableKey = InPublishableKey;
 	if (!InBaseUrl.IsEmpty())
 	{
 		BaseUrl = InBaseUrl;
@@ -111,15 +118,21 @@ void UWolleenSubsystem::SetPlayerId(const FString& InPlayerId)
 	}
 	PlayerId = InPlayerId;
 	Emitted.Reset();
+	CancelLinkWait();
 	if (!PlayerId.IsEmpty())
 	{
-		ForcePoll(); // polling « au lancement » : dès que le joueur est connu
+		ForcePoll(); // polling « au lancement » : dès que le joueur est connu (et lié)
 	}
+}
+
+bool UWolleenSubsystem::IsLinked() const
+{
+	return !GetPlayerTokenFor(PlayerId).IsEmpty();
 }
 
 void UWolleenSubsystem::Poll()
 {
-	if (ApiKey.IsEmpty() || PlayerId.IsEmpty())
+	if (PublishableKey.IsEmpty() || PlayerId.IsEmpty() || !IsLinked())
 	{
 		return;
 	}
@@ -142,6 +155,7 @@ void UWolleenSubsystem::Poll()
 	SendRequest(TEXT("GET"),
 		FString::Printf(TEXT("/api/v1/deliveries?player_id=%s"), *FGenericPlatformHttp::UrlEncode(RequestedFor)),
 		FString(),
+		true,
 		[this, RequestedFor](const FWolleenHttpResult& Result)
 		{
 			bPolling = false;
@@ -187,21 +201,159 @@ void UWolleenSubsystem::RequestLinkCode(const FString& PlayerName)
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&BodyString);
 	FJsonSerializer::Serialize(Body, Writer);
 
-	SendRequest(TEXT("POST"), TEXT("/api/v1/link-codes"), BodyString,
-		[this](const FWolleenHttpResult& Result)
+	const FString ForPlayer = PlayerId;
+	SendRequest(TEXT("POST"), TEXT("/api/v1/link-codes"), BodyString, false,
+		[this, ForPlayer](const FWolleenHttpResult& Result)
 		{
 			FString Code;
 			FString ExpiresAt;
+			FString RequestId;
 			if (Result.bOk && Result.Json.IsValid() && Result.Json->TryGetStringField(TEXT("code"), Code))
 			{
 				Result.Json->TryGetStringField(TEXT("expires_at"), ExpiresAt);
+				Result.Json->TryGetStringField(TEXT("link_request_id"), RequestId);
 				OnLinkCode.Broadcast(Code, ExpiresAt);
+				if (!RequestId.IsEmpty())
+				{
+					// Attente de la saisie du code : interrogation de la demande de liaison jusqu'à son expiration (+ 30 s).
+					StopLinkPoll();
+					LinkRequestId = RequestId;
+					LinkForPlayer = ForPlayer;
+					FDateTime Expires;
+					const double Remaining = FDateTime::ParseIso8601(*ExpiresAt, Expires)
+						? FMath::Max(0.0, (Expires - FDateTime::UtcNow()).GetTotalSeconds())
+						: 600.0;
+					LinkDeadline = FPlatformTime::Seconds() + Remaining + 30.0;
+					if (UGameInstance* GI = GetGameInstance())
+					{
+						GI->GetTimerManager().SetTimer(LinkTimer, this, &UWolleenSubsystem::PollLinkRequest, WolleenSDK::LinkPollSeconds, /*bLoop*/ true);
+					}
+				}
 			}
 			else
 			{
 				ReportFailure(TEXT("link-codes"), Result);
 			}
 		});
+}
+
+void UWolleenSubsystem::CancelLinkWait()
+{
+	StopLinkPoll();
+}
+
+void UWolleenSubsystem::StopLinkPoll()
+{
+	LinkRequestId.Reset();
+	LinkForPlayer.Reset();
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		GI->GetTimerManager().ClearTimer(LinkTimer);
+	}
+}
+
+void UWolleenSubsystem::PollLinkRequest()
+{
+	if (LinkRequestId.IsEmpty())
+	{
+		StopLinkPoll();
+		return;
+	}
+	if (FPlatformTime::Seconds() > LinkDeadline)
+	{
+		StopLinkPoll();
+		OnRequestFailed.Broadcast(TEXT("link-requests"), 0, TEXT("link_timeout"), TEXT("Le code n'a pas été saisi à temps : demandez-en un nouveau."));
+		return;
+	}
+	if (bLinkPollInFlight)
+	{
+		return;
+	}
+	bLinkPollInFlight = true;
+	const FString RequestId = LinkRequestId;
+	SendRequest(TEXT("GET"),
+		FString::Printf(TEXT("/api/v1/link-requests/%s"), *FGenericPlatformHttp::UrlEncode(RequestId)),
+		FString(),
+		false,
+		[this, RequestId](const FWolleenHttpResult& Result)
+		{
+			bLinkPollInFlight = false;
+			if (RequestId != LinkRequestId)
+			{
+				return; // attente annulée ou remplacée par un nouveau code
+			}
+			if (!Result.bOk)
+			{
+				if (Result.Status == 401 || Result.Status == 404)
+				{
+					StopLinkPoll();
+					ReportFailure(TEXT("link-requests"), Result);
+				}
+				return; // réseau : nouvelle tentative au prochain tick
+			}
+			FString Status;
+			if (!Result.Json.IsValid() || !Result.Json->TryGetStringField(TEXT("status"), Status) || Status == TEXT("pending"))
+			{
+				return;
+			}
+			FString ForPlayer = LinkForPlayer;
+			Result.Json->TryGetStringField(TEXT("player_id"), ForPlayer);
+			FString Token;
+			if (Status == TEXT("linked") && Result.Json->TryGetStringField(TEXT("player_token"), Token) && !Token.IsEmpty())
+			{
+				StopLinkPoll();
+				State->PlayerTokens.Add(ForPlayer, Token);
+				SaveState();
+				OnLinked.Broadcast(ForPlayer);
+				if (ForPlayer == PlayerId)
+				{
+					ForcePoll();
+				}
+				return;
+			}
+			StopLinkPoll();
+			const bool bExpired = Status == TEXT("expired");
+			OnRequestFailed.Broadcast(TEXT("link-requests"), 0,
+				FString(bExpired ? TEXT("link_expired") : TEXT("link_already_claimed")),
+				FString(bExpired ? TEXT("Code expiré : demandez-en un nouveau.") : TEXT("Jeton déjà délivré pour ce code : demandez un nouveau code.")));
+		});
+}
+
+void UWolleenSubsystem::Unlink()
+{
+	if (!IsLinked())
+	{
+		return;
+	}
+	const FString ForPlayer = PlayerId;
+	SendRequest(TEXT("DELETE"), TEXT("/api/v1/player-tokens"), FString(), true,
+		[this, ForPlayer](const FWolleenHttpResult& Result)
+		{
+			if (!Result.bOk)
+			{
+				ReportFailure(TEXT("player-tokens"), Result);
+			}
+			ClearToken(ForPlayer);
+		});
+}
+
+FString UWolleenSubsystem::GetPlayerTokenFor(const FString& ForPlayer) const
+{
+	const FString* Token = State ? State->PlayerTokens.Find(ForPlayer) : nullptr;
+	return Token ? *Token : FString();
+}
+
+void UWolleenSubsystem::ClearToken(const FString& ForPlayer)
+{
+	if (!State || State->PlayerTokens.Remove(ForPlayer) == 0)
+	{
+		return;
+	}
+	SaveState();
+	if (ForPlayer == PlayerId)
+	{
+		OnUnlinked.Broadcast();
+	}
 }
 
 int32 UWolleenSubsystem::GetPendingAckCount() const
@@ -268,7 +420,7 @@ void UWolleenSubsystem::HandleEvent(const FWolleenPurchase& Purchase)
 
 void UWolleenSubsystem::SendAck(const FString& DeliveryId)
 {
-	if (AcksInFlight.Contains(DeliveryId))
+	if (AcksInFlight.Contains(DeliveryId) || !IsLinked())
 	{
 		return;
 	}
@@ -277,6 +429,7 @@ void UWolleenSubsystem::SendAck(const FString& DeliveryId)
 	SendRequest(TEXT("POST"),
 		FString::Printf(TEXT("/api/v1/deliveries/%s/ack"), *FGenericPlatformHttp::UrlEncode(DeliveryId)),
 		FString(),
+		true,
 		[this, DeliveryId](const FWolleenHttpResult& Result)
 		{
 			AcksInFlight.Remove(DeliveryId);
@@ -315,8 +468,24 @@ void UWolleenSubsystem::FlushPendingAcks()
 // HTTP
 // ---------------------------------------------------------------------------
 
-void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, const FString& Body, TFunction<void(const FWolleenHttpResult&)>&& OnDone)
+void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, const FString& Body, bool bWithToken, TFunction<void(const FWolleenHttpResult&)>&& OnDone)
 {
+	const FString ForPlayer = PlayerId;
+	const FString Token = bWithToken ? GetPlayerTokenFor(ForPlayer) : FString();
+	if (bWithToken && Token.IsEmpty())
+	{
+		// Pas de jeton joueur : inutile d'appeler l'API (la clé publique seule ne donne pas accès aux achats).
+		FWolleenHttpResult Missing;
+		Missing.Status = 401;
+		Missing.Json = MakeShared<FJsonObject>();
+		const TSharedRef<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
+		ErrorObj->SetStringField(TEXT("code"), TEXT("player_token_required"));
+		ErrorObj->SetStringField(TEXT("message"), TEXT("Compte joueur non lié sur cet appareil : appelez RequestLinkCode."));
+		Missing.Json->SetObjectField(TEXT("error"), ErrorObj);
+		OnDone(Missing);
+		return;
+	}
+
 	FString Url = BaseUrl;
 	Url.RemoveFromEnd(TEXT("/"));
 	Url += Path;
@@ -325,7 +494,12 @@ void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, co
 	Request->SetURL(Url);
 	Request->SetVerb(Verb);
 	Request->SetTimeout(WolleenSDK::RequestTimeoutSeconds);
-	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *ApiKey));
+	// La clé et le jeton voyagent en en-têtes, jamais dans l'URL.
+	Request->SetHeader(TEXT("Authorization"), FString::Printf(TEXT("Bearer %s"), *PublishableKey));
+	if (bWithToken)
+	{
+		Request->SetHeader(WolleenSDK::PlayerTokenHeader, Token);
+	}
 	Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
 	Request->SetHeader(TEXT("User-Agent"), FString::Printf(TEXT("wolleen-unreal/%s"), WolleenSDK::Version));
 	if (!Body.IsEmpty())
@@ -337,7 +511,7 @@ void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, co
 	// BindWeakLambda : le rappel est ignoré si le sous-système a été détruit entre-temps.
 	// Les rappels HTTP sont exécutés sur le game thread.
 	Request->OnProcessRequestComplete().BindWeakLambda(this,
-		[Callback = MoveTemp(OnDone)](FHttpRequestPtr /*Req*/, FHttpResponsePtr Response, bool bConnectedSuccessfully)
+		[this, Callback = MoveTemp(OnDone), bWithToken, ForPlayer, Token](FHttpRequestPtr /*Req*/, FHttpResponsePtr Response, bool bConnectedSuccessfully)
 		{
 			FWolleenHttpResult Result;
 			if (bConnectedSuccessfully && Response.IsValid())
@@ -359,6 +533,18 @@ void UWolleenSubsystem::SendRequest(const FString& Verb, const FString& Path, co
 			{
 				Result.Error = TEXT("Requête HTTP impossible (réseau, DNS ou délai dépassé).");
 			}
+			// Jeton révoqué ou invalide : on l'oublie (OnUnlinked), le jeu doit proposer de relier le compte.
+			if (bWithToken && Result.Status == 401 && Result.Json.IsValid())
+			{
+				const TSharedPtr<FJsonObject>* ErrorObj = nullptr;
+				FString ErrorCode;
+				if (Result.Json->TryGetObjectField(TEXT("error"), ErrorObj) && ErrorObj != nullptr && ErrorObj->IsValid()
+					&& (*ErrorObj)->TryGetStringField(TEXT("code"), ErrorCode) && ErrorCode == TEXT("player_token_required")
+					&& GetPlayerTokenFor(ForPlayer) == Token)
+				{
+					ClearToken(ForPlayer);
+				}
+			}
 			Callback(Result);
 		});
 
@@ -376,9 +562,9 @@ void UWolleenSubsystem::ReportFailure(const FString& Endpoint, const FWolleenHtt
 		(*Error)->TryGetStringField(TEXT("code"), Code);
 		(*Error)->TryGetStringField(TEXT("message"), Message);
 	}
-	if (Result.Status == 401)
+	if (Result.Status == 401 && Code == TEXT("unauthorized"))
 	{
-		UE_LOG(LogWolleen, Warning, TEXT("Clé API refusée (401) : vérifiez Paramètres du projet > Plugins > Wolleen."));
+		UE_LOG(LogWolleen, Warning, TEXT("Clé publique refusée (401) : vérifiez Paramètres du projet > Plugins > Wolleen."));
 	}
 	UE_LOG(LogWolleen, Verbose, TEXT("%s : %d %s %s"), *Endpoint, Result.Status, *Code, *Message);
 	OnRequestFailed.Broadcast(Endpoint, Result.Status, Code, Message);

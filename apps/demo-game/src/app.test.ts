@@ -94,11 +94,15 @@ describe('POST /wolleen/webhook', () => {
     };
     const p = '#9LQ2YVR';
     const start = store.get('crystal', p).inventory;
-    await send(event({ delivery_id: 'd1', player_id: p, product_id: 'starter_pack', quantity: 1 }));
-    await send(event({ delivery_id: 'd2', player_id: p, product_id: 'pass_royal_monthly', quantity: 1 }));
-    await send(event({ delivery_id: 'd3', player_id: p, product_id: 'gold_10000', quantity: 10000 }));
-    await send(event({ delivery_id: 'd4', player_id: p, event: 'purchase.refunded', product_id: 'gold_10000', quantity: 10000 }));
-    const r = await send(event({ delivery_id: 'd5', player_id: p, product_id: 'inconnu' }));
+    await send(event({ delivery_id: 'd1', order_id: 'o1', player_id: p, product_id: 'starter_pack', quantity: 1 }));
+    await send(event({ delivery_id: 'd2', order_id: 'o2', player_id: p, product_id: 'pass_royal_monthly', quantity: 1 }));
+    await send(event({ delivery_id: 'd3', order_id: 'o3', player_id: p, product_id: 'gold_10000', quantity: 10000 }));
+    await send(event({ delivery_id: 'd4', order_id: 'o3', player_id: p, event: 'purchase.refunded', product_id: 'gold_10000', quantity: 10000 }));
+    // Remboursement rejoué (même delivery_id) puis remboursement d'une commande jamais créditée : rien ne bouge.
+    await send(event({ delivery_id: 'd4', order_id: 'o3', player_id: p, event: 'purchase.refunded', product_id: 'gold_10000', quantity: 10000 }));
+    const ignored = await send(event({ delivery_id: 'd6', order_id: 'o_jamais', player_id: p, event: 'purchase.refunded', product_id: 'gems_6500', quantity: 6500 }));
+    expect(ignored).toEqual({ status: 200, body: { ok: true, duplicate: false } });
+    const r = await send(event({ delivery_id: 'd5', order_id: 'o5', player_id: p, product_id: 'inconnu' }));
     expect(r.status).toBe(200);
     const inv = store.get('crystal', p).inventory;
     expect(inv).toMatchObject({ gems: start.gems + 500, gold: start.gold + 5000, royalPass: 1, starterPack: 1 });
@@ -158,18 +162,23 @@ describe('API du jeu', () => {
     expect(await res.json()).toMatchObject({ code: 'K7QF-M2XA', echo: { player_id: '#2PP8QL9', player_name: 'Ali' } });
   });
 
-  it('relaie /proxy/api/v1/* vers Wolleen (mode SDK)', async () => {
-    const res = await fetch(`${base}/proxy/api/v1/deliveries?player_id=p1`, { headers: { authorization: 'Bearer wk_test_demo_pixel_farm' } });
-    expect(await res.json()).toEqual({ data: [], auth: 'Bearer wk_test_demo_pixel_farm' });
+  it('relaie /proxy/api/v1/* vers Wolleen (mode SDK), jeton joueur compris', async () => {
+    const res = await fetch(`${base}/proxy/api/v1/deliveries?player_id=p1`, {
+      headers: { authorization: 'Bearer wk_pub_demo_pixel_farm', 'wolleen-player-token': 'wk_pt_x' },
+    });
+    expect(await res.json()).toEqual({ data: [], auth: 'Bearer wk_pub_demo_pixel_farm' });
     expect(String(upstream.mock.calls[0]![0])).toBe('http://wolleen.test/api/v1/deliveries?player_id=p1');
+    expect((upstream.mock.calls[0]![1]?.headers as Record<string, string>)['wolleen-player-token']).toBe('wk_pt_x');
     expect((await fetch(`${base}/proxy/admin`)).status).toBe(404);
   });
 
   it('mode SDK de bout en bout : flux SSE relayé par le proxy, crédit puis ack', async () => {
     const enc = new TextEncoder();
     const farmEvent = event({ delivery_id: 'dlv_farm', game_id: 'gam_farm', product_id: 'seeds_50', quantity: 50 });
-    upstream.mockImplementation(async (input: RequestInfo | URL) => {
+    const tokens: (string | undefined)[] = [];
+    upstream.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      tokens.push((init?.headers as Record<string, string> | undefined)?.['wolleen-player-token']);
       if (url.includes('/deliveries/stream')) {
         const body = new ReadableStream<Uint8Array>({
           start(c) {
@@ -184,12 +193,15 @@ describe('API du jeu', () => {
       return new Response('nope', { status: 404 });
     });
     const { Wolleen } = await import('@wolleen/sdk');
-    const w = new Wolleen({ apiKey: config.games.farm.apiKey, baseUrl: `${base}/proxy` });
+    // Client du jeu : clé PUBLIQUE + jeton joueur obtenu lors de la liaison.
+    const w = new Wolleen({ publishableKey: config.games.farm.publishableKey, baseUrl: `${base}/proxy` });
+    w.setPlayerToken('#2PP8QL9', 'wk_pt_demo');
     const got: PurchaseEvent[] = [];
     const sub = w.onPurchase('#2PP8QL9', (e) => void got.push(e));
     try {
       await vi.waitFor(() => expect(upstream.mock.calls.some(([u]) => String(u).endsWith('/deliveries/dlv_farm/ack'))).toBe(true));
       expect(got).toEqual([farmEvent]);
+      expect(tokens.every((t) => t === 'wk_pt_demo')).toBe(true);
     } finally {
       sub.unsubscribe();
       upstream.mockImplementation(defaultUpstream);
@@ -206,11 +218,17 @@ describe('API du jeu', () => {
     expect((await fetch(`${base}/sdk/server.js`)).status).toBe(404);
   });
 
-  it('ne divulgue la clé API que pour le jeu en mode SDK', async () => {
+  it('ne transmet au navigateur que la clé publique du jeu en mode SDK, jamais de clé secrète', async () => {
     const cfg = await (await fetch(`${base}/api/config`)).json();
-    expect(cfg.games.farm.apiKey).toBe(config.games.farm.apiKey);
+    expect(cfg.games.farm.publishableKey).toBe(config.games.farm.publishableKey);
+    expect(cfg.games.farm.publishableKey.startsWith('wk_pub_')).toBe(true);
+    expect(cfg.games.farm.apiKey).toBeUndefined();
     expect(cfg.games.crystal.apiKey).toBeUndefined();
-    expect(JSON.stringify(cfg)).not.toContain('whsec_');
+    expect(cfg.games.crystal.publishableKey).toBeUndefined();
+    const raw = JSON.stringify(cfg);
+    expect(raw).not.toContain('whsec_');
+    expect(raw).not.toContain(config.games.farm.apiKey);
+    expect(raw).not.toContain(config.games.crystal.apiKey);
   });
 
   it('sert la page du jeu', async () => {

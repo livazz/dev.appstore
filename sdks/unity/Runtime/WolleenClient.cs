@@ -1,15 +1,22 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.Serialization;
 
 namespace Wolleen
 {
     /// <summary>
-    /// Client Wolleen pour Unity. Ajoutez-le à un GameObject persistant (ou utilisez <see cref="Create"/>),
+    /// Client Wolleen pour Unity (jeu SANS serveur). Ajoutez-le à un GameObject persistant (ou utilisez <see cref="Create"/>),
     /// abonnez-vous à <see cref="OnPurchase"/>, puis appelez <see cref="SetPlayer"/> une fois le joueur connecté.
+    ///
+    /// Clé PUBLIQUE uniquement (<c>wk_pub_…</c>, page Intégration) : elle n'est pas secrète. Les achats du joueur ne sont
+    /// accessibles qu'après la liaison : <see cref="RequestLinkCode(string, Action{LinkCode}, Action{WolleenError})"/> affiche
+    /// un code que le joueur saisit sur Wolleen ; le client reçoit alors un jeton joueur (mémorisé dans PlayerPrefs) qui
+    /// donne accès aux achats de CE joueur seulement. N'embarquez jamais la clé secrète (<c>wk_secret_…</c>) dans le jeu.
     ///
     /// Les achats en attente sont récupérés au lancement, toutes les <see cref="pollIntervalSeconds"/> secondes et
     /// à chaque retour au premier plan (OnApplicationFocus / OnApplicationPause). Chaque livraison n'est passée
@@ -19,16 +26,21 @@ namespace Wolleen
     [DisallowMultipleComponent]
     public class WolleenClient : MonoBehaviour
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
+        public const string PlayerTokenHeader = "Wolleen-Player-Token";
 
-        [Tooltip("Clé API du jeu (wk_…), page Intégration de l'espace studio Wolleen.")]
-        [SerializeField] private string apiKey = "";
+        [Tooltip("Clé PUBLIQUE du jeu (wk_pub_…), page Intégration de l'espace studio. Jamais la clé secrète.")]
+        [FormerlySerializedAs("apiKey")]
+        [SerializeField] private string publishableKey = "";
 
         [Tooltip("URL de Wolleen, ex. https://wolleen.com (http://localhost:3000 en développement).")]
         [SerializeField] private string baseUrl = "https://wolleen.com";
 
         [Tooltip("Intervalle d'interrogation des achats en attente, en secondes (minimum 5).")]
         [SerializeField] private float pollIntervalSeconds = 30f;
+
+        [Tooltip("Intervalle d'interrogation de la demande de liaison après l'affichage du code, en secondes (minimum 1).")]
+        [SerializeField] private float linkPollSeconds = 3f;
 
         [Tooltip("Accuser réception automatiquement après OnPurchase.")]
         [SerializeField] private bool autoAck = true;
@@ -41,15 +53,30 @@ namespace Wolleen
 
         private const int ProcessedKeep = 200;
 
-        /// <summary>Achat à créditer. Lever une exception empêche l'ack : l'achat sera proposé de nouveau.</summary>
+        /// <summary>
+        /// Achat (<c>purchase.completed</c>) ou remboursement (<c>purchase.refunded</c>, <see cref="PurchaseEvent.IsRefund"/>)
+        /// à appliquer. Remboursement : retirez l'objet si cet <c>order_id</c> avait été crédité, sinon ignorez-le.
+        /// Lever une exception empêche l'ack : l'événement sera proposé de nouveau.
+        /// </summary>
         public event Action<PurchaseEvent> OnPurchase;
 
-        /// <summary>Erreurs non fatales (réseau, clé refusée, ack échoué…).</summary>
+        /// <summary>Le joueur a saisi le code sur Wolleen : jeton joueur reçu (paramètre : player_id).</summary>
+        public event Action<string> OnLinked;
+
+        /// <summary>Le jeton joueur a été révoqué ou oublié (Unlink, révocation par le studio) : proposez de relier le compte.</summary>
+        public event Action OnUnlinked;
+
+        /// <summary>Erreurs non fatales (réseau, clé refusée, code expiré, ack échoué…).</summary>
         public event Action<WolleenError> OnError;
 
         public string PlayerId { get; private set; }
-        public string ApiKey => apiKey;
+        public string PublishableKey => publishableKey;
+        [Obsolete("Utilisez PublishableKey.")] public string ApiKey => publishableKey;
         public string BaseUrl => baseUrl.TrimEnd('/');
+        /// <summary>Jeton joueur de l'appareil pour le joueur courant (null si non lié).</summary>
+        public string PlayerToken { get; private set; }
+        /// <summary>Vrai si les achats du joueur courant sont accessibles (jeton joueur présent).</summary>
+        public bool IsLinked => !string.IsNullOrEmpty(PlayerToken);
 
         private readonly HashSet<string> _processed = new HashSet<string>();
         private readonly List<string> _processedOrder = new List<string>();
@@ -57,14 +84,15 @@ namespace Wolleen
         private bool _fetching;
         private bool _checkAgain;
         private Coroutine _pollLoop;
+        private Coroutine _linkWait;
 
-        /// <summary>Crée un GameObject « Wolleen » avec un client configuré par code.</summary>
-        public static WolleenClient Create(string apiKey, string baseUrl = "https://wolleen.com", float pollIntervalSeconds = 30f)
+        /// <summary>Crée un GameObject « Wolleen » avec un client configuré par code (clé publique wk_pub_…).</summary>
+        public static WolleenClient Create(string publishableKey, string baseUrl = "https://wolleen.com", float pollIntervalSeconds = 30f)
         {
             var go = new GameObject("Wolleen");
             go.SetActive(false); // configurer avant Awake/OnEnable
             var client = go.AddComponent<WolleenClient>();
-            client.apiKey = apiKey;
+            client.publishableKey = publishableKey;
             client.baseUrl = baseUrl;
             client.pollIntervalSeconds = pollIntervalSeconds;
             go.SetActive(true);
@@ -74,6 +102,11 @@ namespace Wolleen
         private void Awake()
         {
             if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
+            if (!string.IsNullOrEmpty(publishableKey) && !publishableKey.StartsWith("wk_pub_", StringComparison.Ordinal))
+            {
+                Debug.LogError("[Wolleen] La clé configurée n'est pas une clé publique (wk_pub_…). Une clé secrète embarquée dans le jeu " +
+                               "peut être extraite et donne accès aux achats de tous les joueurs : remplacez-la par la clé publique.");
+            }
         }
 
         private void OnEnable()
@@ -86,23 +119,25 @@ namespace Wolleen
             // Arrête l'interrogation et les requêtes en cours ; les acks perdus seront renvoyés au prochain rattrapage.
             StopAllCoroutines();
             _pollLoop = null;
+            _linkWait = null;
             _fetching = false;
             _checkAgain = false;
         }
 
-        /// <summary>Définit le joueur courant (ID du compte de jeu) et lance immédiatement un rattrapage.</summary>
+        /// <summary>Définit le joueur courant (ID du compte de jeu) et lance immédiatement un rattrapage s'il est lié.</summary>
         public void SetPlayer(string playerId)
         {
             if (PlayerId == playerId) { CheckNow(); return; }
             PlayerId = playerId;
             LoadProcessed();
+            PlayerToken = string.IsNullOrEmpty(playerId) ? null : NullIfEmpty(PlayerPrefs.GetString(TokenKey, ""));
             CheckNow();
         }
 
-        /// <summary>Interroge Wolleen tout de suite (ex. après un retour de la boutique web).</summary>
+        /// <summary>Interroge Wolleen tout de suite (ex. après un retour de la boutique web). Sans liaison, ne fait rien.</summary>
         public void CheckNow()
         {
-            if (string.IsNullOrEmpty(PlayerId) || !isActiveAndEnabled) return;
+            if (string.IsNullOrEmpty(PlayerId) || !IsLinked || !isActiveAndEnabled) return;
             if (_fetching) { _checkAgain = true; return; }
             StartCoroutine(FetchPending());
         }
@@ -127,9 +162,12 @@ namespace Wolleen
             }
         }
 
-        // ------------------------------------------------------------------ API
+        // ------------------------------------------------------------------ Liaison
 
-        /// <summary>Demande un code de liaison à afficher dans le jeu ; le joueur le saisit sur Wolleen.</summary>
+        /// <summary>
+        /// Demande un code de liaison pour le joueur courant, à afficher dans le jeu ; le joueur le saisit sur Wolleen.
+        /// Le client attend ensuite la saisie (<see cref="OnLinked"/>) et commence à recevoir les achats.
+        /// </summary>
         public void RequestLinkCode(string playerName, Action<LinkCode> onSuccess, Action<WolleenError> onError = null)
         {
             if (string.IsNullOrEmpty(PlayerId))
@@ -140,21 +178,89 @@ namespace Wolleen
             RequestLinkCode(PlayerId, playerName, onSuccess, onError);
         }
 
-        /// <summary>Demande un code de liaison pour un joueur donné.</summary>
+        /// <summary>Demande un code de liaison pour un joueur donné (qui devient le joueur courant).</summary>
         public void RequestLinkCode(string playerId, string playerName, Action<LinkCode> onSuccess, Action<WolleenError> onError = null)
         {
+            if (PlayerId != playerId) SetPlayer(playerId);
             string body = string.IsNullOrEmpty(playerName)
                 ? JsonUtility.ToJson(new LinkCodeRequestIdOnly { player_id = playerId })
                 : JsonUtility.ToJson(new LinkCodeRequest { player_id = playerId, player_name = playerName });
-            StartCoroutine(Send("POST", "/api/v1/link-codes", body,
-                text => onSuccess?.Invoke(JsonUtility.FromJson<LinkCode>(text)),
+            StartCoroutine(Send("POST", "/api/v1/link-codes", body, false,
+                text =>
+                {
+                    var link = JsonUtility.FromJson<LinkCode>(text);
+                    onSuccess?.Invoke(link);
+                    if (link != null && !string.IsNullOrEmpty(link.link_request_id))
+                    {
+                        if (_linkWait != null) StopCoroutine(_linkWait);
+                        _linkWait = StartCoroutine(WaitForLink(link, playerId));
+                    }
+                },
                 err => { onError?.Invoke(err); RaiseError(err); }));
         }
 
-        /// <summary>Confirme que la livraison a été créditée (statut « acknowledged »).</summary>
+        /// <summary>Arrête l'attente de la saisie du code (ex. le joueur ferme l'écran de liaison).</summary>
+        public void CancelLinkWait()
+        {
+            if (_linkWait != null) StopCoroutine(_linkWait);
+            _linkWait = null;
+        }
+
+        private IEnumerator WaitForLink(LinkCode link, string playerId)
+        {
+            float remaining = 11 * 60f;
+            if (DateTime.TryParse(link.expires_at, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var exp))
+            {
+                remaining = Mathf.Max(0f, (float)(exp - DateTime.UtcNow).TotalSeconds) + 30f;
+            }
+            float deadline = Time.realtimeSinceStartup + remaining;
+            float interval = Mathf.Max(1f, linkPollSeconds);
+            while (Time.realtimeSinceStartup < deadline)
+            {
+                yield return new WaitForSecondsRealtime(interval);
+                LinkRequestStatus status = null;
+                WolleenError failure = null;
+                yield return Send("GET", "/api/v1/link-requests/" + Uri.EscapeDataString(link.link_request_id), null, false,
+                    text => status = JsonUtility.FromJson<LinkRequestStatus>(text),
+                    err => failure = err);
+                if (failure != null)
+                {
+                    if (failure.Status == 404 || failure.Status == 401) { RaiseError(failure); break; }
+                    continue; // réseau : on réessaie
+                }
+                if (status == null || status.status == "pending") continue;
+                if (status.status == "linked" && !string.IsNullOrEmpty(status.player_token))
+                {
+                    StoreToken(string.IsNullOrEmpty(status.player_id) ? playerId : status.player_id, status.player_token);
+                    _linkWait = null;
+                    try { OnLinked?.Invoke(playerId); }
+                    catch (Exception ex) { Debug.LogException(ex); }
+                    CheckNow();
+                    yield break;
+                }
+                string code = status.status == "expired" ? "link_expired" : "link_already_claimed";
+                string message = status.status == "expired" ? "Code expiré : demandez-en un nouveau." : "Jeton déjà délivré pour ce code : demandez un nouveau code.";
+                RaiseError(new WolleenError { Status = 0, Code = code, Message = message });
+                break;
+            }
+            _linkWait = null;
+        }
+
+        /// <summary>Délie cet appareil : révoque le jeton joueur côté Wolleen puis l'oublie.</summary>
+        public void Unlink(Action onDone = null)
+        {
+            if (!IsLinked) { onDone?.Invoke(); return; }
+            StartCoroutine(Send("DELETE", "/api/v1/player-tokens", null, true,
+                _ => { ClearToken(); onDone?.Invoke(); },
+                err => { ClearToken(); RaiseError(err); onDone?.Invoke(); }));
+        }
+
+        // ------------------------------------------------------------------ Livraisons
+
+        /// <summary>Confirme que la livraison a été créditée, ou le remboursement appliqué (statut « acknowledged »).</summary>
         public void Ack(string deliveryId, Action onSuccess = null, Action<WolleenError> onError = null)
         {
-            StartCoroutine(Send("POST", "/api/v1/deliveries/" + Uri.EscapeDataString(deliveryId) + "/ack", "{}",
+            StartCoroutine(Send("POST", "/api/v1/deliveries/" + Uri.EscapeDataString(deliveryId) + "/ack", "{}", true,
                 _ => { _acked.Add(deliveryId); onSuccess?.Invoke(); },
                 err => { onError?.Invoke(err); RaiseError(err); }));
         }
@@ -164,7 +270,7 @@ namespace Wolleen
             _fetching = true;
             string player = PlayerId;
             PurchaseEvent[] events = null;
-            yield return Send("GET", "/api/v1/deliveries?player_id=" + Uri.EscapeDataString(player), null,
+            yield return Send("GET", "/api/v1/deliveries?player_id=" + Uri.EscapeDataString(player), null, true,
                 text =>
                 {
                     var res = JsonUtility.FromJson<DeliveriesResponse>(text);
@@ -210,8 +316,15 @@ namespace Wolleen
 
         // ---------------------------------------------------------------- HTTP
 
-        private IEnumerator Send(string method, string path, string jsonBody, Action<string> onSuccess, Action<WolleenError> onError)
+        /// <summary>Requête vers l'API. La clé et le jeton voyagent en en-têtes, jamais dans l'URL.</summary>
+        private IEnumerator Send(string method, string path, string jsonBody, bool withToken, Action<string> onSuccess, Action<WolleenError> onError)
         {
+            string token = PlayerToken;
+            if (withToken && string.IsNullOrEmpty(token))
+            {
+                onError?.Invoke(new WolleenError { Status = 401, Code = "player_token_required", Message = "Compte joueur non lié sur cet appareil : appelez RequestLinkCode." });
+                yield break;
+            }
             using (var req = new UnityWebRequest(BaseUrl + path, method))
             {
                 req.downloadHandler = new DownloadHandlerBuffer();
@@ -220,7 +333,8 @@ namespace Wolleen
                     req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(jsonBody));
                     req.SetRequestHeader("Content-Type", "application/json");
                 }
-                req.SetRequestHeader("Authorization", "Bearer " + apiKey);
+                req.SetRequestHeader("Authorization", "Bearer " + publishableKey);
+                if (withToken) req.SetRequestHeader(PlayerTokenHeader, token);
                 req.SetRequestHeader("Accept", "application/json");
                 req.timeout = timeoutSeconds;
                 yield return req.SendWebRequest();
@@ -247,6 +361,8 @@ namespace Wolleen
                     }
                     catch (ArgumentException) { /* corps non JSON */ }
                 }
+                // Jeton révoqué ou invalide : on l'oublie, le jeu doit proposer de relier le compte.
+                if (withToken && err.Code == "player_token_required" && token == PlayerToken) ClearToken();
                 onError?.Invoke(err);
             }
         }
@@ -258,9 +374,31 @@ namespace Wolleen
             if (OnError == null) Debug.LogWarning(err.ToString());
         }
 
-        // ------------------------------------------------- Dédoublonnage persistant
+        // ------------------------------------------------- Jeton joueur et dédoublonnage persistants
 
+        private string TokenKey => "wolleen.token." + PlayerId;
         private string PrefsKey => "wolleen.processed." + PlayerId;
+
+        private static string NullIfEmpty(string s) => string.IsNullOrEmpty(s) ? null : s;
+
+        private void StoreToken(string playerId, string token)
+        {
+            PlayerPrefs.SetString("wolleen.token." + playerId, token);
+            PlayerPrefs.Save();
+            if (playerId == PlayerId) PlayerToken = token;
+        }
+
+        private void ClearToken()
+        {
+            if (string.IsNullOrEmpty(PlayerId)) return;
+            bool wasLinked = IsLinked;
+            PlayerPrefs.DeleteKey(TokenKey);
+            PlayerPrefs.Save();
+            PlayerToken = null;
+            if (!wasLinked) return;
+            try { OnUnlinked?.Invoke(); }
+            catch (Exception ex) { Debug.LogException(ex); }
+        }
 
         private void LoadProcessed()
         {

@@ -3,6 +3,17 @@
 Remet automatiquement au jeu les achats faits sur la place de marché Wolleen.
 Plugin C++ runtime, modules moteur uniquement (HTTP, Json, Slate, DeveloperSettings). **UE 5.1 ou plus récent.**
 
+## Quelle clé ?
+
+Ce SDK est pour un jeu **sans serveur** : il utilise la clé **publique** du jeu (`wk_pub_…`, page *Intégration* de
+l'espace studio), qui n'est pas secrète. Seule, elle permet uniquement de demander un code de liaison ; quand le joueur
+a saisi le code sur Wolleen, le SDK reçoit un **jeton joueur** (sauvegardé dans le slot `WolleenSDK`) qui donne accès
+aux achats de **ce joueur**, et à rien d'autre.
+
+**N'embarquez jamais la clé secrète** (`wk_secret_…`) dans un build ni dans `DefaultGame.ini` : elle peut être extraite
+et donne accès aux achats de tous les joueurs. Si votre jeu a un serveur dédié, recevez les achats par **webhook signé**
+sur ce serveur et faites demander les codes de liaison par votre serveur, avec la clé secrète.
+
 ## Installation
 
 1. Copiez `Wolleen/` dans le dossier `Plugins/` de votre projet (`MonJeu/Plugins/Wolleen/Wolleen.uplugin`).
@@ -12,14 +23,15 @@ Plugin C++ runtime, modules moteur uniquement (HTTP, Json, Slate, DeveloperSetti
 | Réglage | Défaut | Rôle |
 |---|---|---|
 | `BaseUrl` | `https://wolleen.example` | URL de Wolleen (en dev : `http://localhost:3000`) |
-| `ApiKey` | — | Clé API du jeu (`wk_…`, page *Intégration* de l'espace studio) |
+| `PublishableKey` | — | Clé **publique** du jeu (`wk_pub_…`, page *Intégration*) |
+| `ApiKey` | — | Déprécié (0.1) : lu seulement si `PublishableKey` est vide |
 | `PollIntervalSeconds` | `60` | Intervalle de polling (0 = désactivé) |
 | `bPollOnFocus` | `true` | Interroger au retour au premier plan |
 
 ```ini
 [/Script/Wolleen.WolleenSettings]
 BaseUrl=http://localhost:3000
-ApiKey=wk_dev_xxx
+PublishableKey=wk_pub_demo_xxx
 PollIntervalSeconds=60
 bPollOnFocus=True
 ```
@@ -29,7 +41,13 @@ Pour utiliser le SDK depuis votre module C++, ajoutez `"Wolleen"` à `PublicDepe
 ## Fonctionnement
 
 - `UWolleenSubsystem` (`UGameInstanceSubsystem`) vit aussi longtemps que la `GameInstance`.
-- Polling de `GET /api/v1/deliveries?player_id=…` dès `SetPlayerId` (lancement), toutes les `PollIntervalSeconds`
+- **Liaison** (une fois par appareil) : `RequestLinkCode` → `POST /api/v1/link-codes` (code + `link_request_id`), puis
+  `GET /api/v1/link-requests/{id}` toutes les 3 s jusqu'à la saisie du code → jeton joueur sauvegardé, `OnLinked`.
+  Sans jeton (`IsLinked() == false`), aucun achat n'est récupéré.
+- Toutes les requêtes envoient `Authorization: Bearer <clé publique>` et, après la liaison,
+  `Wolleen-Player-Token: <jeton>` (jamais dans l'URL). Un jeton révoqué (`Unlink`, studio, serveur du jeu) est oublié et
+  `OnUnlinked` est diffusé : proposez de relier le compte.
+- Une fois lié : polling de `GET /api/v1/deliveries?player_id=…` dès `SetPlayerId` (lancement), toutes les `PollIntervalSeconds`
   (timer de la GameInstance), et au retour au premier plan (`FCoreDelegates::ApplicationHasEnteredForegroundDelegate`
   sur mobile, activation de la fenêtre Slate sur bureau).
 - `OnPurchase` / `OnRefund` sont diffusés **une seule fois par `DeliveryId`**.
@@ -101,12 +119,14 @@ void UMonGameInstance::HandleWolleenPurchase(const FWolleenPurchase& Purchase)
 
 void UMonGameInstance::HandleWolleenRefund(const FWolleenPurchase& Purchase)
 {
-	if (Purchase.ProductId == TEXT("gems_500"))
+	// Remboursement : même OrderId que l'achat. Ne retirer que si cette commande avait été créditée
+	// (ajoutez MaSauvegarde->CreditedOrders.Add(Purchase.OrderId) au moment du crédit).
+	if (MaSauvegarde->CreditedOrders.Remove(Purchase.OrderId) > 0 && Purchase.ProductId == TEXT("gems_500"))
 	{
 		MaSauvegarde->Gems = FMath::Max(0, MaSauvegarde->Gems - 500 * Purchase.Quantity);
 		UGameplayStatics::SaveGameToSlot(MaSauvegarde, TEXT("Main"), 0);
 	}
-	GetSubsystem<UWolleenSubsystem>()->Ack(Purchase.DeliveryId);
+	GetSubsystem<UWolleenSubsystem>()->Ack(Purchase.DeliveryId); // acquitter dans tous les cas
 }
 ```
 
@@ -114,10 +134,15 @@ void UMonGameInstance::HandleWolleenRefund(const FWolleenPurchase& Purchase)
 
 ```cpp
 Wolleen->OnLinkCode.AddDynamic(this, &UMonWidget::HandleLinkCode); // (const FString& Code, const FString& ExpiresAt)
+Wolleen->OnLinked.AddDynamic(this, &UMonWidget::HandleLinked);     // (const FString& LinkedPlayerId) : jeton reçu
+Wolleen->OnUnlinked.AddDynamic(this, &UMonWidget::HandleUnlinked); // jeton révoqué : proposer de relier le compte
 Wolleen->RequestLinkCode(TEXT("Pseudo du joueur"));
+// …
+Wolleen->Unlink(); // « Délier cet appareil »
 ```
 
-Le joueur saisit le code sur la page du jeu sur Wolleen (`/games/<slug>/link`).
+Le joueur saisit le code sur la page du jeu sur Wolleen (`/games/<slug>/link`) ; le SDK attend la saisie, reçoit le jeton
+joueur et commence à récupérer les achats.
 
 ## Blueprints
 
@@ -126,7 +151,8 @@ Le joueur saisit le code sur la page du jeu sur Wolleen (`/games/<slug>/link`).
    (*Break Wolleen Purchase* : `DeliveryId`, `ProductId`, `Quantity`, `AmountCents`…).
 3. Créditez, sauvegardez (*Save Game to Slot*), puis appelez **Ack** avec le `DeliveryId`.
 4. Après la connexion du joueur : **Set Player Id**.
-5. Liaison : **Bind Event to On Link Code**, puis **Request Link Code**.
+5. Liaison : **Bind Event to On Link Code** et **On Linked**, puis **Request Link Code** ; **Is Linked** indique si
+   l'appareil est lié, **Unlink** le délie.
 6. Erreurs : **On Request Failed** (`Endpoint`, `Status` — 0 si réseau —, `Code`, `Message`).
 
 ## Référence
@@ -137,19 +163,32 @@ Le joueur saisit le code sur la page du jeu sur Wolleen (`/games/<slug>/link`).
 | `OnRefund(FWolleenPurchase)` | Remboursement (`Event == "purchase.refunded"`) |
 | `OnAckCompleted(DeliveryId)` | Ack confirmé par le serveur |
 | `OnLinkCode(Code, ExpiresAt)` | Code de liaison obtenu |
+| `OnLinked(LinkedPlayerId)` | Jeton joueur reçu après la saisie du code |
+| `OnUnlinked()` | Jeton révoqué ou oublié |
 | `OnRequestFailed(Endpoint, Status, Code, Message)` | Erreur réseau ou API (`{ error: { code, message } }`) |
-| `SetPlayerId(Id)` | Joueur courant (ID dans votre jeu) ; lance un polling |
-| `Poll()` | Polling manuel (ignoré si < 5 s depuis le précédent) |
+| `SetPlayerId(Id)` | Joueur courant (ID dans votre jeu) ; lance un polling s'il est lié |
+| `IsLinked()` | Jeton joueur présent pour le joueur courant |
+| `Poll()` | Polling manuel (ignoré si < 5 s depuis le précédent, ou sans liaison) |
 | `Ack(DeliveryId)` | Accusé de réception, après crédit |
-| `RequestLinkCode(PlayerName)` | `POST /api/v1/link-codes` |
-| `Configure(ApiKey, BaseUrl, PollIntervalSeconds)` | Configuration à l'exécution |
+| `RequestLinkCode(PlayerName)` | `POST /api/v1/link-codes`, puis attente de la saisie |
+| `CancelLinkWait()` | Arrête l'attente de la saisie du code |
+| `Unlink()` | `DELETE /api/v1/player-tokens`, puis oubli du jeton |
+| `Configure(PublishableKey, BaseUrl, PollIntervalSeconds)` | Configuration à l'exécution |
 | `GetPendingAckCount()` | Acks en attente d'envoi (débogage) |
 
 `FWolleenPurchase` reprend `PurchaseEvent` : `Event`, `DeliveryId`, `OrderId`, `GameId`, `PlayerId`, `ProductId`,
 `ItemType`, `Quantity` (int32), `AmountCents` (int64, centimes), `Currency`, `CreatedAt`.
 
+**Remboursements** (`OnRefund`, `Event == "purchase.refunded"`) : même `OrderId`, `ProductId` et `Quantity` que l'achat,
+`DeliveryId` propre. Retirez l'objet si cette commande avait été créditée, sinon ignorez l'événement ; acquittez-le dans
+les deux cas. Un achat remboursé avant d'avoir été reçu n'est plus livré.
+
 ## Sécurité
 
-La clé API embarquée dans un client (et dans `DefaultGame.ini`) peut être extraite. Pour des objets de valeur ou un
-jeu en ligne, préférez la livraison par **webhook signé** vers votre serveur dédié (voir ARCHITECTURE.md) et gardez
-ce SDK pour les jeux hors ligne ou en complément.
+Tout ce qui est embarqué dans un client (dont `DefaultGame.ini`) peut être extrait : c'est pourquoi le SDK n'utilise que
+la clé **publique**, et le jeton joueur ne donne accès qu'aux achats du joueur lié (faits par le compte Wolleen qui a
+saisi le code). Le crédit reste décidé par le client : pour des objets de valeur ou un jeu en ligne, préférez la
+livraison par **webhook signé** vers votre serveur dédié (voir ARCHITECTURE.md).
+
+Migration depuis la 0.1 : renseignez `PublishableKey` (clé publique) à la place d'`ApiKey` ; après la mise à jour,
+chaque joueur doit lier son compte une fois depuis le jeu.

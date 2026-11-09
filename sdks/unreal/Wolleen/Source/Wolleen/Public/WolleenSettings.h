@@ -15,8 +15,16 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "API")
 	FString BaseUrl = TEXT("https://wolleen.example");
 
-	/** Clé API du jeu (wk_…), page Intégration de l'espace studio. */
+	/**
+	 * Clé PUBLIQUE du jeu (wk_pub_…), page Intégration de l'espace studio. Elle n'est pas secrète : seule, elle permet
+	 * de demander un code de liaison ; le jeton joueur obtenu après la saisie du code donne accès aux achats de ce joueur.
+	 * N'utilisez JAMAIS la clé secrète (wk_secret_…) dans le jeu.
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "API")
+	FString PublishableKey;
+
+	/** Déprécié (SDK 0.1) : lu seulement si PublishableKey est vide. Remplacez-le par la clé publique. */
+	UPROPERTY(Config, EditAnywhere, Category = "API", meta = (DisplayName = "Api Key (déprécié)"))
 	FString ApiKey;
 
 	/** Intervalle de polling en secondes (0 = désactivé). */

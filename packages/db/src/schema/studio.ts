@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, index } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import type { Currency, GameStatus, GameTheme, ItemModel, ItemStyle, ItemType, LayoutId, LinkMethod, Period, StudioRole } from '@wolleen/core';
 import { user } from './auth';
 
@@ -49,8 +49,20 @@ export const games = pgTable(
     apiKeyPrefix: text('api_key_prefix').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    /**
+     * Ajout « sec/delivery-keys » (D-05) — clé PUBLIQUE du jeu (`wk_pub_…`), non secrète, stockée en clair :
+     * embarquée dans le client du jeu (SDK sans serveur). Elle ne permet que de demander des codes de liaison et,
+     * avec un jeton joueur (`player_tokens`), de lire / acquitter les livraisons de CE joueur.
+     * La clé secrète (`apiKeyHash`, `wk_secret_…`) reste côté serveur du studio. Nulle tant qu'elle n'a pas été générée.
+     * Unicité par index (et non contrainte) : `drizzle-kit push` l'ajoute sans invite sur une table déjà remplie.
+     */
+    publishableKey: text('publishable_key'),
   },
-  (t) => [index('games_status_idx').on(t.status), index('games_studio_idx').on(t.studioId)],
+  (t) => [
+    index('games_status_idx').on(t.status),
+    index('games_studio_idx').on(t.studioId),
+    uniqueIndex('games_publishable_key_uq').on(t.publishableKey),
+  ],
 );
 
 export const items = pgTable(

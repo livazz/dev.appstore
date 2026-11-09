@@ -3,6 +3,9 @@
  * Import séparé (`@wolleen/sdk/server`) pour que le bundle navigateur n'embarque pas `node:crypto`.
  *
  * En-tête : `Wolleen-Signature: t=<unix>,v1=<hex>` où v1 = HMAC-SHA256(secret, `${t}.${corps brut}`).
+ *
+ * Événements reçus : `purchase.completed` (créditer) et `purchase.refunded` (révoquer l'achat `order_id` s'il avait été
+ * crédité, sinon ignorer). Idempotence obligatoire sur `delivery_id` (un même événement peut être renvoyé).
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { PurchaseEvent } from './types.js';

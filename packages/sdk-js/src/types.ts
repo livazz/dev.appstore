@@ -6,11 +6,17 @@
 export type Currency = 'EUR' | 'USD' | 'GBP';
 export type ItemType = 'consumable' | 'non_consumable' | 'auto_renewable' | 'non_renewing';
 
-/** Événement d'achat livré au jeu (webhook, flux SSE, interrogation). Montants en centimes. */
+/**
+ * Événement d'achat livré au jeu (webhook, flux SSE, interrogation). Montants en centimes.
+ * - `purchase.completed` : créditer le joueur.
+ * - `purchase.refunded` : la commande `order_id` a été remboursée (ou contestée) ; retirer l'objet si cet `order_id`
+ *   avait été crédité, sinon ignorer. Mêmes `product_id`, `quantity`… que l'achat ; `delivery_id` propre.
+ */
 export interface PurchaseEvent {
   event: 'purchase.completed' | 'purchase.refunded';
-  /** Clé d'idempotence : ne jamais créditer deux fois le même `delivery_id`. */
+  /** Clé d'idempotence : ne jamais traiter deux fois le même `delivery_id` (achat ou remboursement). */
   delivery_id: string;
+  /** Identifiant de la commande : commun à l'achat et à son éventuel remboursement. */
   order_id: string;
   game_id: string;
   player_id: string;
@@ -28,6 +34,29 @@ export interface LinkCode {
   code: string;
   /** Date d'expiration ISO 8601. */
   expires_at: string;
+  /** Demande de liaison à interroger (`waitForLink`) pour obtenir le jeton joueur (clé publique). */
+  link_request_id?: string | null;
+}
+
+/** Réponse de `GET /api/v1/link-requests/{id}`. */
+export interface LinkRequestStatus {
+  /**
+   * `pending` : code pas encore saisi ; `expired` : code expiré ; `linked` : compte lié (avec la clé publique,
+   * `player_token` n'est présent qu'au premier appel) ; `claimed` : jeton déjà délivré pour cette demande.
+   */
+  status: 'pending' | 'linked' | 'expired' | 'claimed';
+  player_id?: string;
+  expires_at?: string;
+  player_token?: string;
+}
+
+export interface WaitForLinkOptions {
+  /** Intervalle d'interrogation (défaut 3 s, minimum 1 s). */
+  intervalMs?: number;
+  /** Abandon (ex. le joueur ferme l'écran de liaison). */
+  signal?: AbortSignal;
+  /** Délai max (défaut : jusqu'à l'expiration du code + 30 s, sinon 11 min). */
+  timeoutMs?: number;
 }
 
 /** Réponse attendue de l'endpoint « player lookup » du studio (méthode id_confirm). */
@@ -59,30 +88,43 @@ export interface EventSourceLike {
 }
 
 /**
- * Constructeur EventSource. Le second argument `{ headers }` est passé pour les polyfills qui
- * l'acceptent (ex. paquet npm `eventsource`) ; l'EventSource natif du navigateur l'ignore.
+ * Constructeur EventSource acceptant `{ headers }` (ex. polyfill npm `eventsource`). L'EventSource natif du navigateur
+ * ignore les en-têtes : il ne convient pas (la clé ne doit jamais passer dans l'URL).
  */
 export type EventSourceCtor = new (url: string, init?: { headers?: Record<string, string>; withCredentials?: boolean }) => EventSourceLike;
 
 export type Transport = 'auto' | 'fetch' | 'eventsource';
 
 export interface WolleenOptions {
-  /** Clé API du jeu (`wk_…`), page Intégration de l'espace studio. */
-  apiKey: string;
+  /**
+   * Clé PUBLIQUE du jeu (`wk_pub_…`, page Intégration) : à utiliser dans le client du jeu (navigateur, WebGL, WebView).
+   * Les achats du joueur ne sont accessibles qu'après la liaison (`requestLinkCode` + `waitForLink`), avec le jeton
+   * joueur obtenu, mémorisé dans `storage`.
+   */
+  publishableKey?: string;
+  /**
+   * Clé SECRÈTE du jeu (`wk_secret_…`) : uniquement côté SERVEUR (Node), jamais dans un client — elle donne accès aux
+   * achats de tous les joueurs. Une valeur `wk_pub_…` passée ici est traitée comme une clé publique.
+   */
+  apiKey?: string;
   /** URL de Wolleen, ex. `https://wolleen.com` ou `http://localhost:3000`. */
   baseUrl?: string;
   /** Implémentation fetch (par défaut `globalThis.fetch`). */
   fetch?: typeof fetch;
   /**
-   * Transport du flux temps réel :
-   * - `fetch` : flux SSE lu via fetch + ReadableStream (envoie l'en-tête Authorization) ;
-   * - `eventsource` : EventSource (option `EventSource` fournie, sinon l'EventSource global) ;
-   * - `auto` (défaut) : `EventSource` fourni en option s'il y en a un, sinon fetch-stream si disponible, sinon EventSource global.
+   * Transport du flux temps réel (la clé et le jeton voyagent toujours en en-têtes, jamais dans l'URL) :
+   * - `fetch` : flux SSE lu via fetch + ReadableStream ;
+   * - `eventsource` : constructeur `EventSource` fourni en option, qui doit accepter `{ headers }` (polyfill) ;
+   * - `auto` (défaut) : `EventSource` fourni s'il y en a un, sinon fetch-stream. L'EventSource natif du navigateur
+   *   (sans en-têtes) n'est jamais utilisé : sans fetch-stream, le SDK rattrape les achats toutes les 30 s.
    */
   transport?: Transport;
   /** Constructeur EventSource acceptant `{ headers }` (polyfill). */
   EventSource?: EventSourceCtor;
-  /** Persistance des `delivery_id` déjà traités (ex. `localStorage`). Mémoire seule par défaut. */
+  /**
+   * Persistance (ex. `localStorage`) des `delivery_id` déjà traités et des jetons joueur. Mémoire seule par défaut :
+   * le joueur devrait alors refaire la liaison à chaque lancement.
+   */
   storage?: StorageLike | null;
   /** Accuser réception automatiquement après la résolution du handler (défaut : true). */
   autoAck?: boolean;

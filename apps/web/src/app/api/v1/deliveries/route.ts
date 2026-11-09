@@ -1,18 +1,22 @@
-import { authenticateGame } from '@/server/api-key';
+import { authenticateApi } from '@/server/api-key';
 import { ensureDevRetryLoop, takeOpenDeliveries } from '@/server/delivery';
-import { corsPreflight, missingPlayerId, readPlayerId, unauthorized, withCors } from '@/server/delivery-http';
+import { corsPreflight, resolvePlayerScope, unauthorized, withCors } from '@/server/delivery-http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** GET /api/v1/deliveries?player_id=… → { data: PurchaseEvent[] } (pending + delivered non acquittées). */
+/**
+ * GET /api/v1/deliveries → { data: PurchaseEvent[] } (pending + delivered non acquittées, achats et remboursements).
+ * - Clé secrète : `?player_id=` obligatoire.
+ * - Clé publique : en-tête `Wolleen-Player-Token` obligatoire ; renvoie seulement les achats du joueur du jeton.
+ */
 export async function GET(req: Request) {
   ensureDevRetryLoop();
-  const game = await authenticateGame(req);
-  if (!game) return unauthorized();
-  const playerId = readPlayerId(req);
-  if (!playerId) return missingPlayerId();
-  const data = await takeOpenDeliveries(game, playerId);
+  const auth = await authenticateApi(req);
+  if (!auth) return unauthorized();
+  const target = resolvePlayerScope(auth, req, { requirePlayerId: true });
+  if (!target.ok) return target.res;
+  const data = await takeOpenDeliveries(auth.game, target.playerId!, 100, { userId: target.scope?.userId });
   return withCors(Response.json({ data }, { headers: { 'cache-control': 'no-store' } }));
 }
 

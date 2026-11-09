@@ -27,6 +27,7 @@ button { font: inherit; cursor: pointer; }
 .muted { color: var(--ink-3); }
 .small { font-size: 12px; }
 .error { color: var(--danger); }
+.linked { color: var(--ok); }
 
 .topbar {
   display: flex; align-items: center; justify-content: space-between;

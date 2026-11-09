@@ -1,7 +1,7 @@
 {
   "name": "@wolleen/sdk",
-  "version": "0.1.0",
-  "description": "SDK JavaScript/TypeScript Wolleen : livraisons d'achats en temps réel, accusés de réception et codes de liaison.",
+  "version": "0.2.0",
+  "description": "SDK JavaScript/TypeScript Wolleen : livraisons d’achats en temps réel (clé publique + jeton joueur, ou clé secrète côté serveur), remboursements, accusés de réception et codes de liaison.",
   "private": true,
   "type": "module",
   "exports": {

@@ -198,7 +198,7 @@ export async function redeemLinkCode(
   return db.transaction(async (tx): Promise<LinkResult<{ link: GameLink }>> => {
     const [consumed] = await tx
       .update(linkCodes)
-      .set({ consumedAt: now })
+      .set({ consumedAt: now, consumedBy: userId }) // consumedBy : rattache le jeton joueur du SDK (sec/delivery-keys)
       .where(and(eq(linkCodes.gameId, game.id), eq(linkCodes.code, code), isNull(linkCodes.consumedAt), gt(linkCodes.expiresAt, now)))
       .returning();
     if (!consumed) {
@@ -598,4 +598,69 @@ export async function updateLinkSettings(
   const rows = await db.update(games).set({ ...saved, updatedAt: new Date() }).where(eq(games.id, gameId)).returning({ id: games.id });
   if (!rows.length) return fail('invalid_input', 'Jeu introuvable.');
   return { ok: true, ...saved };
+}
+
+/* ------------------------------------------------------------------------------------------------ */
+/* Ajout « sec/delivery-keys » : requête sortante durcie générique (webhook de livraison, POST)      */
+/* ------------------------------------------------------------------------------------------------ */
+
+export interface SafeHttpResponse {
+  status: number;
+  /** Début du corps (au plus `maxBytes` octets). */
+  body: string;
+  /** Vrai si le corps dépassait `maxBytes` (lecture interrompue, le statut reste valable). */
+  truncated: boolean;
+}
+
+/**
+ * Même protection que safeHttpGet (http(s) seulement, adresses internes refusées à la résolution DNS même — anti
+ * DNS rebinding —, aucune redirection suivie, délai global borné) pour une méthode et un corps quelconques.
+ * Contrairement à safeHttpGet, un corps trop long n'est pas une erreur : il est tronqué (`truncated`).
+ * Erreurs : BlockedAddressError (adresse refusée), Error « TimeoutError » (délai), erreurs réseau Node (code ECONNREFUSED…).
+ */
+export function safeHttpRequest(
+  url: URL,
+  init: { method: 'GET' | 'POST'; headers: Record<string, string>; body?: string },
+  o: { allowPrivate: boolean; timeoutMs: number; maxBytes: number },
+): Promise<SafeHttpResponse> {
+  const shape = checkOutboundUrl(url.href, o.allowPrivate);
+  if (!shape.ok) return Promise.reject(new BlockedAddressError(url.hostname));
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (err: Error | null, value?: SafeHttpResponse) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) reject(err);
+      else resolve(value!);
+    };
+    const headers = { ...init.headers };
+    if (init.body !== undefined) headers['content-length'] = String(Buffer.byteLength(init.body));
+    const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const req = send(url, { method: init.method, headers, agent: false, lookup: guardedLookup(o.allowPrivate) }, (res) => {
+      const status = res.statusCode ?? 0;
+      const chunks: Buffer[] = [];
+      let size = 0;
+      res.on('data', (chunk: Buffer) => {
+        if (settled) return;
+        const room = o.maxBytes - size;
+        if (chunk.length > room) {
+          chunks.push(chunk.subarray(0, Math.max(0, room)));
+          done(null, { status, body: Buffer.concat(chunks).toString('utf8'), truncated: true });
+          req.destroy();
+          return;
+        }
+        size += chunk.length;
+        chunks.push(chunk);
+      });
+      res.on('end', () => done(null, { status, body: Buffer.concat(chunks).toString('utf8'), truncated: false }));
+      res.on('error', (e) => done(e));
+    });
+    const timer = setTimeout(() => {
+      done(Object.assign(new Error('Délai dépassé'), { name: 'TimeoutError' }));
+      req.destroy();
+    }, o.timeoutMs);
+    req.on('error', (e) => done(e));
+    req.end(init.body);
+  });
 }
