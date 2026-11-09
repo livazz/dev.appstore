@@ -39,7 +39,7 @@ function SecretRow({ label, value, hint }: { label: string; value: string; hint:
   );
 }
 
-export function NewGameForm() {
+export function NewGameForm({ studioName }: { studioName: string }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string>('');
   const [currency, setCurrency] = useState<Currency>('EUR');
@@ -85,6 +85,10 @@ export function NewGameForm() {
         });
       }}
     >
+      <p className="mb-1 text-sm text-ink-2">
+        Le jeu est créé en brouillon dans le studio <strong className="text-ink">{studioName}</strong>. Vous configurerez ensuite sa boutique,
+        puis la publierez.
+      </p>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium text-ink-2">Nom du jeu</span>
         <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Crystal Clash" maxLength={60} autoFocus required />

@@ -21,13 +21,7 @@ export default async function NewGamePage() {
       </h1>
       <section className="max-w-xl rounded-2xl bg-surface p-6 shadow-sm sm:p-8">
         {studio ? (
-          <>
-            <p className="mb-5 text-sm text-ink-2">
-              Le jeu est créé en brouillon dans le studio <strong className="text-ink">{studio.name}</strong>. Vous configurerez ensuite sa
-              boutique, puis la publierez.
-            </p>
-            <NewGameForm />
-          </>
+          <NewGameForm studioName={studio.name} />
         ) : (
           <>
             <h2 className="text-lg font-semibold">Aucun studio</h2>
