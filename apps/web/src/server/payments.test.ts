@@ -32,7 +32,7 @@ vi.mock('@wolleen/db', async (importOriginal) => {
 // Contrat delivery : on vérifie l'appel, pas l'envoi au jeu (testé par la tâche « delivery »).
 const delivery = vi.hoisted(() => ({
   enqueueDelivery: vi.fn(async (orderId: string) => `dlv_${orderId}`),
-  // Ajouté par la tâche « delivery » (révocation purchase.refunded) — appelé dynamiquement par payments.
+  // Révocation purchase.refunded (delivery.ts), importée directement par payments.
   enqueueRefund: vi.fn(async (orderId: string) => `rfd_${orderId}`),
 }));
 vi.mock('@/server/delivery', () => delivery);

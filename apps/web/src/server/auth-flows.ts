@@ -4,6 +4,7 @@ import { newId, slugify } from '@wolleen/core';
 import { db, eq, ilike, or, studioMembers, studios, type DB } from '@wolleen/db';
 import { auth as defaultAuth, PASSWORD_MIN_LENGTH, type Auth } from './auth';
 import { AUTH_RATE_LIMITS, authLimiter, clientIp, type SlidingWindowLimiter } from './auth-rate-limit';
+import { runInBackground, sendPlayerWelcome, sendStudioWelcome } from './notifications';
 
 /*
  * Logique serveur des formulaires /login, /signup et /studio/signup (tâche « auth »).
@@ -97,6 +98,12 @@ interface FlowDeps {
   limiter?: SlidingWindowLimiter;
 }
 
+/** Options internes de l'inscription joueur. */
+interface SignUpDeps extends FlowDeps {
+  /** false : pas d'e-mail de bienvenue joueur (inscription studio : c'est la bienvenue studio qui part). */
+  playerWelcome?: boolean;
+}
+
 function rateLimited(retryAfterS: number): AuthFormResult {
   const min = Math.max(1, Math.ceil(retryAfterS / 60));
   return { ok: false, error: `Trop de tentatives. Réessayez dans ${min} min.` };
@@ -127,8 +134,8 @@ export async function signInWithPassword(input: Record<string, unknown>, deps: F
   }
 }
 
-/** Inscription joueur. Connecte automatiquement le nouvel utilisateur. */
-export async function signUpWithPassword(input: Record<string, unknown>, deps: FlowDeps = {}): Promise<AuthFormResult & { userId?: string }> {
+/** Inscription joueur. Connecte automatiquement le nouvel utilisateur et lui envoie l'e-mail de bienvenue. */
+export async function signUpWithPassword(input: Record<string, unknown>, deps: SignUpDeps = {}): Promise<AuthFormResult & { userId?: string }> {
   const parsed = signUpSchema.safeParse(input);
   if (!parsed.success) return fieldErrors(parsed.error);
   const limiter = deps.limiter ?? authLimiter;
@@ -139,7 +146,9 @@ export async function signUpWithPassword(input: Record<string, unknown>, deps: F
   const a = deps.auth ?? defaultAuth;
   try {
     const res = await a.api.signUpEmail({ body: parsed.data, headers: deps.headers ?? new Headers() });
-    return { ok: true, userId: res.user.id };
+    const userId = res.user.id;
+    if (userId && deps.playerWelcome !== false) runInBackground(`bienvenue ${userId}`, () => sendPlayerWelcome(userId, { database: deps.database }));
+    return { ok: true, userId };
   } catch (e) {
     if (!isApiError(e)) throw e;
     const error = authErrorMessage(e);
@@ -197,11 +206,12 @@ export async function signUpStudio(
   } else {
     const parsed = studioSignUpSchema.safeParse(input);
     if (!parsed.success) return fieldErrors(parsed.error);
-    const res = await signUpWithPassword(parsed.data, deps);
+    const res = await signUpWithPassword(parsed.data, { ...deps, playerWelcome: false });
     if (!res.ok || !res.userId) return res;
     userId = res.userId;
   }
   const studio = await createStudioForOwner(userId, String(input.studioName), database);
+  runInBackground(`bienvenue studio ${studio.id}`, () => sendStudioWelcome(studio.id, { database }));
   return { ok: true, userId, studioId: studio.id, studioSlug: studio.slug };
 }
 

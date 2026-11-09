@@ -3,8 +3,10 @@ import { promises as dnsPromises } from 'node:dns';
 import { isIP } from 'node:net';
 import { SIGNATURE_HEADER, newId, nextAttemptAt, signPayload, type PurchaseEvent } from '@wolleen/core';
 import { and, asc, db, deliveries, desc, eq, games, inArray, isNull, lte, ne, or, orders, refundDeliveries, sql, webhookAttempts } from '@wolleen/db';
+import { env } from '@/env';
 import { publish } from './events';
 import { BlockedAddressError, checkOutboundUrl, isBlockedAddress, safeHttpRequest } from './linking';
+import { runInBackground, sendDeliveryFailed, sendPurchaseDelivered } from './notifications';
 
 /*
  * Livraison des achats aux jeux (propriétaire : tâche « delivery », durcie par « sec/delivery-keys »).
@@ -42,7 +44,18 @@ export class DeliveryError extends Error {
   }
 }
 
-const isProduction = () => process.env.NODE_ENV === 'production';
+const isProduction = () => env.isProduction;
+
+/**
+ * E-mails au joueur (et alerte studio) sur les achats — jamais sur les remboursements, qui n'ont pas d'e-mail dédié.
+ * En arrière-plan (runInBackground) : la livraison, l'ack et le flux du SDK ne les attendent pas. Idempotents.
+ */
+function notifyDelivered(kind: DeliveryKind, id: string) {
+  if (kind === 'purchase') runInBackground(`livré ${id}`, () => sendPurchaseDelivered(id));
+}
+function notifyFailed(kind: DeliveryKind, id: string) {
+  if (kind === 'purchase') runInBackground(`échec ${id}`, () => sendDeliveryFailed(id));
+}
 
 /**
  * CONTRAT PARTAGÉ — appelé par la tâche « payments » dès qu'une commande passe à `paid`.
@@ -340,17 +353,22 @@ async function dispatch(kind: DeliveryKind, id: string, claimed: boolean): Promi
 
   const total = attempts + 1;
   if (result.ok) {
-    await db
+    const done = await db
       .update(t)
       .set({ status: 'delivered', attempts: total, deliveredAt: new Date(), lastError: null, nextAttemptAt: null })
-      .where(and(eq(t.id, id), eq(t.status, 'pending')));
+      .where(and(eq(t.id, id), eq(t.status, 'pending')))
+      .returning({ id: t.id });
+    if (done.length) notifyDelivered(kind, id);
     return;
   }
   const next = nextAttemptAt(total);
-  await db
+  const updated = await db
     .update(t)
     .set({ status: next ? 'pending' : 'failed', attempts: total, lastError: result.error, nextAttemptAt: next })
-    .where(and(eq(t.id, id), eq(t.status, 'pending')));
+    .where(and(eq(t.id, id), eq(t.status, 'pending')))
+    .returning({ id: t.id });
+  // Relances épuisées : échec définitif → e-mail au joueur + alerte (regroupée) au studio.
+  if (!next && updated.length) notifyFailed(kind, id);
 }
 
 /**
@@ -430,7 +448,7 @@ export async function retryDueDeliveries(
 
 /** En développement, une boucle légère relance les livraisons dues sans cron. Démarrée au premier usage. */
 export function ensureDevRetryLoop() {
-  if (process.env.NODE_ENV !== 'development') return;
+  if (env.NODE_ENV !== 'development') return;
   const g = globalThis as unknown as { __wolleenDeliveryLoop?: ReturnType<typeof setInterval> };
   if (g.__wolleenDeliveryLoop) return;
   let running = false;
@@ -518,10 +536,12 @@ export async function markFetchedBySdk(game: GameRef, ids: string[]) {
   if (game.webhookUrl || ids.length === 0) return; // avec webhook, c'est le 2xx du serveur du studio qui fait foi
   for (const kind of KINDS) {
     const t = TABLES[kind];
-    await db
+    const done = await db
       .update(t)
       .set({ status: 'delivered', deliveredAt: new Date(), nextAttemptAt: null })
-      .where(and(eq(t.gameId, game.id), inArray(t.id, ids), eq(t.status, 'pending')));
+      .where(and(eq(t.gameId, game.id), inArray(t.id, ids), eq(t.status, 'pending')))
+      .returning({ id: t.id });
+    for (const r of done) notifyDelivered(kind, r.id);
   }
 }
 
@@ -544,7 +564,10 @@ export async function acknowledgeDelivery(gameId: string, deliveryId: string, sc
       .set({ status: 'acknowledged', acknowledgedAt: new Date(), deliveredAt: sql`coalesce(${t.deliveredAt}, now())`, nextAttemptAt: null })
       .where(and(where, ne(t.status, 'acknowledged')))
       .returning({ id: t.id });
-    if (updated.length) return 'ok';
+    if (updated.length) {
+      notifyDelivered(kind, deliveryId); // idempotent : sans effet si l'e-mail « livré » est déjà parti
+      return 'ok';
+    }
     const [row] = await db.select({ id: t.id }).from(t).where(where);
     if (row) return 'ok';
   }

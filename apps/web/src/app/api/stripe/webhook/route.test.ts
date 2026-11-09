@@ -10,7 +10,10 @@ vi.mock('@wolleen/db', async (importOriginal) => {
   return importOriginal();
 });
 
-const delivery = vi.hoisted(() => ({ enqueueDelivery: vi.fn(async (orderId: string) => `dlv_${orderId}`) }));
+const delivery = vi.hoisted(() => ({
+  enqueueDelivery: vi.fn(async (orderId: string) => `dlv_${orderId}`),
+  enqueueRefund: vi.fn(async (orderId: string) => `rfd_${orderId}`),
+}));
 vi.mock('@/server/delivery', () => delivery);
 
 const SECRET = 'whsec_test_wolleen';
