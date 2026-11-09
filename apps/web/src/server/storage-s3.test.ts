@@ -99,11 +99,11 @@ describe('S3Storage (fetch simulé)', () => {
   it('put : PUT signé path-style, Content-Type, Cache-Control immuable, renvoie l’URL publique', async () => {
     const { storage, calls } = fakeS3(() => new Response(null, { status: 200 }));
     const body = Buffer.from('image-bytes');
-    const url = await storage.put('usr_1/icon/abc.webp', body, 'image/webp');
-    expect(url).toBe('https://cdn.wolleen.test/usr_1/icon/abc.webp');
+    const url = await storage.put('icon/usr_1/abc.webp', body, 'image/webp');
+    expect(url).toBe('https://cdn.wolleen.test/icon/usr_1/abc.webp');
     expect(calls).toHaveLength(1);
     const [c] = calls;
-    expect(c.url).toBe('https://acc123.eu.r2.cloudflarestorage.com/wolleen-uploads/usr_1/icon/abc.webp');
+    expect(c.url).toBe('https://acc123.eu.r2.cloudflarestorage.com/wolleen-uploads/icon/usr_1/abc.webp');
     expect(c.init.method).toBe('PUT');
     const h = hdr(c);
     expect(h['content-type']).toBe('image/webp');
@@ -139,7 +139,7 @@ describe('S3Storage (fetch simulé)', () => {
     const { storage } = fakeS3(
       () => new Response('<?xml version="1.0"?><Error><Code>SignatureDoesNotMatch</Code></Error>', { status: 403 }),
     );
-    const err = await storage.put('a/b.png', Buffer.from('x'), 'image/png').catch((e) => e);
+    const err = await storage.put('item/usr_1/b.webp', Buffer.from('x'), 'image/png').catch((e) => e);
     expect(err).toBeInstanceOf(S3StorageError);
     expect(err.status).toBe(403);
     expect(err.message).toContain('SignatureDoesNotMatch');
@@ -147,41 +147,41 @@ describe('S3Storage (fetch simulé)', () => {
 
   it('get : renvoie le contenu et son type ; null si 404 ou clé invalide', async () => {
     const { storage, calls } = fakeS3((c) =>
-      c.url.endsWith('/missing.png')
+      c.url.endsWith('/missing.webp')
         ? new Response('<Error><Code>NoSuchKey</Code></Error>', { status: 404 })
         : new Response('PNGDATA', { status: 200, headers: { 'content-type': 'image/png' } }),
     );
-    const f = await storage.get('a/b.png');
+    const f = await storage.get('item/usr_1/b.webp');
     expect(f?.buffer.toString()).toBe('PNGDATA');
     expect(f?.contentType).toBe('image/png');
     expect(calls[0].init.method).toBe('GET');
     expect(hdr(calls[0])['x-amz-content-sha256']).toBe(EMPTY);
-    expect(await storage.get('missing.png')).toBeNull();
+    expect(await storage.get('item/usr_1/missing.webp')).toBeNull();
     expect(await storage.get('../x.png')).toBeNull();
     expect(calls).toHaveLength(2);
   });
 
   it('get : type déduit de l’extension si S3 n’en renvoie pas', async () => {
     const { storage } = fakeS3(() => new Response(new Uint8Array([1, 2]), { status: 200, headers: { 'content-type': '' } }));
-    expect((await storage.get('x/y.webp'))?.contentType).toBe('image/webp');
+    expect((await storage.get('item/usr_1/y.webp'))?.contentType).toBe('image/webp');
   });
 
   it('get : erreur serveur levée (pas masquée en « absent »)', async () => {
     const { storage } = fakeS3(() => new Response('', { status: 500 }));
-    await expect(storage.get('a/b.png')).rejects.toBeInstanceOf(S3StorageError);
+    await expect(storage.get('item/usr_1/b.webp')).rejects.toBeInstanceOf(S3StorageError);
   });
 
   it('delete : DELETE signé, idempotent', async () => {
     let status = 204;
     const { storage, calls } = fakeS3(() => new Response(null, { status }));
-    expect(await storage.delete('a/b.png')).toBe(true);
+    expect(await storage.delete('item/usr_1/b.webp')).toBe(true);
     expect(calls[0].init.method).toBe('DELETE');
     status = 404;
-    expect(await storage.delete('a/b.png')).toBe(true);
+    expect(await storage.delete('item/usr_1/b.webp')).toBe(true);
     expect(await storage.delete('nope')).toBe(false);
     expect(calls).toHaveLength(2);
     status = 403;
-    await expect(storage.delete('a/b.png')).rejects.toBeInstanceOf(S3StorageError);
+    await expect(storage.delete('item/usr_1/b.webp')).rejects.toBeInstanceOf(S3StorageError);
   });
 });
 
@@ -196,7 +196,7 @@ describe('s3StorageFromEnv', () => {
   it('construit l’adaptateur (région « auto » par défaut)', () => {
     const s = s3StorageFromEnv(env);
     expect(s).toBeInstanceOf(S3Storage);
-    expect(s.publicUrlFor('a/b.png')).toBe('https://cdn.example/a/b.png');
+    expect(s.publicUrlFor('item/usr_1/b.webp')).toBe('https://cdn.example/item/usr_1/b.webp');
   });
   it('liste les variables manquantes', () => {
     expect(() => s3StorageFromEnv({ ...env, S3_BUCKET: '', S3_PUBLIC_URL: undefined })).toThrow(
