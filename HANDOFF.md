@@ -1,0 +1,95 @@
+# Dev AppStore — passation (session cloud → local, 9 novembre 2026)
+
+À lire en premier par le prochain Claude (ou développeur), puis `ARCHITECTURE.md` (architecture, routes, API, flux).
+
+## Le produit
+
+Place de marché web d'achats in-app : le joueur va sur le site, **cherche son jeu, lie son compte de jeu, achète** ;
+le jeu reçoit l'achat **tout seul** (webhook signé `DevAppStore-Signature` vers le serveur du studio, ou SDK
+sans serveur par polling/SSE). Les studios économisent la commission des stores (30 %) : commission plateforme 5 %.
+UI inspirée d'App Store Connect et des maquettes PDF du fondateur. Tout est en **français** (UI, commits, commentaires).
+Ancien nom technique : « Wolleen » (entièrement renommé).
+
+## Démarrer en local
+
+Prérequis : Node ≥ 20. Aucune base à installer : PGlite (Postgres embarqué) dans `.data/pglite`.
+
+```bash
+npm install
+cp .env.example .env.local   # facultatif en dev : tout fonctionne vide (paiement simulé /checkout/mock)
+npm run db:push && npm run db:seed
+npm run dev                  # http://localhost:3000
+npm run demo                 # jeu de démo http://localhost:4100 (reçoit les achats de Crystal Clash)
+```
+
+Comptes de démo (mot de passe `demo1234`) :
+- `joueur@devappstore.test` — joueur (déjà lié à Crystal Clash, ID `#2PP8QL9`)
+- `dev@devappstore.test` — studio Nova Games **et** superadmin (back-office `/admin`)
+
+Clés de démo : secrète `das_secret_demo_crystal_clash`, publique `das_pub_demo_crystal_clash`,
+secret webhook `whsec_demo_crystal_clash` (voir `packages/db/src/seed.ts`).
+
+Vérifications (toutes vertes au moment de la passation) :
+
+```bash
+npm run typecheck
+npm test                       # 784 tests vitest
+npm run build                  # build Next.js
+cd e2e && npx playwright test --trace off   # 24 tests e2e (lance web + jeu de démo)
+```
+
+En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé) : `rm -rf .data && npm run db:push && npm run db:seed`.
+
+## Ce qui est fait (vagues 1 à 5)
+
+- Catalogue joueur, recherche, page jeu (6 mises en page de boutique), liaison de compte (code affiché dans le jeu,
+  identifiant + confirmation par le serveur du studio), paiement Stripe Checkout + Connect (simulation sans clés),
+  livraison automatique (webhook signé + relances, SSE, polling, accusés de réception), remboursements.
+- Espace studio : jeux, éditeur d'articles + IA de style, import App Store Connect / Google Play, ventes et analytics,
+  intégration (clés, journal des livraisons, événement de test), paiements Stripe Connect.
+- Back-office `/admin` (jeux, studios, commandes, utilisateurs, journal d'audit, suspension motivée P2B).
+- Fidélité « Points Dev AppStore », e-mails (reçu, livraison, échec, bienvenue, rapport hebdo, accusé de rétractation).
+- Conformité : case de renonciation (L221-28 13°) avec preuve stockée, bouton « Me rétracter », pages `/legal/*`
+  (brouillons, bandeau « Projet », non indexées), documentation développeur `/docs`.
+- Sécurité : isolement des studios, clés secrète/publique + jetons joueur, garde SSRF, limiteurs de débit (API + auth),
+  plafond SSE, en-têtes de sécurité, configuration validée au démarrage (`apps/web/src/env.ts`).
+- SDK : JS (`packages/sdk-js`), Unity, Godot, Unreal (`sdks/`, non compilés faute de moteur), jeu de démo.
+- Migration Drizzle initiale : `packages/db/drizzle/0000_initial.sql`. Dépendances à jour (audit sans haute/critique).
+
+## Ce qui reste à faire
+
+1. **Vague 6 (arrêtée avant de commencer, rien n'a été modifié)** — spécifications complètes et prêtes à relancer
+   dans `docs/handoff/vague-6-taches.js` (5 tâches sur des fichiers disjoints, parallélisables) :
+   - `realtime` : bus d'événements et limiteurs multi-instance (Postgres LISTEN/NOTIFY, store de compteurs Postgres) ;
+   - `db` : index (Better Auth 1.7 + requêtes chaudes) et migration 0001, `db:push` idempotent
+     (contrainte `loyalty_entries_order_reason_uq`), bruit « Aborted() » PGlite pendant `next build` ;
+   - `web-hardening` : CSP avec nonce (supprimer `unsafe-inline`), sitemap/robots/metadata/Open Graph, audit perf ;
+   - `api-sdk` : spec OpenAPI 3.1 de `/api/v1` servie sur `/api/openapi.json` + test de contrat, SDK JS publiable (dist ESM/CJS) ;
+   - `visual-qa` : comparaison avec les maquettes PDF, refonte du pied du panneau d'article (bouton « Annuler » violet maladroit).
+2. **Revue de sécurité complète** par un regard neuf après la vague 6 (base : `docs/security/threat-model.md`,
+   `docs/security/review-checklist.md`), puis corrections.
+3. Pousser sur GitHub (dépôt souhaité : `dev.appstore`).
+
+## Décisions en attente (fondateur)
+
+- **Modèle de TVA** : Dev AppStore collecte la TVA via Stripe Tax (risque « fournisseur réputé », voir `docs/legal/`)
+  **ou** charges directes sur le compte Stripe du studio. Le code gère les deux (`CHARGE_MODEL=destination|direct`,
+  `STRIPE_AUTOMATIC_TAX`). Ne pas changer sans décision.
+- **Clés Stripe de test** à fournir (jamais dans un chat ni dans git : `.env.local`).
+- **Commission de comparaison** du tableau des ventes : 15 % par défaut (`DEFAULT_SALES_STORE_FEE_BPS` dans
+  `apps/web/src/server/analytics.ts`), 30 % disponible — à confirmer.
+- **Domaine** : `devappstore.com` utilisé comme exemple partout — à remplacer par le vrai.
+- **Textes légaux** : à faire valider par un avocat, compléter les `[à compléter : …]`, puis `LEGAL_STATUS = 'published'`
+  dans `apps/web/src/lib/legal-versions.ts`.
+- Rétractation d'une livraison en échec : autorisée (consumer.md § 2.4) — à confirmer juridiquement.
+
+## Points connus / pièges
+
+- Machine de la session cloud : 4 CPU, disque limité. Les worktrees d'agents (~1 Go chacun) ont saturé le disque :
+  supprimer les worktrees fusionnés (`git worktree remove`).
+- Tests e2e : lancer depuis `e2e/` avec `npx playwright test --trace off` (`npm run test:e2e -- …` perd les options).
+  `E2E_WEB_PORT=…` si le port 3000 est pris, `E2E_DEMO_GAME=0` pour se passer du jeu de démo.
+- Limiteurs de débit et bus SSE en mémoire : une seule instance tant que la vague 6 `realtime` n'est pas faite.
+- `@devappstore/core` a une entrée navigateur (`@devappstore/core/client`) : les composants client doivent l'utiliser
+  (`crypto.ts` est serveur uniquement).
+- Montants toujours en centimes.
