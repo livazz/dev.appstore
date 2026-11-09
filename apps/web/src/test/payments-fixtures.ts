@@ -11,7 +11,7 @@
  * (`@wolleen/db` réutilise globalThis.__wolleenDb s'il existe : la base de dev .data/pglite n'est jamais ouverte.)
  */
 import { DEFAULT_ITEM_STYLE, DEFAULT_THEME, newId } from '@wolleen/core';
-import { db, eq, gameLinks, games, items, orders, studios, user } from '@wolleen/db';
+import { and, db, eq, gameLinks, games, items, orders, studios, user } from '@wolleen/db';
 
 export const FX = {
   buyer: { id: 'usr_buyer', name: 'Acheteur', email: 'buyer@wolleen.test' },
@@ -74,6 +74,14 @@ export async function insertPendingOrder(overrides: Partial<typeof orders.$infer
     })
     .returning();
   return o!;
+}
+
+/** Passe à `failed` les commandes `pending` d'un utilisateur (évite d'atteindre la limite anti-spam entre deux tests). */
+export async function clearPendingOrders(userId: string = FX.buyer.id) {
+  await db
+    .update(orders)
+    .set({ status: 'failed' })
+    .where(and(eq(orders.userId, userId), eq(orders.status, 'pending')));
 }
 
 export async function getOrder(id: string) {

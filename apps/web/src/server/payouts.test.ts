@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { db, studioMembers, user } from '@wolleen/db';
 import { FX, insertPendingOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
-import { getPayoutStudio, getPayoutStudios, getRecentStudioSales, getStudioRevenue } from './payouts';
+import { canManagePayouts, getPayoutStudio, getPayoutStudios, getRecentStudioSales, getStudioRevenue } from './payouts';
 
 vi.mock('@wolleen/db', async (importOriginal) => {
   const { createTestDb } = await import('@wolleen/db/testing');
@@ -30,6 +30,13 @@ describe('accès aux versements', () => {
     expect(await getPayoutStudios('usr_dev')).toEqual([]);
     expect(await getPayoutStudio('usr_dev', FX.studio)).toBeNull();
     expect(await getPayoutStudio(FX.buyer.id, FX.studio)).toBeNull();
+  });
+
+  // CHK-MT-06 / CHK-PAY-12 : `finance` en lecture seule, seul `owner` configure le compte de versement.
+  it('seul le propriétaire peut modifier les versements', async () => {
+    expect(canManagePayouts((await getPayoutStudio('usr_owner', FX.studio))!.role)).toBe(true);
+    expect(canManagePayouts((await getPayoutStudio('usr_finance', FX.studio))!.role)).toBe(false);
+    for (const role of ['admin', 'developer', 'finance'] as const) expect(canManagePayouts(role)).toBe(false);
   });
 });
 

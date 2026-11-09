@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { feeCents, formatMoney, STORE_FEE_BPS, type Currency } from '@wolleen/core';
 import { SubmitButton } from '@/components/checkout/SubmitButton';
 import { platformFeeBps } from '@/server/payments';
-import { getPayoutStudios, getRecentStudioSales, getStudioRevenue, syncConnectStatus, type ConnectStatus } from '@/server/payouts';
+import { canManagePayouts, getPayoutStudios, getRecentStudioSales, getStudioRevenue, syncConnectStatus, type ConnectStatus } from '@/server/payouts';
 import { requireUser } from '@/server/session';
-import { isStripeEnabled } from '@/server/stripe';
+import { chargeModel, isProduction, isStripeEnabled } from '@/server/stripe';
 import { openDashboardAction, startOnboardingAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +17,7 @@ const stripeMoney = (amount: number, currency: string) => formatMoney(amount, cu
 
 const ERRORS: Record<string, string> = {
   forbidden: 'Accès refusé pour ce studio.',
+  owner_only: 'Seul le propriétaire du studio peut configurer les versements.',
   stripe_disabled: 'Stripe n’est pas configuré sur ce serveur.',
   stripe: 'Stripe est momentanément indisponible. Réessayez dans un instant.',
 };
@@ -62,6 +63,13 @@ export default async function PayoutsPage({ searchParams }: { searchParams: Prom
   }
   const [revenue, sales] = await Promise.all([getStudioRevenue(studio.id), getRecentStudioSales(studio.id)]);
   const bps = platformFeeBps();
+  const canManage = canManagePayouts(studio.role);
+  // Sans compte prêt, les achats sont refusés en production (et toujours en charge directe) ; hors production,
+  // la plateforme encaisse pour le compte du studio (tests).
+  const pendingSalesNote =
+    isProduction() || chargeModel() === 'direct'
+      ? 'En attendant, vos articles ne peuvent pas être achetés.'
+      : 'En attendant (hors production), les ventes de test sont encaissées par Wolleen pour votre compte.';
   const error = sp.error ? (ERRORS[sp.error] ?? ERRORS.stripe) : connectError ? ERRORS.stripe : null;
 
   return (
@@ -121,21 +129,23 @@ export default async function PayoutsPage({ searchParams }: { searchParams: Prom
           <div className="mt-4">
             <p className="max-w-2xl text-sm text-ink-2">
               Créez votre compte de versement Stripe pour recevoir vos ventes : identité de l’entreprise et coordonnées bancaires,
-              saisies directement chez Stripe. En attendant, les ventes sont encaissées par Wolleen pour votre compte.
+              saisies directement chez Stripe. {pendingSalesNote}
             </p>
-            <OnboardingForm studioId={studio.id} label="Configurer les versements" />
+            {canManage ? <OnboardingForm studioId={studio.id} label="Configurer les versements" /> : <OwnerOnlyNote />}
           </div>
         ) : connect && connect.chargesEnabled && connect.detailsSubmitted ? (
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <p className="text-sm text-ink-2">
               Votre compte est actif : chaque vente vous est reversée automatiquement, commission Wolleen déduite.
             </p>
-            <form action={openDashboardAction}>
-              <input type="hidden" name="studio" value={studio.id} />
-              <SubmitButton pendingLabel="Ouverture…" className={btnSecondary}>
-                Ouvrir le tableau de bord Stripe
-              </SubmitButton>
-            </form>
+            {canManage && (
+              <form action={openDashboardAction}>
+                <input type="hidden" name="studio" value={studio.id} />
+                <SubmitButton pendingLabel="Ouverture…" className={btnSecondary}>
+                  Ouvrir le tableau de bord Stripe
+                </SubmitButton>
+              </form>
+            )}
           </div>
         ) : (
           <div className="mt-4">
@@ -146,9 +156,9 @@ export default async function PayoutsPage({ searchParams }: { searchParams: Prom
             <p className="max-w-2xl text-sm text-ink-2">
               La configuration de votre compte n’est pas terminée
               {connect && connect.requirementsDue.length > 0 ? ` (${connect.requirementsDue.length} information(s) demandée(s) par Stripe)` : ''}.
-              En attendant, les ventes sont encaissées par Wolleen pour votre compte.
+              {pendingSalesNote}
             </p>
-            <OnboardingForm studioId={studio.id} label="Terminer la configuration" />
+            {canManage ? <OnboardingForm studioId={studio.id} label="Terminer la configuration" /> : <OwnerOnlyNote />}
           </div>
         )}
       </section>
@@ -269,6 +279,10 @@ const PAYOUT_STATUS: Record<string, string> = {
 
 function moneyList(list: { amount: number; currency: string }[]) {
   return list.length ? list.map((b) => stripeMoney(b.amount, b.currency)).join(' · ') : formatMoney(0);
+}
+
+function OwnerOnlyNote() {
+  return <p className="mt-4 text-sm text-ink-3">Accès en lecture seule : seul le propriétaire du studio peut configurer les versements.</p>;
 }
 
 function OnboardingForm({ studioId, label }: { studioId: string; label: string }) {

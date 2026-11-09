@@ -2,24 +2,34 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { formatMoney, type Currency } from '@wolleen/core';
 
-/** Réponse de GET /api/checkout?gameId=… */
+/** Réponse de GET /api/checkout?gameId=…&itemId=… */
 interface BuyContext {
   signedIn: boolean;
   link: { playerId: string; playerName: string | null } | null;
+  item?: { priceCents: number; currency: Currency; title: string } | null;
 }
+
+/** Libellé de la case obligatoire (docs/legal/consumer.md § 2.3) — doit rester identique côté serveur. */
+const WAIVER_LABEL = 'Je demande la livraison immédiate et renonce à mon droit de rétractation';
 
 /**
  * Bouton « Acheter » d'un article (tâche « payments »).
  * Non connecté → /login?next=… ; compte de jeu non lié → /games/[slug]/link?item=… ;
- * sinon POST /api/checkout puis redirection vers Stripe Checkout (ou /checkout/mock en simulation).
+ * sinon case NON pré-cochée « livraison immédiate / renonciation au droit de rétractation » (obligatoire),
+ * bouton « Payer X € » (prix lu en base via GET /api/checkout), puis POST /api/checkout et redirection vers Stripe
+ * Checkout (ou /checkout/mock en simulation). Le serveur refuse l'achat si la case n'est pas cochée.
  */
 export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSlug: string; itemId: string }) {
   const router = useRouter();
   const [ctx, setCtx] = useState<BuyContext | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [waiver, setWaiver] = useState(false);
+  const waiverRef = useRef<HTMLInputElement>(null);
+  const waiverId = useId();
 
   const itemPath = `/games/${encodeURIComponent(gameSlug)}?item=${encodeURIComponent(itemId)}`;
   const linkPath = `/games/${encodeURIComponent(gameSlug)}/link?item=${encodeURIComponent(itemId)}`;
@@ -27,14 +37,16 @@ export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSl
 
   useEffect(() => {
     const ac = new AbortController();
-    fetch(`/api/checkout?gameId=${encodeURIComponent(gameId)}`, { signal: ac.signal, cache: 'no-store' })
+    setCtx(null);
+    setWaiver(false);
+    fetch(`/api/checkout?gameId=${encodeURIComponent(gameId)}&itemId=${encodeURIComponent(itemId)}`, { signal: ac.signal, cache: 'no-store' })
       .then((r) => (r.ok ? (r.json() as Promise<BuyContext>) : null))
       .then((c) => c && setCtx(c))
       .catch(() => {
         /* le POST gère de toute façon connexion et liaison */
       });
     return () => ac.abort();
-  }, [gameId]);
+  }, [gameId, itemId]);
 
   // Retour arrière depuis Stripe (page restaurée du cache) : réactive le bouton.
   useEffect(() => {
@@ -47,12 +59,17 @@ export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSl
     setError(null);
     if (ctx && !ctx.signedIn) return router.push(loginPath);
     if (ctx && !ctx.link) return router.push(linkPath);
+    if (!waiver) {
+      setError('Cochez la case de livraison immédiate pour payer.');
+      waiverRef.current?.focus();
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ itemId }),
+        body: JSON.stringify({ itemId, withdrawalWaiver: true }),
       });
       const data = (await res.json().catch(() => ({}))) as { url?: string; redirect?: string; error?: { message?: string } };
       if (res.ok && data.url) {
@@ -71,16 +88,39 @@ export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSl
     setBusy(false);
   }
 
+  // La case et le bouton « Payer » n'apparaissent que si l'achat peut partir (connecté et lié, ou contexte inconnu).
+  const canPay = !ctx || (ctx.signedIn && !!ctx.link);
+  const price = ctx?.item ? formatMoney(ctx.item.priceCents, ctx.item.currency) : null;
   const label = busy
     ? 'Redirection…'
     : ctx && !ctx.signedIn
       ? 'Se connecter pour acheter'
       : ctx && !ctx.link
         ? 'Lier mon compte et acheter'
-        : 'Acheter';
+        : price
+          ? `Payer ${price}`
+          : 'Payer';
 
   return (
     <div className="flex w-full flex-col gap-1.5">
+      {canPay && (
+        <label htmlFor={waiverId} className="flex cursor-pointer items-start gap-2 text-left text-xs text-ink-2">
+          <input
+            ref={waiverRef}
+            id={waiverId}
+            type="checkbox"
+            checked={waiver}
+            onChange={(e) => {
+              setWaiver(e.target.checked);
+              if (e.target.checked) setError(null);
+            }}
+            required
+            aria-required="true"
+            className="mt-0.5 h-4 w-4 flex-none accent-[var(--primary)]"
+          />
+          <span>{WAIVER_LABEL}.</span>
+        </label>
+      )}
       <button
         type="button"
         onClick={buy}
