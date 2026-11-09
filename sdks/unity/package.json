@@ -1,0 +1,13 @@
+{
+  "name": "com.wolleen.sdk",
+  "version": "0.1.0",
+  "displayName": "Wolleen SDK",
+  "description": "Reçoit automatiquement dans le jeu les achats faits sur la boutique web Wolleen (interrogation au lancement, périodique et au retour au premier plan), accuse réception et génère les codes de liaison de compte.",
+  "unity": "2021.3",
+  "keywords": ["wolleen", "iap", "store", "purchases", "webshop"],
+  "author": {
+    "name": "Wolleen",
+    "url": "https://wolleen.com"
+  },
+  "license": "UNLICENSED"
+}
