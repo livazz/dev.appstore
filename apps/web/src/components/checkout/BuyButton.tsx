@@ -103,9 +103,14 @@ export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSl
           : 'Payer';
 
   return (
-    <div className="flex w-full flex-col gap-1.5">
+    <div className="flex w-full flex-col gap-2">
       {canPay && (
-        <label htmlFor={waiverId} className="flex cursor-pointer items-start gap-2 text-left text-xs text-ink-2">
+        <label
+          htmlFor={waiverId}
+          className={`flex w-full cursor-pointer items-start gap-3 rounded-[var(--radius)] border px-3 py-2.5 text-left text-sm leading-snug transition-colors ${
+            waiver ? 'border-primary bg-primary/5 text-ink' : error ? 'border-danger text-ink' : 'border-line text-ink-2 hover:border-ink-3'
+          }`}
+        >
           <input
             ref={waiverRef}
             id={waiverId}
@@ -117,7 +122,7 @@ export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSl
             }}
             required
             aria-required="true"
-            className="mt-0.5 h-4 w-4 flex-none accent-[var(--primary)]"
+            className="mt-0.5 size-[18px] flex-none accent-[var(--primary)]"
           />
           <span>{WAIVER_LABEL}.</span>
         </label>
@@ -127,7 +132,7 @@ export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSl
         onClick={buy}
         disabled={busy}
         aria-busy={busy}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius)] bg-primary px-6 font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-70"
+        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[var(--radius)] bg-primary px-6 font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-70"
       >
         {busy && (
           <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -152,7 +157,7 @@ export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSl
         {ctx?.link ? (
           <>
             Achat pour le joueur{' '}
-            <strong className="font-semibold break-all text-ink" title={`ID joueur : ${ctx.link.playerId}`}>
+            <strong className="font-semibold break-words text-ink" title={`ID joueur : ${ctx.link.playerId}`}>
               {ctx.link.playerName || ctx.link.playerId}
             </strong>
             {' · '}

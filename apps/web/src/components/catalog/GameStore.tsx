@@ -180,7 +180,7 @@ function ItemDetail({ game, item, onClose, focusBuy = false }: { game: StoreGame
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-          <div className="grid aspect-[4/3] place-items-center rounded-[var(--radius)] bg-bg p-4">
+          <div className="flex aspect-[4/3] max-h-[32dvh] w-full items-center justify-center overflow-hidden rounded-[var(--radius)] bg-bg p-4 sm:max-h-none">
             {models[visual]?.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={models[visual].imageUrl} alt={models[visual].label || item.title} className="max-h-full max-w-full object-contain" />
@@ -246,17 +246,9 @@ function ItemDetail({ game, item, onClose, focusBuy = false }: { game: StoreGame
           </dl>
         </div>
 
-        <div className="flex gap-3 border-t border-line px-4 py-4 sm:px-6">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-11 flex-none rounded-[var(--radius)] bg-cancel px-5 font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            Annuler
-          </button>
-          <div ref={buyRef} className="min-w-0 flex-1">
-            <BuyButton gameId={game.id} gameSlug={game.slug} itemId={item.id} />
-          </div>
+        {/* Pied : une seule action (achat) sur toute la largeur ; la fermeture passe par la croix, Échap ou le fond. */}
+        <div ref={buyRef} className="border-t border-line bg-surface px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+          <BuyButton gameId={game.id} gameSlug={game.slug} itemId={item.id} />
         </div>
       </div>
     </div>

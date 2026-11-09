@@ -20,7 +20,7 @@ export default async function AccountPage() {
         {user.name} · {user.email}
       </p>
 
-      <nav aria-label="Sections du compte" className="mt-6 flex flex-wrap gap-x-6 border-b border-line text-sm">
+      <nav aria-label="Sections du compte" className="mt-6 flex gap-x-5 overflow-x-auto border-b border-line text-sm whitespace-nowrap [scrollbar-width:none] sm:gap-x-6">
         <span aria-current="page" className="-mb-px border-b-2 border-ink pb-2 font-semibold text-ink">
           Mes jeux liés
         </span>
