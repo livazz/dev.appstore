@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { games } from './studio';
 import { user } from './auth';
 
@@ -29,7 +29,7 @@ export const storeCredentials = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  (t) => [unique('store_credentials_game_source_uq').on(t.gameId, t.source)],
+  (t) => [uniqueIndex('store_credentials_game_source_uq').on(t.gameId, t.source)],
 );
 
 export type ImportRunStatus = 'fetched' | 'imported' | 'failed';

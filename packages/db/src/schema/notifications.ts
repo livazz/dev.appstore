@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import { index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /*
  * Ajout tâche « notifications » — journal des e-mails transactionnels envoyés.
@@ -34,5 +34,5 @@ export const notificationsSent = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  (t) => [unique('notifications_sent_kind_ref_uq').on(t.kind, t.refId), index('notifications_sent_created_idx').on(t.createdAt)],
+  (t) => [uniqueIndex('notifications_sent_kind_ref_uq').on(t.kind, t.refId), index('notifications_sent_created_idx').on(t.createdAt)],
 );

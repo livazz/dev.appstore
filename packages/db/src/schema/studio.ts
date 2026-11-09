@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import type { Currency, GameStatus, GameTheme, ItemModel, ItemStyle, ItemType, LayoutId, LinkMethod, Period, StudioRole } from '@devappstore/core';
 import { user } from './auth';
 
@@ -87,5 +87,5 @@ export const items = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  (t) => [unique('items_game_product_uq').on(t.gameId, t.productId), index('items_game_idx').on(t.gameId)],
+  (t) => [uniqueIndex('items_game_product_uq').on(t.gameId, t.productId), index('items_game_idx').on(t.gameId)],
 );

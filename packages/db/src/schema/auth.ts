@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 /*
  * Tables d'authentification — compatibles avec le schéma cœur de Better Auth
@@ -24,7 +24,10 @@ export const session = pgTable('session', {
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-});
+}, (t) => [
+  // Index recommandés par Better Auth 1.7 (sessions d'un utilisateur, révocation, comptes liés, vérifications).
+  index('session_user_id_idx').on(t.userId),
+]);
 
 export const account = pgTable('account', {
   id: text('id').primaryKey(),
@@ -40,13 +43,13 @@ export const account = pgTable('account', {
   password: text('password'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-});
+}, (t) => [index('account_user_id_idx').on(t.userId)]);
 
 export const verification = pgTable('verification', {
   id: text('id').primaryKey(),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [index('verification_identifier_idx').on(t.identifier)]);
