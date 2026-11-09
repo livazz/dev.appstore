@@ -88,3 +88,25 @@ export const webhookAttempts = pgTable('webhook_attempts', {
   durationMs: integer('duration_ms'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+/*
+ * Ajout tâche « linking » — tentatives de liaison d'un compte de jeu, par utilisateur Wolleen :
+ * - kind = 'code'   : saisie d'un code (ok = 0 → échec, compté pour l'anti force brute) ;
+ * - kind = 'lookup' : appel « player lookup » du studio (limité pour éviter l'énumération des joueurs).
+ *   Une recherche réussie (ok = 1) porte le joueur trouvé et sert de jeton de confirmation (usedAt = consommé).
+ */
+export const linkAttempts = pgTable(
+  'link_attempts',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+    gameId: text('game_id').notNull().references(() => games.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<'code' | 'lookup'>().notNull(),
+    ok: integer('ok').notNull().default(0),
+    playerId: text('player_id'),
+    playerName: text('player_name'),
+    usedAt: timestamp('used_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('link_attempts_user_idx').on(t.userId, t.kind, t.createdAt)],
+);
