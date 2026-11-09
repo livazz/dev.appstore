@@ -71,10 +71,6 @@ async function auditFor(targetId: string) {
   return h.db.select().from(adminAuditLog).where(eq(adminAuditLog.targetId, targetId));
 }
 
-async function setGameStatus(id: string, status: 'draft' | 'review' | 'live' | 'suspended') {
-  await h.db.update(games).set({ status }).where(eq(games.id, id));
-}
-
 beforeAll(async () => {
   h.db = await createTestDb();
   await h.db.insert(user).values(Object.values(U));
