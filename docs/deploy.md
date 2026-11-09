@@ -75,6 +75,7 @@ Règles appliquées par `env.ts` (les messages d'erreur listent les variables fa
 | `CRON_SECRET` | vide = cron ouvert | **obligatoire**, ≥ 16 caractères | `openssl rand -hex 32` ; Vercel l'envoie en `Authorization: Bearer` |
 | `WOLLEEN_STORAGE` | `local` | `s3` (voir § 5) | `local` \| `s3` |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | — | obligatoires si `s3` | R2 : `https://<compte>.eu.r2.cloudflarestorage.com` |
+| `NEXT_PUBLIC_S3_PUBLIC_URL` | — | obligatoire si `s3`, **= `S3_PUBLIC_URL`** | lue par le rendu client des boutiques (`safeImageUrl`) ; injectée au build |
 | `RESEND_API_KEY` | optionnel | optionnel | `re_…` (e-mails, phase 2) |
 | `ANTHROPIC_API_KEY` | optionnel | optionnel | `sk-ant-…` (assistant de style) |
 
@@ -174,7 +175,7 @@ docker build --target migrator -t wolleen-migrate . && docker run --rm -e DATABA
   qui lui est attribuée au moment du build, sans contrôle.
 - **Sans interruption** : migrations « expand / contract » — ajouter une colonne nullable, déployer le code qui
   l'écrit, remplir, puis rendre `NOT NULL` / supprimer l'ancienne colonne dans une migration suivante.
-- `npm run db:seed` ne doit **jamais** viser la production (clés `wk_test_demo_*`, CHK-CFG-04).
+- `npm run db:seed` ne doit **jamais** viser la production (clés `wk_secret_demo_*` / `wk_pub_demo_*`, CHK-CFG-04).
 
 ## 5. Fichiers : Cloudflare R2
 

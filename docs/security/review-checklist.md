@@ -12,8 +12,8 @@ et défauts (`D-…`) de [`threat-model.md`](./threat-model.md).
 3. Un point **P0 en KO bloque la mise en production**. Un point P1 en KO bloque l'ouverture publique.
 4. Quand un point demande un test, le test doit être **ajouté au dépôt** (vitest, `createTestDb()`), pas seulement exécuté à la main.
 
-Conventions : `$W=apps/web/src`, `$API=$W/app/api`. Clé de démo : `wk_test_demo_crystal_clash` (jeu `gam_crystal`),
-`wk_test_demo_pixel_farm` (jeu `gam_farm`) ; serveur local `http://localhost:3000`.
+Conventions : `$W=apps/web/src`, `$API=$W/app/api`. Clés secrètes de démo : `wk_secret_demo_crystal_clash` (jeu `gam_crystal`),
+`wk_secret_demo_pixel_farm` (jeu `gam_farm`) ; clés publiques `wk_pub_demo_*` ; serveur local `http://localhost:3000`.
 
 ```bash
 # Inventaire de départ : toutes les surfaces d'entrée à couvrir
@@ -32,7 +32,7 @@ rg -n "process\.env\." apps/web/src packages                                    
 | CHK-CFG-01 | En production, l'application refuse de démarrer si `DATABASE_URL` est vide (pas de repli PGlite). | Lire `packages/db/src/index.ts` ; `NODE_ENV=production DATABASE_URL= node -e "require('@wolleen/db')"` (ou équivalent) doit échouer. | D-17, T-PLT-01 | P1 |
 | CHK-CFG-02 | Les variables d'environnement serveur sont validées au démarrage (zod) : `AUTH_SECRET` ≥ 32 octets et ≠ `change-me`, `STRIPE_WEBHOOK_SECRET` présent si `STRIPE_SECRET_KEY` l'est, `CRON_SECRET` présent, `PLATFORM_FEE_BPS` entier 0–3000, `APP_URL` en `https://` en production. | `rg -n "AUTH_SECRET|CRON_SECRET|PLATFORM_FEE_BPS|STRIPE_" apps/web/src` → un module unique de lecture validée ; test unitaire des cas invalides. | D-16, T-AUTH-02, T-PAY-07 | P0 |
 | CHK-CFG-03 | `.env.example` liste toutes les variables utilisées (dont `CRON_SECRET`) sans valeur exploitable. | Comparer `rg -o "process\.env\.[A-Z_]+" -N apps/web/src packages \| sort -u` avec `.env.example`. | D-16 | P2 |
-| CHK-CFG-04 | `npm run db:seed` refuse de s'exécuter en production ; aucune clé `wk_test_demo*` / `whsec_demo*` n'est acceptée quand `NODE_ENV=production`. | Lire `packages/db/src/seed.ts` (garde en tête de `main`) ; test : `authenticateGame` rejette `wk_test_` en mode production si c'est la politique retenue. | T-PLT-02 | P1 |
+| CHK-CFG-04 | `npm run db:seed` refuse de s'exécuter en production ; aucune clé `wk_secret_demo*` / `wk_test_demo*` (anciennes) / `whsec_demo*` n'est acceptée quand `NODE_ENV=production`. | Lire `packages/db/src/seed.ts` (garde en tête de `main`) ; test : `authenticateGame` rejette `wk_test_` en mode production si c'est la politique retenue. | T-PLT-02 | P1 |
 | CHK-CFG-05 | Aucun secret réel committé. | `git log -p \| rg -n "sk_live_|rk_live_|whsec_[A-Za-z0-9]{20,}|wk_live_"` → vide. | A5 | P0 |
 | CHK-CFG-06 | Le stub de session `wolleen_demo_user` a disparu, ou lève une erreur si `NODE_ENV=production`. | `rg -n "wolleen_demo_user|usr_demo_player" apps/web/src` → uniquement dans des tests / la garde. | D-01, T-AUTH-01 | P0 |
 
@@ -79,7 +79,7 @@ un fichier de test avec `createTestDb()`.
 | CHK-API-07 | Rotation sans interruption possible (plusieurs clés actives, révocation, `last_used_at`). | Schéma + écran Intégration. | T-DLV-04 | P2 |
 | CHK-API-08 | Erreurs de l'API v1 au format `apiError` sans message d'exception brut ni pile. | `rg -n "apiError\(.*(e|err|error)\.message" apps/web/src` → vide. | T-PLT-04 | P2 |
 | CHK-API-09 | Limitation de débit par clé et par IP sur `/api/v1/*` (`429` + `Retry-After`). | Boucle de 200 requêtes → `429` observé. | T-PLT-06 | P1 |
-| CHK-API-10 | CORS : pas de `Access-Control-Allow-Origin` reflétant l'origine avec `Access-Control-Allow-Credentials: true`. | `curl -si -H "Origin: https://evil.tld" localhost:3000/api/v1/deliveries -H "Authorization: Bearer wk_test_demo_pixel_farm"` → pas d'ACAO reflété + credentials. | T-DLV-05 | P1 |
+| CHK-API-10 | CORS : pas de `Access-Control-Allow-Origin` reflétant l'origine avec `Access-Control-Allow-Credentials: true`. | `curl -si -H "Origin: https://evil.tld" localhost:3000/api/v1/deliveries -H "Authorization: Bearer wk_pub_demo_pixel_farm"` → pas d'ACAO reflété + credentials. | T-DLV-05 | P1 |
 
 ## 5. Liaison de compte
 

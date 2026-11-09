@@ -118,6 +118,14 @@ describe('parseEnv — production', () => {
 
   it('exige la configuration S3/R2 quand WOLLEEN_STORAGE=s3', () => {
     expect(issuesOf({ ...PROD, WOLLEEN_STORAGE: 's3' })).toHaveProperty('S3_BUCKET');
+    const s3 = {
+      ...PROD, WOLLEEN_STORAGE: 's3', S3_ENDPOINT: 'https://acc.eu.r2.cloudflarestorage.com', S3_BUCKET: 'b',
+      S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's', S3_PUBLIC_URL: 'https://cdn.wolleen.example',
+    };
+    // Copie publique obligatoire (rendu client des images, safeImageUrl) et identique à S3_PUBLIC_URL.
+    expect(issuesOf(s3)).toHaveProperty('NEXT_PUBLIC_S3_PUBLIC_URL');
+    expect(issuesOf({ ...s3, NEXT_PUBLIC_S3_PUBLIC_URL: 'https://autre.example' })).toHaveProperty('NEXT_PUBLIC_S3_PUBLIC_URL');
+    expect(() => parseEnv({ ...s3, NEXT_PUBLIC_S3_PUBLIC_URL: 'https://cdn.wolleen.example/' })).not.toThrow();
   });
 
   it('produit un message clair qui ne divulgue aucune valeur secrète', () => {

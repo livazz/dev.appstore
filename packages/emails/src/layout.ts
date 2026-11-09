@@ -191,11 +191,21 @@ export function divider(): Block {
   };
 }
 
-/** Logo W jaune (pur HTML : visible même si les images sont bloquées). */
-export function logo(): SafeHtml {
+/** Marque affichée en tête d'e-mail : nom + lettre du logo (carré jaune). */
+export interface Brand {
+  name: string;
+  initial: string;
+}
+
+export const WOLLEEN_BRAND: Brand = { name: 'Wolleen', initial: 'W' };
+/** Nom commercial « Dev AppStore » (logo : carré jaune « D »), utilisé par les nouveaux modèles. */
+export const DEV_APPSTORE_BRAND: Brand = { name: 'Dev AppStore', initial: 'D' };
+
+/** Logo carré jaune (pur HTML : visible même si les images sont bloquées). */
+export function logo(brand: Brand = WOLLEEN_BRAND): SafeHtml {
   return html`<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td width="40" height="40" align="center" valign="middle" bgcolor="${COLORS.brand}" style="width:40px;height:40px;background:${COLORS.brand};border-radius:10px;font-family:${FONT};font-size:24px;line-height:40px;font-weight:800;color:${COLORS.brandInk};">W</td>
-<td style="padding-left:10px;font-family:${FONT};font-size:20px;line-height:40px;font-weight:800;color:${COLORS.ink};letter-spacing:-0.3px;">Wolleen</td>
+<td width="40" height="40" align="center" valign="middle" bgcolor="${COLORS.brand}" style="width:40px;height:40px;background:${COLORS.brand};border-radius:10px;font-family:${FONT};font-size:24px;line-height:40px;font-weight:800;color:${COLORS.brandInk};">${brand.initial}</td>
+<td style="padding-left:10px;font-family:${FONT};font-size:20px;line-height:40px;font-weight:800;color:${COLORS.ink};letter-spacing:-0.3px;">${brand.name}</td>
 </tr></table>`;
 }
 
@@ -211,9 +221,11 @@ export interface RenderOptions {
   ctx: ResolvedContext;
   /** Raison de l'envoi, affichée en pied de page (« Vous recevez cet e-mail car… »). */
   reason: string;
+  /** Marque de l'en-tête (défaut : Wolleen). */
+  brand?: Brand;
 }
 
-export function renderEmail({ subject, preheader, blocks, ctx, reason }: RenderOptions): EmailContent {
+export function renderEmail({ subject, preheader, blocks, ctx, reason, brand = WOLLEEN_BRAND }: RenderOptions): EmailContent {
   const cleanSubject = oneLine(subject, 180);
   const legal = [ctx.companyName, ctx.companyAddress].filter(Boolean).join(' · ');
   const mediator = ctx.mediator
@@ -234,7 +246,7 @@ export function renderEmail({ subject, preheader, blocks, ctx, reason }: RenderO
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${COLORS.page}" style="background:${COLORS.page};">
 <tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;">
-<tr><td style="padding:0 8px 16px 8px;">${logo()}</td></tr>
+<tr><td style="padding:0 8px 16px 8px;">${logo(brand)}</td></tr>
 </table>
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="${COLORS.surface}" style="width:600px;max-width:600px;background:${COLORS.surface};border:1px solid ${COLORS.border};border-radius:14px;">
 <tr><td height="28" style="height:28px;line-height:28px;font-size:1px;">&nbsp;</td></tr>
@@ -254,7 +266,7 @@ ${legal}${mediator}
 </html>`;
 
   const textParts = [
-    'Wolleen',
+    plain(brand.name),
     '',
     ...blocks.map((b) => b.text).filter((t) => t !== ''),
     '',

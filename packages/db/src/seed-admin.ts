@@ -1,7 +1,7 @@
 /*
- * Back-office Dev AppStore : fait de dev@wolleen.test (compte de démo) un superadmin de la plateforme (idempotent).
- * Usage : `npx tsx packages/db/src/seed-admin.ts` après `npm run db:push && npm run db:seed`.
- * Autre compte : `npx tsx packages/db/src/seed-admin.ts autre@exemple.fr support`.
+ * Back-office Dev AppStore : donne un rôle de la plateforme à un compte existant (idempotent).
+ * `npm run db:seed` fait déjà de dev@wolleen.test un superadmin (seed.ts) ; ce script sert pour un autre compte ou un
+ * autre rôle : `npx tsx packages/db/src/seed-admin.ts autre@exemple.fr support`.
  */
 import { db, eq, platformAdmins, user, type PlatformAdminRole } from './index';
 

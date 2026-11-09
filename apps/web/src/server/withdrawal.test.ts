@@ -14,9 +14,24 @@ vi.mock('@wolleen/db', async () => {
   return { ...schema, schema, ...orm, db: await createTestDb() };
 });
 
+// L'accusé de réception part en arrière-plan : on l'observe (et on peut le faire échouer) sans envoyer d'e-mail.
+const ack = vi.hoisted(() => ({ calls: [] as { orderId: string; opts: Record<string, unknown> }[], fail: false }));
+vi.mock('./notifications', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('./notifications')>();
+  return {
+    ...orig,
+    runInBackground: (_label: string, task: () => Promise<unknown>) => void task().catch(() => undefined),
+    sendWithdrawalAcknowledgement: vi.fn(async (orderId: string, opts: Record<string, unknown>) => {
+      ack.calls.push({ orderId, opts });
+      if (ack.fail) throw new Error('transport en panne');
+      return { ok: true, status: 'sent', recipients: [] };
+    }),
+  };
+});
+
 const D = await import('@wolleen/db');
 const db = D.db as DB;
-const { enqueueDelivery } = await import('./delivery');
+const { enqueueDelivery, retryDelivery } = await import('./delivery');
 const W = await import('./withdrawal');
 
 const NOW = new Date('2026-11-09T12:00:00Z');
@@ -74,7 +89,7 @@ function fakeStripe(opts: { transfer?: boolean; failRefund?: boolean } = {}) {
 }
 
 describe('éligibilité', () => {
-  it('withdrawalBlocker : payée, montant > 0, < 14 jours, livraison pending (ou arrêtée pour rétractation)', () => {
+  it('withdrawalBlocker : payée, montant > 0, < 14 jours, livraison pending ou failed (relances épuisées, arrêt pour rétractation)', () => {
     const base = { status: 'paid' as const, amountCents: 499, createdAt: new Date(NOW.getTime() - DAY), deliveryStatus: 'pending' as const, deliveryLastError: null };
     expect(W.withdrawalBlocker(base, NOW)).toBeNull();
     expect(W.withdrawalBlocker({ ...base, status: 'refunded' }, NOW)).toBe('not_paid');
@@ -82,7 +97,8 @@ describe('éligibilité', () => {
     expect(W.withdrawalBlocker({ ...base, createdAt: new Date(NOW.getTime() - 14 * DAY) }, NOW)).toBe('period_expired');
     expect(W.withdrawalBlocker({ ...base, createdAt: new Date(NOW.getTime() - 14 * DAY + 60_000) }, NOW)).toBeNull();
     for (const s of ['delivered', 'acknowledged'] as const) expect(W.withdrawalBlocker({ ...base, deliveryStatus: s }, NOW)).toBe('already_delivered');
-    expect(W.withdrawalBlocker({ ...base, deliveryStatus: 'failed', deliveryLastError: 'HTTP 500' }, NOW)).toBe('already_delivered');
+    // Relances épuisées : rien n'a été crédité, la rétractation reste possible (consumer.md § 2.4).
+    expect(W.withdrawalBlocker({ ...base, deliveryStatus: 'failed', deliveryLastError: 'HTTP 500' }, NOW)).toBeNull();
     expect(W.withdrawalBlocker({ ...base, deliveryStatus: 'failed', deliveryLastError: W.WITHDRAWAL_STOP_REASON }, NOW)).toBeNull();
     expect(W.withdrawalBlocker({ ...base, deliveryStatus: null }, NOW)).toBe('already_delivered');
   });
@@ -225,5 +241,54 @@ describe('withdrawOrder', () => {
     expect(new Set(f.calls.map((c) => c.options.idempotencyKey)).size).toBe(1);
     expect((await orderRow(id)).status).toBe('refunded');
     expect(await refundRows(id)).toHaveLength(1);
+  });
+
+  it('livraison en échec (relances épuisées) : rétractable, arrêtée atomiquement, jamais relancée ensuite', async () => {
+    const { id, deliveryId } = await paidOrder();
+    await db.update(D.deliveries).set({ status: 'failed', attempts: 8, lastError: 'HTTP 503', nextAttemptAt: null }).where(D.eq(D.deliveries.id, deliveryId));
+    expect((await W.withdrawableOrderIds('usr_buyer', [id], NOW)).has(id)).toBe(true);
+    await W.withdrawOrder('usr_buyer', id, sim);
+    expect(await deliveryRow(id)).toMatchObject({ status: 'failed', nextAttemptAt: null, lastError: W.WITHDRAWAL_STOP_REASON });
+    expect((await orderRow(id)).status).toBe('refunded');
+    expect(await refundRows(id)).toHaveLength(1);
+    // Bouton « Relancer » du studio : refusé (commande remboursée, motif de rétractation).
+    expect(await retryDelivery('gam_w', deliveryId)).toBe('not_retryable');
+    expect((await deliveryRow(id)).status).toBe('failed');
+  });
+
+  it('retryDelivery ne relance pas une livraison arrêtée pour rétractation dont le remboursement a échoué', async () => {
+    const { id, deliveryId } = await paidOrder();
+    await expect(W.withdrawOrder('usr_buyer', id, { now: NOW, stripe: fakeStripe({ failRefund: true }).stripe })).rejects.toMatchObject({ code: 'refund_failed' });
+    expect((await orderRow(id)).status).toBe('paid');
+    expect(await retryDelivery('gam_w', deliveryId)).toBe('not_retryable');
+    expect(await deliveryRow(id)).toMatchObject({ status: 'failed', lastError: W.WITHDRAWAL_STOP_REASON });
+    // Une livraison en échec « ordinaire » reste relançable.
+    const other = await paidOrder();
+    await db.update(D.deliveries).set({ status: 'failed', lastError: 'HTTP 503', nextAttemptAt: null }).where(D.eq(D.deliveries.id, other.deliveryId));
+    expect(await retryDelivery('gam_w', other.deliveryId)).toBe('ok');
+    expect((await deliveryRow(other.id)).status).toBe('pending');
+  });
+
+  it('accusé de réception envoyé après succès (date de la demande, délai, mode) ; son échec n’annule pas la rétractation', async () => {
+    ack.calls.length = 0;
+    const { id } = await paidOrder();
+    await W.withdrawOrder('usr_buyer', id, sim);
+    await vi.waitFor(() => expect(ack.calls.some((c) => c.orderId === id)).toBe(true));
+    expect(ack.calls.find((c) => c.orderId === id)!.opts).toMatchObject({ requestedAt: NOW, refundDays: 14, simulated: true });
+
+    // Pas d'accusé quand la rétractation échoue.
+    const failing = await paidOrder();
+    await expect(W.withdrawOrder('usr_buyer', failing.id, { now: NOW, stripe: null, simulationAllowed: false })).rejects.toBeTruthy();
+    expect(ack.calls.some((c) => c.orderId === failing.id)).toBe(false);
+
+    ack.fail = true;
+    try {
+      const other = await paidOrder();
+      await expect(W.withdrawOrder('usr_buyer', other.id, sim)).resolves.toMatchObject({ orderId: other.id });
+      await vi.waitFor(() => expect(ack.calls.some((c) => c.orderId === other.id)).toBe(true));
+      expect((await orderRow(other.id)).status).toBe('refunded');
+    } finally {
+      ack.fail = false;
+    }
   });
 });

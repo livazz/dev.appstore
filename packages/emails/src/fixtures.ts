@@ -2,6 +2,7 @@
 import type { EmailContext } from './context';
 import type { DeliveryFailedData, PlayerWelcomeData, PurchaseDeliveredData, PurchaseReceiptData } from './templates/player';
 import type { AuthLinkData } from './templates/auth';
+import type { WithdrawalAcknowledgementData } from './templates/withdrawal';
 import type { StudioDeliveryAlertData, StudioWeeklyReportData, StudioWelcomeData } from './templates/studio';
 
 export const sampleContext: Partial<EmailContext> = {
@@ -90,4 +91,18 @@ export const sampleWeeklyReport: StudioWeeklyReportData = {
     { name: 'Happy Farm', revenueCents: 312_450, orders: 640, previousRevenueCents: 330_000 },
   ],
   topItem: { name: '500 gemmes', gameName: 'Crystal Clash', orders: 1_204 },
+};
+
+export const sampleWithdrawal: WithdrawalAcknowledgementData = {
+  playerName: 'Léa',
+  orderId: sampleReceipt.orderId,
+  item: sampleReceipt.item,
+  gameName: 'Crystal Clash',
+  gameAccount: sampleReceipt.gameAccount,
+  sellerName: 'Nova Games SAS',
+  refundedCents: 499,
+  currency: 'EUR',
+  paidAt,
+  requestedAt: '2026-11-09T15:10:42.120Z',
+  refundDays: 14,
 };
