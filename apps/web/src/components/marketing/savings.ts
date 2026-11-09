@@ -61,6 +61,32 @@ export function keptPercentLabel(feeBps: number) {
   return bpsToPercentLabel(10_000 - feeBps);
 }
 
+/**
+ * Taux de commission store choisi (paramètre d'URL ou valeur de formulaire, en pourcentage « 15 » / « 30 »
+ * ou en points de base « 1500 » / « 3000 »). Toute valeur hors `options` → `fallback`.
+ */
+export function parseStoreFeeBps(value: unknown, options: readonly number[], fallback: number): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if ((typeof raw !== 'string' || raw.trim() === '') && typeof raw !== 'number') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  const bps = n <= 100 ? Math.round(n * 100) : Math.round(n);
+  return options.includes(bps) ? bps : fallback;
+}
+
+/**
+ * Gain réel d'une période par rapport aux stores au taux `storeFeeBps` : commission store évitée moins la
+ * commission Wolleen réellement prélevée (jamais négatif). Même arrondi que `feeCents` de @wolleen/core.
+ */
+export function savingsVsStoreCents(grossCents: number, platformFeeCents: number, storeFeeBps: number) {
+  return Math.max(0, feeCents(grossCents, storeFeeBps) - platformFeeCents);
+}
+
+/** Ce que le studio aurait touché via les stores au taux `storeFeeBps`. */
+export function netViaStoresCents(grossCents: number, storeFeeBps: number) {
+  return grossCents - feeCents(grossCents, storeFeeBps);
+}
+
 /** Montant arrondi à l'euro (affichage marketing). */
 export function formatEurosRounded(cents: number) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Math.round(cents / 100));

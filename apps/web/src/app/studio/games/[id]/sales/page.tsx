@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, eq, games } from '@wolleen/db';
-import { feeCents, formatMoney, STORE_FEE_BPS } from '@wolleen/core';
+import { formatMoney, STORE_FEE_BPS, STORE_FEE_OPTIONS_BPS } from '@wolleen/core';
 import { requireGameAccess } from '@/server/session';
 import { getDailyRevenue, getSalesTotals, getTopItems, getTransactions } from '@/server/analytics';
 import { formatDateTime, parseSalesPeriod, SALES_PERIODS, studioDeliveryLabel, TONE_CLASSES } from '@/lib/analytics-format';
 import { RevenueChart } from '@/components/analytics/RevenueChart';
+import { bpsToPercentLabel, netViaStoresCents, parseStoreFeeBps, savingsVsStoreCents } from '@/components/marketing/savings';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Ventes et tendances — Wolleen' };
@@ -18,7 +19,16 @@ export default async function SalesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const days = parseSalesPeriod((await searchParams).days);
+  const sp = await searchParams;
+  const days = parseSalesPeriod(sp.days);
+  // Commission store de référence pour la tuile « Gagné en plus » : 30 % par défaut, 15 % au choix (?store=15).
+  const storeBps = parseStoreFeeBps(sp.store, STORE_FEE_OPTIONS_BPS, STORE_FEE_BPS);
+  const qs = (next: { days?: number; store?: number }) => {
+    const p = new URLSearchParams({ days: String(next.days ?? days) });
+    const store = next.store ?? storeBps;
+    if (store !== STORE_FEE_BPS) p.set('store', String(store / 100));
+    return `?${p.toString()}`;
+  };
   try {
     await requireGameAccess(id);
   } catch (e) {
@@ -34,24 +44,28 @@ export default async function SalesPage({
   const c = main.currency;
   const [daily, top] = await Promise.all([getDailyRevenue(id, c, opts), getTopItems(id, c, { ...opts, limit: 5 })]);
   const feePct = main.grossCents ? (main.platformFeeCents / main.grossCents) * 100 : null;
-  const viaStores = main.grossCents - feeCents(main.grossCents, STORE_FEE_BPS);
+  const viaStores = netViaStoresCents(main.grossCents, storeBps);
+  const savings = savingsVsStoreCents(main.grossCents, main.platformFeeCents, storeBps);
+  const storeLabel = bpsToPercentLabel(storeBps);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Ventes et tendances</h1>
-          <p className="text-sm text-ink-2">{game.name} · {days} derniers jours · montants en {c}</p>
+    <div className="flex flex-col gap-5 py-6">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-semibold text-ink">Ventes et tendances</h2>
+          <p className="mt-1 text-sm text-ink-2">
+            {game.name} · {days} derniers jours · montants en {c}
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <nav className="inline-flex rounded-lg border border-line bg-surface p-0.5 text-sm" aria-label="Période">
+        <div className="flex flex-wrap items-center gap-3">
+          <nav className="inline-flex rounded-[var(--radius)] border border-line bg-surface p-0.5 text-sm" aria-label="Période">
             {SALES_PERIODS.map((d) => (
               <Link
                 key={d}
-                href={`?days=${d}`}
+                href={qs({ days: d })}
                 scroll={false}
                 aria-current={d === days ? 'page' : undefined}
-                className={`rounded-md px-3 py-1.5 ${d === days ? 'bg-ink text-surface' : 'text-ink-2 hover:text-ink'}`}
+                className={`inline-flex min-h-11 items-center rounded-[calc(var(--radius)-2px)] px-3 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary ${d === days ? 'bg-ink text-surface' : 'text-ink-2 hover:text-ink'}`}
               >
                 {d} jours
               </Link>
@@ -59,7 +73,7 @@ export default async function SalesPage({
           </nav>
           <a
             href={`/studio/games/${id}/sales/export?days=${days}`}
-            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+            className="inline-flex min-h-11 items-center rounded-[var(--radius)] bg-primary px-4 text-sm font-semibold whitespace-nowrap text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             download
           >
             Exporter en CSV
@@ -67,7 +81,7 @@ export default async function SalesPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <Tile label="Revenu brut" value={formatMoney(main.grossCents, c)} hint="payé par les joueurs" />
         <Tile
           label="Revenu net"
@@ -76,16 +90,37 @@ export default async function SalesPage({
         />
         <Tile
           highlight
-          label="Gagné en plus vs App Store / Google Play"
-          value={`+${formatMoney(main.savingsCents, c)}`}
-          hint={`via les stores (30 %), vous auriez touché ${formatMoney(viaStores, c)}`}
-        />
+          className="col-span-2 lg:col-span-1 lg:row-span-2"
+          label={`Gagné en plus vs commission store de ${storeLabel}`}
+          value={`+${formatMoney(savings, c)}`}
+          hint={`Via l’App Store / Google Play à ${storeLabel}, vous auriez touché ${formatMoney(viaStores, c)}.`}
+        >
+          <div className="mt-auto pt-3">
+            <p id="store-fee-label" className="text-xs font-medium text-ink-2">
+              Votre commission store (15 % : petits studios, abonnements après 1 an)
+            </p>
+            <div role="group" aria-labelledby="store-fee-label" className="mt-1.5 inline-flex rounded-[var(--radius)] border border-line bg-surface p-0.5 text-sm">
+              {STORE_FEE_OPTIONS_BPS.map((bps) => (
+                <Link
+                  key={bps}
+                  href={qs({ store: bps })}
+                  scroll={false}
+                  replace
+                  aria-current={bps === storeBps ? 'true' : undefined}
+                  className={`inline-flex min-h-11 min-w-14 items-center justify-center rounded-[calc(var(--radius)-2px)] px-3 font-semibold tabular-nums focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary ${bps === storeBps ? 'bg-ink text-surface' : 'text-ink-2 hover:text-ink'}`}
+                >
+                  {bpsToPercentLabel(bps)}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </Tile>
         <Tile label="Panier moyen" value={formatMoney(main.avgCents, c)} hint="par achat" />
-        <Tile label="Achats" value={main.count.toLocaleString('fr-FR')} hint="commandes payées" className="col-span-2 lg:col-span-1" />
+        <Tile label="Achats" value={main.count.toLocaleString('fr-FR')} hint="commandes payées" />
       </div>
 
       {others.length > 0 && (
-        <p className="rounded-lg border border-warn/30 bg-warn/10 px-4 py-2 text-sm text-warn">
+        <p className="rounded-[var(--radius)] border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-ink">
           Ventes dans d’autres devises (non incluses ci-dessus) :{' '}
           {others.map((o) => `${formatMoney(o.grossCents, o.currency)} brut (${o.count} achat${o.count > 1 ? 's' : ''})`).join(' · ')}
         </p>
@@ -96,7 +131,7 @@ export default async function SalesPage({
       <div className="grid gap-5 lg:grid-cols-[2fr_3fr]">
         <Card title="Meilleures ventes">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-ink-3">
+            <thead className="text-left text-xs text-ink-2">
               <tr>
                 <th className="pb-2 font-medium">Article</th>
                 <th className="pb-2 text-right font-medium">Achats</th>
@@ -108,7 +143,7 @@ export default async function SalesPage({
                 <tr key={t.itemId} className="border-t border-line">
                   <td className="py-2">
                     <div className="font-medium">{t.title}</div>
-                    <div className="font-mono text-xs text-ink-3">{t.productId}</div>
+                    <div className="font-mono text-xs text-ink-2">{t.productId}</div>
                   </td>
                   <td className="py-2 text-right tabular-nums">{t.count}</td>
                   <td className="py-2 text-right tabular-nums">{formatMoney(t.grossCents, c)}</td>
@@ -122,7 +157,7 @@ export default async function SalesPage({
         <Card title="Dernières transactions">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
-              <thead className="text-left text-xs text-ink-3">
+              <thead className="text-left text-xs text-ink-2">
                 <tr>
                   <th className="pb-2 font-medium">Date</th>
                   <th className="pb-2 font-medium">Joueur</th>
@@ -140,7 +175,7 @@ export default async function SalesPage({
                       <td className="py-2 pr-3 font-mono text-xs">{t.playerId}</td>
                       <td className="py-2">
                         {t.itemTitle}
-                        {t.quantity > 1 && <span className="text-ink-3"> ×{t.quantity}</span>}
+                        {t.quantity > 1 && <span className="text-ink-2"> ×{t.quantity}</span>}
                       </td>
                       <td className="whitespace-nowrap py-2 text-right tabular-nums">{formatMoney(t.amountCents, t.currency)}</td>
                       <td className="py-2 pl-3">
@@ -159,12 +194,27 @@ export default async function SalesPage({
   );
 }
 
-function Tile({ label, value, hint, highlight, className = '' }: { label: string; value: string; hint: string; highlight?: boolean; className?: string }) {
+function Tile({
+  label,
+  value,
+  hint,
+  highlight,
+  className = '',
+  children,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  highlight?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}) {
   return (
-    <div className={`flex flex-col gap-1 rounded-[var(--radius)] border p-4 ${highlight ? 'border-ok/30 bg-ok/5' : 'border-line bg-surface'} ${className}`}>
+    <div className={`flex min-w-0 flex-col gap-1 rounded-[var(--radius)] border p-5 ${highlight ? 'border-ok/30 bg-ok/5' : 'border-line bg-surface'} ${className}`}>
       <span className="text-xs font-medium text-ink-2">{label}</span>
-      <strong className={`text-2xl font-semibold tabular-nums ${highlight ? 'text-ok' : ''}`}>{value}</strong>
-      <small className="text-xs text-ink-3">{hint}</small>
+      <strong className={`text-2xl font-semibold break-words tabular-nums ${highlight ? 'text-[color-mix(in_srgb,var(--ok)_75%,black)]' : ''}`}>{value}</strong>
+      <small className="text-xs text-ink-2">{hint}</small>
+      {children}
     </div>
   );
 }
@@ -172,7 +222,7 @@ function Tile({ label, value, hint, highlight, className = '' }: { label: string
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="min-w-0 rounded-[var(--radius)] border border-line bg-surface p-5">
-      <h2 className="mb-3 text-[15px] font-semibold">{title}</h2>
+      <h2 className="mb-4 text-base font-semibold text-ink">{title}</h2>
       {children}
     </section>
   );
@@ -181,7 +231,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function EmptyRow({ cols, text }: { cols: number; text: string }) {
   return (
     <tr className="border-t border-line">
-      <td colSpan={cols} className="py-6 text-center text-ink-3">
+      <td colSpan={cols} className="py-8 text-center text-ink-2">
         {text}
       </td>
     </tr>

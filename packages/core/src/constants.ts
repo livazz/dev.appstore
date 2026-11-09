@@ -1,7 +1,16 @@
 import type { GameTheme, ItemStyle, ItemType, Period } from './types';
 
-/** Commission standard Apple / Google sur les achats in-app. */
+/**
+ * Commission standard Apple / Google sur les achats in-app (taux « plein » historique).
+ * Conservée pour compatibilité : ce n'est PAS le cas le plus courant (petits studios < 1 M$/an et abonnements
+ * après un an : 15 % ; UE : 26 %/15 % ; voir docs/legal/stores.md). Les comparaisons affichées doivent nommer le taux
+ * utilisé et laisser choisir parmi `STORE_FEE_OPTIONS_BPS`.
+ */
 export const STORE_FEE_BPS = 3000;
+/** Taux réduit des stores (Small Business Program Apple, 1er palier Google Play, abonnements après un an). */
+export const REDUCED_STORE_FEE_BPS = 1500;
+/** Taux de commission store proposés dans les comparatifs (calculateur marketing, tuile « Gagné en plus »). */
+export const STORE_FEE_OPTIONS_BPS = [REDUCED_STORE_FEE_BPS, STORE_FEE_BPS] as const;
 /** Commission Wolleen par défaut (points de base). Surchargée par PLATFORM_FEE_BPS. */
 export const DEFAULT_PLATFORM_FEE_BPS = 500;
 
