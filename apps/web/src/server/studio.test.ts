@@ -150,10 +150,15 @@ describe('Server Actions du studio', () => {
     expect(grid.ok).toBe(false);
   });
 
-  it('publie puis dépublie une boutique', async () => {
+  it('publie puis dépublie une boutique (owner/admin)', async () => {
     const { id } = ok(await actions.createGame({ name: 'Publication', category: 'RPG', currency: 'EUR' }));
-    expect((await actions.publishGame(id)).ok).toBe(false);
     ok(await actions.createItem(id, itemInput));
+    // Matrice des rôles : un developer édite la boutique mais ne la publie pas.
+    expect(await actions.publishGame(id)).toEqual({ ok: false, error: "Vous n'avez pas accès à ce jeu." });
+    h.currentUser = 'usr_owner';
+    await h.db.update(items).set({ active: false }).where(eq(items.gameId, id));
+    expect((await actions.publishGame(id)).ok).toBe(false); // aucun article actif
+    await h.db.update(items).set({ active: true }).where(eq(items.gameId, id));
     expect(ok(await actions.publishGame(id)).status).toBe('live');
     expect(ok(await actions.unpublishGame(id)).status).toBe('draft');
   });

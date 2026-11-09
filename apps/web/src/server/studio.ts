@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@wolleen/db';
+import type { StudioRole } from '@wolleen/core';
 import { requireGameAccess, requireUser } from './session';
 import {
   StudioError,
@@ -33,6 +34,13 @@ export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; e
 
 const FORBIDDEN_MSG = "Vous n'avez pas accès à ce jeu.";
 
+/*
+ * Matrice des rôles (modèle de menaces § 6.6, CHK-MT-06) : finance ne modifie pas la boutique ;
+ * seuls owner/admin publient, dépublient ou suppriment un jeu.
+ */
+const EDIT_ROLES = ['owner', 'admin', 'developer'] as const satisfies StudioRole[];
+const PUBLISH_ROLES = ['owner', 'admin'] as const satisfies StudioRole[];
+
 async function run<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
   try {
     return { ok: true, data: await fn() };
@@ -43,10 +51,10 @@ async function run<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
   }
 }
 
-async function guarded<T>(gameId: string, fn: () => Promise<T>, roles?: Parameters<typeof requireGameAccess>[1]) {
+async function guarded<T>(gameId: string, fn: () => Promise<T>, roles: readonly StudioRole[]) {
   return run(async () => {
     if (typeof gameId !== 'string' || !gameId) throw new StudioError('Jeu introuvable.');
-    await requireGameAccess(gameId, roles);
+    await requireGameAccess(gameId, [...roles]);
     return fn();
   });
 }
@@ -75,7 +83,7 @@ export async function updateGame(gameId: string, patch: GameInfoInput): Promise<
     const game = await updateGameInfo(db, gameId, patch);
     revalidateGame(game);
     return toEditorGame(game);
-  });
+  }, EDIT_ROLES);
 }
 
 /** Phase 1 : « Soumettre / publier » passe directement le jeu en ligne. */
@@ -84,7 +92,7 @@ export async function publishGame(gameId: string): Promise<ActionResult<EditorGa
     const game = await setGameStatus(db, gameId, 'live');
     revalidateGame(game);
     return toEditorGame(game);
-  });
+  }, PUBLISH_ROLES);
 }
 
 export async function unpublishGame(gameId: string): Promise<ActionResult<EditorGame>> {
@@ -92,7 +100,7 @@ export async function unpublishGame(gameId: string): Promise<ActionResult<Editor
     const game = await setGameStatus(db, gameId, 'draft');
     revalidateGame(game);
     return toEditorGame(game);
-  });
+  }, PUBLISH_ROLES);
 }
 
 /** Réservé aux owner/admin du studio. */
@@ -105,7 +113,7 @@ export async function deleteGame(gameId: string): Promise<ActionResult> {
       revalidateGame(game);
       return undefined;
     },
-    ['owner', 'admin'],
+    PUBLISH_ROLES,
   );
 }
 
@@ -116,7 +124,7 @@ export async function createItem(gameId: string, input: ItemInput): Promise<Acti
     const item = await createItemFor(db, gameId, input);
     revalidateGame(await getGame(db, gameId));
     return toEditorItem(item);
-  });
+  }, EDIT_ROLES);
 }
 
 export async function updateItem(gameId: string, itemId: string, input: ItemInput): Promise<ActionResult<EditorItem>> {
@@ -124,7 +132,7 @@ export async function updateItem(gameId: string, itemId: string, input: ItemInpu
     const item = await updateItemFor(db, gameId, String(itemId), input);
     revalidateGame(await getGame(db, gameId));
     return toEditorItem(item);
-  });
+  }, EDIT_ROLES);
 }
 
 export async function deleteItem(gameId: string, itemId: string): Promise<ActionResult<{ archived: boolean }>> {
@@ -132,7 +140,7 @@ export async function deleteItem(gameId: string, itemId: string): Promise<Action
     const r = await deleteItemFor(db, gameId, String(itemId));
     revalidateGame(await getGame(db, gameId));
     return r;
-  });
+  }, EDIT_ROLES);
 }
 
 export async function moveItem(gameId: string, itemId: string, direction: 'up' | 'down'): Promise<ActionResult<string[]>> {
@@ -141,7 +149,7 @@ export async function moveItem(gameId: string, itemId: string, direction: 'up' |
     const order = await moveItemFor(db, gameId, String(itemId), direction);
     revalidateGame(await getGame(db, gameId));
     return order;
-  });
+  }, EDIT_ROLES);
 }
 
 export async function reorderItems(gameId: string, orderedIds: string[]): Promise<ActionResult<string[]>> {
@@ -149,5 +157,5 @@ export async function reorderItems(gameId: string, orderedIds: string[]): Promis
     const order = await reorderItemsFor(db, gameId, orderedIds);
     revalidateGame(await getGame(db, gameId));
     return order;
-  });
+  }, EDIT_ROLES);
 }

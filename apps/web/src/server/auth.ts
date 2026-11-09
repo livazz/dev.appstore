@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { newId } from '@wolleen/core';
 import { account, db, session, user, verification, type DB } from '@wolleen/db';
+import { resolveAuthSecret, sessionCookieOptions } from './auth-config';
 
 /*
  * Instance Better Auth (tâche « auth »).
@@ -40,23 +41,14 @@ export function enabledSocialProviders(): SocialProviderId[] {
   return Object.keys(socialProvidersFromEnv()) as SocialProviderId[];
 }
 
-function authSecret() {
-  const secret = process.env.BETTER_AUTH_SECRET || process.env.AUTH_SECRET;
-  if (secret) return secret;
-  if (process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE !== 'phase-production-build') {
-    console.error('[auth] BETTER_AUTH_SECRET manquant : définissez-le en production.');
-  }
-  // Secret de développement uniquement (jamais utilisé si BETTER_AUTH_SECRET est défini).
-  return 'wolleen-dev-secret-ne-pas-utiliser-en-production-0123456789';
-}
-
 /** Construit une instance Better Auth sur une base donnée (la base partagée en prod, une base en mémoire en test). */
 export function createAuth(database: DB) {
   const socialProviders = socialProvidersFromEnv();
   return betterAuth({
     appName: 'Wolleen',
     logger: { disabled: process.env.VITEST === 'true' },
-    secret: authSecret(),
+    // Obligatoire et robuste en production (lève AuthConfigError sinon) — cf. auth-config.ts / instrumentation.ts.
+    secret: resolveAuthSecret(),
     baseURL: process.env.BETTER_AUTH_URL || process.env.APP_URL || undefined,
     trustedOrigins: [
       ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:3001'] : []),
@@ -76,8 +68,23 @@ export function createAuth(database: DB) {
       expiresIn: 60 * 60 * 24 * 30, // 30 jours
       updateAge: 60 * 60 * 24, // rafraîchie au plus une fois par jour
     },
+    // Limitation intégrée de Better Auth pour les routes HTTP /api/auth/* (les Server Actions ont la leur :
+    // auth-rate-limit.ts). Désactivée sous vitest pour ne pas perturber les tests d'intégration.
+    rateLimit: {
+      enabled: process.env.VITEST !== 'true',
+      window: 60,
+      max: 100,
+      customRules: {
+        '/sign-in/email': { window: 60, max: 5 },
+        '/sign-up/email': { window: 3600, max: 10 },
+        '/request-password-reset': { window: 3600, max: 5 },
+        '/forget-password': { window: 3600, max: 5 },
+      },
+    },
     advanced: {
       cookiePrefix: 'wolleen',
+      // Cookies HttpOnly + SameSite=Lax + Path=/ ; Secure en production (CHK-AUTH-03).
+      ...sessionCookieOptions(),
       database: { generateId: ({ model }) => newId(ID_PREFIX[model] ?? model.slice(0, 3)) },
     },
     // Doit rester le dernier plugin : recopie les cookies Better Auth dans les Server Actions Next.js.

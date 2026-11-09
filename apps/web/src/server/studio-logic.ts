@@ -12,6 +12,7 @@ import {
   type GameTheme,
 } from '@wolleen/core';
 import { and, asc, count, eq, games, gte, inArray, items, orders, studioMembers, studios, sum, type DB } from '@wolleen/db';
+import { uploaderOfUrl, uploaderSegment } from './image-upload';
 
 /*
  * Logique de l'espace studio (création de jeu, édition de la boutique, articles).
@@ -36,11 +37,18 @@ export type ItemRow = typeof items.$inferSelect;
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Couleur invalide (format #RRGGBB).');
 const hexOrNone = z.union([hex, z.literal('transparent')]);
 
-/** URL d'image acceptée : chemin servi par /api/uploads, URL http(s) ou data URL d'image (visuels de démo). */
+const DATA_IMAGE_RE = /^data:image\/(png|jpeg|webp|gif|avif|svg\+xml)[;,]/i;
+
+/**
+ * URL d'image acceptée (CHK-UPL-07, T-UPL-05) : fichier téléversé sur Wolleen (/api/uploads/<kind>/<utilisateur>/<id>.webp)
+ * ou data URL d'image (visuels de démo, toujours affichés dans <img> : aucun script exécuté). Les URL externes
+ * (pistage des joueurs, contenu modifiable après coup) et les autres chemins du site (requêtes GET déclenchées par
+ * <img>) sont refusés.
+ */
 export const imageUrlSchema = z
   .string()
   .max(500_000, 'Image trop lourde.')
-  .refine((u) => /^\/(?!\/)/.test(u) || /^https?:\/\//.test(u) || u.startsWith('data:image/'), 'URL d’image invalide.');
+  .refine((u) => uploaderOfUrl(u) !== null || DATA_IMAGE_RE.test(u), 'URL d’image invalide : téléversez l’image depuis l’éditeur.');
 
 const intIn = (min: number, max: number) => z.number().int().min(min).max(max);
 
@@ -199,9 +207,42 @@ export async function getGame(database: DB, gameId: string) {
   return g;
 }
 
+/**
+ * Multi-tenant (T-MT-02) : une image téléversée ne peut être rattachée qu'à un jeu du studio de son auteur.
+ * Les URL déjà présentes sur la ressource (`previous`) ne sont pas revérifiées (ancien membre, visuels de démo).
+ */
+export async function assertUploadsBelongToGameStudio(
+  database: DB,
+  gameId: string,
+  urls: (string | null | undefined)[],
+  previous: (string | null | undefined)[] = [],
+) {
+  const known = new Set(previous.filter(Boolean));
+  const uploaders = new Set<string>();
+  for (const u of urls) {
+    if (!u || known.has(u)) continue;
+    const seg = uploaderOfUrl(u);
+    if (seg) uploaders.add(seg);
+  }
+  if (!uploaders.size) return;
+  const members = await database
+    .select({ userId: studioMembers.userId })
+    .from(studioMembers)
+    .innerJoin(games, eq(games.studioId, studioMembers.studioId))
+    .where(eq(games.id, gameId));
+  const allowed = new Set(members.map((m) => uploaderSegment(m.userId)));
+  for (const seg of uploaders) {
+    if (!allowed.has(seg)) throw new StudioError('Image introuvable : téléversez-la depuis l’éditeur de ce studio.');
+  }
+}
+
 export async function updateGameInfo(database: DB, gameId: string, input: GameInfoInput) {
   const data = parseOrThrow(gameInfoSchema, input);
   if (!Object.keys(data).length) return getGame(database, gameId);
+  if (data.iconUrl !== undefined || data.bannerUrl !== undefined) {
+    const current = await getGame(database, gameId);
+    await assertUploadsBelongToGameStudio(database, gameId, [data.iconUrl, data.bannerUrl], [current.iconUrl, current.bannerUrl]);
+  }
   const [g] = await database.update(games).set({ ...data, updatedAt: new Date() }).where(eq(games.id, gameId)).returning();
   if (!g) throw new StudioError('Jeu introuvable.');
   return g;
@@ -288,6 +329,7 @@ function normalizeItem(data: z.output<typeof itemInputSchema>) {
 export async function createItemFor(database: DB, gameId: string, input: ItemInput) {
   const data = normalizeItem(parseOrThrow(itemInputSchema, input));
   await getGame(database, gameId);
+  await assertUploadsBelongToGameStudio(database, gameId, data.models.map((m) => m.imageUrl));
   await assertProductIdFree(database, gameId, data.productId);
   const current = await listItems(database, gameId);
   const position = current.length ? Math.max(...current.map((i) => i.position)) + 1 : 0;
@@ -307,6 +349,12 @@ export async function updateItemFor(database: DB, gameId: string, itemId: string
   const data = normalizeItem(parseOrThrow(itemInputSchema, input));
   const existing = await getItemOfGame(database, gameId, itemId);
   if (!existing.active) throw new StudioError('Article archivé : il ne peut plus être modifié.');
+  await assertUploadsBelongToGameStudio(
+    database,
+    gameId,
+    data.models.map((m) => m.imageUrl),
+    existing.models.map((m) => m.imageUrl),
+  );
   if (data.productId !== existing.productId) {
     await assertProductIdFree(database, gameId, data.productId, itemId);
   }
@@ -330,11 +378,13 @@ export async function updateItemFor(database: DB, gameId: string, itemId: string
 export async function deleteItemFor(database: DB, gameId: string, itemId: string) {
   await getItemOfGame(database, gameId, itemId);
   const [{ n }] = (await database.select({ n: count() }).from(orders).where(eq(orders.itemId, itemId))) as [{ n: number }];
+  // Défense en profondeur : chaque écriture reste bornée au jeu autorisé (T-MT-02).
+  const ofGame = and(eq(items.id, itemId), eq(items.gameId, gameId));
   if (n) {
-    await database.update(items).set({ active: false, updatedAt: new Date() }).where(eq(items.id, itemId));
+    await database.update(items).set({ active: false, updatedAt: new Date() }).where(ofGame);
     return { archived: true };
   }
-  await database.delete(items).where(eq(items.id, itemId));
+  await database.delete(items).where(ofGame);
   return { archived: false };
 }
 

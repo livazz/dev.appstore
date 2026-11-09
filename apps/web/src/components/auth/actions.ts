@@ -8,8 +8,9 @@ import { getCurrentUser } from '@/server/session';
 import { safeNext } from '@/lib/auth/next-url';
 import type { AuthFormState } from '@/components/auth/form-state';
 
-function str(v: FormDataEntryValue | null): string {
-  return typeof v === 'string' ? v : '';
+/** Valeur texte d'un champ, tronquée (les schémas zod refusent au-delà des longueurs max ; ceci borne l'écho). */
+function str(v: FormDataEntryValue | null, max = 512): string {
+  return typeof v === 'string' ? v.slice(0, max) : '';
 }
 
 export async function loginAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
