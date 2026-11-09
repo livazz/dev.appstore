@@ -79,14 +79,31 @@ describe('CHK-CFG-02 / T-AUTH-02 : AUTH_SECRET obligatoire en production', () =>
     expect(cfg.resolveAuthSecret({ NODE_ENV: 'production', NEXT_PHASE: 'phase-production-build' })).toBe(cfg.DEV_AUTH_SECRET);
   });
 
-  it('le serveur échoue au démarrage (instrumentation) sans secret en production', async () => {
+  it('le serveur échoue au démarrage (instrumentation → env.ts) sans secret en production', async () => {
     const { register } = await import('../instrumentation');
-    vi.stubEnv('NEXT_RUNTIME', 'nodejs');
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('AUTH_SECRET', '');
-    vi.stubEnv('BETTER_AUTH_SECRET', '');
+    const { EnvValidationError } = await import('../env');
+    // Configuration de production par ailleurs complète : seul le secret de session manque.
+    const prod: Record<string, string> = {
+      NEXT_RUNTIME: 'nodejs',
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://wolleen:pw@db.example/wolleen',
+      APP_URL: 'https://wolleen.example',
+      STRIPE_SECRET_KEY: 'sk_live_fake000',
+      STRIPE_WEBHOOK_SECRET: 'whsec_fake',
+      CRON_SECRET: 'c'.repeat(32),
+      AUTH_SECRET: '',
+      BETTER_AUTH_SECRET: '',
+    };
+    for (const [k, v] of Object.entries(prod)) vi.stubEnv(k, v);
     try {
-      await expect(register()).rejects.toThrow(cfg.AuthConfigError);
+      const err = await register().then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(err).toBeInstanceOf(EnvValidationError);
+      expect((err as InstanceType<typeof EnvValidationError>).issues.map((i) => i.variable)).toEqual(['AUTH_SECRET']);
+      vi.stubEnv('AUTH_SECRET', 'change-me');
+      await expect(register()).rejects.toThrow(/exemple/);
       vi.stubEnv('AUTH_SECRET', LONG_SECRET);
       await expect(register()).resolves.toBeUndefined();
     } finally {

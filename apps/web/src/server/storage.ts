@@ -2,11 +2,13 @@ import 'server-only';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
+import { env } from '@/env';
+import { s3StorageFromEnv } from './storage-s3';
 
 /*
  * Stockage des fichiers téléversés (tâche « uploads »).
- * Phase 1 : disque local (.data/uploads). Phase 2 : S3/R2 derrière la même interface,
- * choisi par WOLLEEN_STORAGE=s3 (non implémenté).
+ * WOLLEEN_STORAGE=local (défaut) : disque local (.data/uploads), servi par GET /api/uploads/….
+ * WOLLEEN_STORAGE=s3 : Cloudflare R2 / S3 (storage-s3.ts), put → URL publique S3_PUBLIC_URL/<clé> (docs/deploy-storage.md).
  */
 
 export interface StoredFile {
@@ -58,7 +60,7 @@ export function contentTypeForKey(key: string): string {
 }
 
 function dataDir(): string {
-  if (process.env.WOLLEEN_DATA_DIR) return process.env.WOLLEEN_DATA_DIR;
+  if (env.WOLLEEN_DATA_DIR) return env.WOLLEEN_DATA_DIR;
   let dir = process.cwd();
   while (dir !== dirname(dir)) {
     const pkg = resolve(dir, 'package.json');
@@ -102,11 +104,25 @@ export class LocalDiskStorage implements StorageAdapter {
 
 let instance: StorageAdapter | undefined;
 
-/** Adaptateur choisi par WOLLEEN_STORAGE (« local » par défaut ; « s3 » prévu en phase 2, compatible R2). */
+/** Adaptateur choisi par WOLLEEN_STORAGE (« local » par défaut, « s3 » pour Cloudflare R2 / S3). */
 export function getStorage(): StorageAdapter {
   if (instance) return instance;
-  const kind = process.env.WOLLEEN_STORAGE ?? 'local';
+  const kind = env.WOLLEEN_STORAGE;
   if (kind === 'local') return (instance = new LocalDiskStorage());
-  // Phase 2 : instance = new S3Storage({ bucket, endpoint, publicBaseUrl }) ; put → URL publique CDN.
-  throw new Error(`Adaptateur de stockage non pris en charge : ${kind}`);
+  if (kind === 's3') {
+    return (instance = s3StorageFromEnv({
+      S3_ENDPOINT: env.S3_ENDPOINT,
+      S3_REGION: env.S3_REGION,
+      S3_BUCKET: env.S3_BUCKET,
+      S3_ACCESS_KEY_ID: env.S3_ACCESS_KEY_ID,
+      S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
+      S3_PUBLIC_URL: env.S3_PUBLIC_URL,
+    }));
+  }
+  throw new Error(`Adaptateur de stockage non pris en charge : ${String(kind)}`);
+}
+
+/** Réinitialise l'adaptateur mémorisé (tests). */
+export function resetStorageForTests(): void {
+  instance = undefined;
 }

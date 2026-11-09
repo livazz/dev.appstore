@@ -1,10 +1,18 @@
 /*
  * Configuration sensible de l'authentification (tâche « auth », revue de sécurité CHK-CFG-02 / T-AUTH-02).
- * Module sans dépendance (ni base, ni Next.js) : importé par ./auth.ts ET par src/instrumentation.ts, pour que le
- * serveur refuse de démarrer en production sans secret de session solide (échec au boot, pas à la 1re requête).
+ * Module sans dépendance (ni base, ni Next.js, ni process.env) : les règles du secret de session sont appliquées
+ * au démarrage par src/env.ts (validateEnv, appelé par src/instrumentation.ts) et par ./auth.ts, qui lui passe `env`.
  */
 
-type Env = Record<string, string | undefined>;
+/** Variables utiles à l'authentification (`env` de src/env.ts, ou un objet de test). */
+export interface AuthEnv {
+  readonly NODE_ENV?: string;
+  readonly NEXT_PHASE?: string;
+  readonly AUTH_SECRET?: string;
+  readonly BETTER_AUTH_SECRET?: string;
+}
+
+type Env = AuthEnv;
 
 /** Secret de développement : uniquement hors production, jamais si un secret est défini. */
 export const DEV_AUTH_SECRET = 'wolleen-dev-secret-ne-pas-utiliser-en-production-0123456789';
@@ -21,8 +29,23 @@ export class AuthConfigError extends Error {
 }
 
 /** Production réelle (pas la compilation `next build`, où les secrets d'exécution peuvent manquer). */
-export function isProductionRuntime(env: Env = process.env): boolean {
+export function isProductionRuntime(env: Env): boolean {
   return env.NODE_ENV === 'production' && env.NEXT_PHASE !== 'phase-production-build';
+}
+
+/**
+ * Problème du secret de session en production réelle (message sans la valeur du secret), ou null s'il est utilisable.
+ * Hors production (et pendant `next build`), toujours null : le secret de développement est utilisé.
+ */
+export function authSecretProblem(env: Env): string | null {
+  if (!isProductionRuntime(env)) return null;
+  const secret = (env.BETTER_AUTH_SECRET || env.AUTH_SECRET || '').trim();
+  if (!secret) return 'AUTH_SECRET (ou BETTER_AUTH_SECRET) est obligatoire en production';
+  if (PLACEHOLDERS.has(secret.toLowerCase())) return 'AUTH_SECRET contient une valeur d’exemple, interdite en production';
+  if (secret.length < AUTH_SECRET_MIN_LENGTH) {
+    return `AUTH_SECRET trop court (${secret.length} caractères, minimum ${AUTH_SECRET_MIN_LENGTH} en production)`;
+  }
+  return null;
 }
 
 /**
@@ -30,19 +53,15 @@ export function isProductionRuntime(env: Env = process.env): boolean {
  * En production : obligatoire, ≥ 32 caractères, pas une valeur d'exemple — sinon AuthConfigError.
  * Ne renvoie jamais le secret dans un message d'erreur.
  */
-export function resolveAuthSecret(env: Env = process.env): string {
+export function resolveAuthSecret(env: Env): string {
+  const problem = authSecretProblem(env);
+  if (problem) throw new AuthConfigError(problem);
   const secret = (env.BETTER_AUTH_SECRET || env.AUTH_SECRET || '').trim();
-  if (!isProductionRuntime(env)) return secret || DEV_AUTH_SECRET;
-  if (!secret) throw new AuthConfigError('AUTH_SECRET (ou BETTER_AUTH_SECRET) est obligatoire en production');
-  if (PLACEHOLDERS.has(secret.toLowerCase())) throw new AuthConfigError('AUTH_SECRET contient une valeur d’exemple, interdite en production');
-  if (secret.length < AUTH_SECRET_MIN_LENGTH) {
-    throw new AuthConfigError(`AUTH_SECRET trop court (${secret.length} caractères, minimum ${AUTH_SECRET_MIN_LENGTH} en production)`);
-  }
-  return secret;
+  return secret || DEV_AUTH_SECRET;
 }
 
 /** Cookies de session : HttpOnly, SameSite=Lax, Path=/ ; Secure (+ préfixe __Secure-) en production. */
-export function sessionCookieOptions(env: Env = process.env) {
+export function sessionCookieOptions(env: Env) {
   const secure = isProductionRuntime(env);
   return {
     useSecureCookies: secure,
@@ -50,7 +69,7 @@ export function sessionCookieOptions(env: Env = process.env) {
   };
 }
 
-/** Vérification au démarrage (instrumentation.ts) : lève AuthConfigError si la configuration est invalide. */
-export function assertAuthConfig(env: Env = process.env): void {
+/** Lève AuthConfigError si le secret de session est inutilisable (la vérification au démarrage passe par src/env.ts). */
+export function assertAuthConfig(env: Env): void {
   resolveAuthSecret(env);
 }

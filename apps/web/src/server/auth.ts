@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { newId } from '@wolleen/core';
 import { account, db, session, user, verification, type DB } from '@wolleen/db';
+import { env } from '@/env';
 import { resolveAuthSecret, sessionCookieOptions } from './auth-config';
 
 /*
@@ -13,26 +14,45 @@ import { resolveAuthSecret, sessionCookieOptions } from './auth-config';
  * - Tables existantes user / session / account / verification (packages/db/src/schema/auth.ts) via l'adaptateur Drizzle.
  *   Les noms de propriétés Drizzle (camelCase) correspondent aux champs Better Auth : aucun mappage de colonnes nécessaire.
  * - Identifiants préfixés comme le reste du domaine (usr_, ses_, acc_, ver_).
+ * - Configuration (secret, URL publique, origines, fournisseurs) lue dans `env` (src/env.ts), validé au démarrage.
  */
 
 const ID_PREFIX: Record<string, string> = { user: 'usr', session: 'ses', account: 'acc', verification: 'ver' };
 
 export const PASSWORD_MIN_LENGTH = 8;
 
+/** `env` (src/env.ts) ou tout objet de variables (tests). */
+type SocialEnv = Readonly<Record<string, unknown>> &
+  Partial<Record<'GOOGLE_CLIENT_ID' | 'GOOGLE_CLIENT_SECRET' | 'APPLE_CLIENT_ID' | 'APPLE_CLIENT_SECRET' | 'APPLE_APP_BUNDLE_IDENTIFIER', string>>;
+
 /** Fournisseurs sociaux configurés par l'environnement (utilisé aussi par les pages pour afficher les boutons). */
-export function socialProvidersFromEnv(env: NodeJS.ProcessEnv = process.env): NonNullable<BetterAuthOptions['socialProviders']> {
+export function socialProvidersFromEnv(source: SocialEnv = env): NonNullable<BetterAuthOptions['socialProviders']> {
   const providers: NonNullable<BetterAuthOptions['socialProviders']> = {};
-  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
-    providers.google = { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET };
+  if (source.GOOGLE_CLIENT_ID && source.GOOGLE_CLIENT_SECRET) {
+    providers.google = { clientId: source.GOOGLE_CLIENT_ID, clientSecret: source.GOOGLE_CLIENT_SECRET };
   }
-  if (env.APPLE_CLIENT_ID && env.APPLE_CLIENT_SECRET) {
+  if (source.APPLE_CLIENT_ID && source.APPLE_CLIENT_SECRET) {
     providers.apple = {
-      clientId: env.APPLE_CLIENT_ID,
-      clientSecret: env.APPLE_CLIENT_SECRET,
-      ...(env.APPLE_APP_BUNDLE_IDENTIFIER ? { appBundleIdentifier: env.APPLE_APP_BUNDLE_IDENTIFIER } : {}),
+      clientId: source.APPLE_CLIENT_ID,
+      clientSecret: source.APPLE_CLIENT_SECRET,
+      ...(source.APPLE_APP_BUNDLE_IDENTIFIER ? { appBundleIdentifier: source.APPLE_APP_BUNDLE_IDENTIFIER } : {}),
     };
   }
   return providers;
+}
+
+/** URL publique donnée à Better Auth : BETTER_AUTH_URL, sinon APP_URL (undefined → déduite de la requête, dev). */
+export function authBaseUrl(): string | undefined {
+  return env.BETTER_AUTH_URL ?? env.APP_URL ?? undefined;
+}
+
+/** Origines de confiance (CSRF Better Auth) : localhost en dev, BETTER_AUTH_TRUSTED_ORIGINS, Apple si activé. */
+export function authTrustedOrigins(socialProviders = socialProvidersFromEnv()): string[] {
+  return [
+    ...(!env.isProduction ? ['http://localhost:3000', 'http://localhost:3001'] : []),
+    ...(env.BETTER_AUTH_TRUSTED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ?? []),
+    ...(socialProviders.apple ? ['https://appleid.apple.com'] : []),
+  ];
 }
 
 export type SocialProviderId = 'google' | 'apple';
@@ -47,14 +67,10 @@ export function createAuth(database: DB) {
   return betterAuth({
     appName: 'Wolleen',
     logger: { disabled: process.env.VITEST === 'true' },
-    // Obligatoire et robuste en production (lève AuthConfigError sinon) — cf. auth-config.ts / instrumentation.ts.
-    secret: resolveAuthSecret(),
-    baseURL: process.env.BETTER_AUTH_URL || process.env.APP_URL || undefined,
-    trustedOrigins: [
-      ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:3001'] : []),
-      ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ?? []),
-      ...(socialProviders.apple ? ['https://appleid.apple.com'] : []),
-    ],
+    // Obligatoire et robuste en production (lève AuthConfigError sinon) — validé aussi au démarrage (env.ts).
+    secret: resolveAuthSecret(env),
+    baseURL: authBaseUrl(),
+    trustedOrigins: authTrustedOrigins(socialProviders),
     database: drizzleAdapter(database, { provider: 'pg', schema: { user, session, account, verification } }),
     emailAndPassword: {
       enabled: true,
@@ -84,7 +100,7 @@ export function createAuth(database: DB) {
     advanced: {
       cookiePrefix: 'wolleen',
       // Cookies HttpOnly + SameSite=Lax + Path=/ ; Secure en production (CHK-AUTH-03).
-      ...sessionCookieOptions(),
+      ...sessionCookieOptions(env),
       database: { generateId: ({ model }) => newId(ID_PREFIX[model] ?? model.slice(0, 3)) },
     },
     // Doit rester le dernier plugin : recopie les cookies Better Auth dans les Server Actions Next.js.

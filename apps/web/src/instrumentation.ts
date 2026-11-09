@@ -1,17 +1,17 @@
 /*
  * Exécuté une fois au démarrage du serveur Next.js (dev et `next start`), avant toute requête.
- * Revue de sécurité (CHK-CFG-02, T-AUTH-02) : en production, refuser de démarrer sans AUTH_SECRET solide.
+ * Point de validation UNIQUE de la configuration (CHK-CFG-01, CHK-CFG-02, CHK-PAY-10, T-AUTH-02) : src/env.ts
+ * (validateEnv) vérifie toutes les variables, dont le secret de session (règles de server/auth-config.ts).
  * Next.js se contente de journaliser une erreur levée ici et garde le processus en vie : on quitte explicitement
- * pour que l'orchestrateur (Docker, systemd…) voie l'échec. La validation complète de l'environnement
- * (src/env.ts, tâche ops) peut être ajoutée ici à la suite.
+ * pour que l'orchestrateur (Docker, systemd…) voie l'échec. Pendant `next build`, la validation stricte est sautée.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
-  const { AuthConfigError, assertAuthConfig } = await import('./server/auth-config');
+  const { EnvValidationError, validateEnv } = await import('./env');
   try {
-    assertAuthConfig();
+    validateEnv();
   } catch (e) {
-    if (e instanceof AuthConfigError && process.env.VITEST !== 'true') {
+    if (e instanceof EnvValidationError && process.env.VITEST !== 'true') {
       console.error(e.message);
       process.exit(1);
     }

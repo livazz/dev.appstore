@@ -1,5 +1,6 @@
 import 'server-only';
 import Stripe from 'stripe';
+import { env } from '@/env';
 
 /*
  * Configuration Stripe (tâche « payments »).
@@ -23,6 +24,7 @@ import Stripe from 'stripe';
  *
  * Autres variables : WOLLEEN_CGV_VERSION (version des CGV acceptées, stockée sur la commande),
  * APP_URL (obligatoire en production : origine des URL de retour Stripe, jamais l'en-tête Host).
+ * Toutes les variables sont lues dans `env` (src/env.ts, validé au démarrage par instrumentation.ts).
  */
 
 export const STRIPE_API_VERSION = '2025-08-27.basil' satisfies Stripe.LatestApiVersion;
@@ -31,8 +33,7 @@ export const STRIPE_API_VERSION = '2025-08-27.basil' satisfies Stripe.LatestApiV
 export const STRIPE_WEBHOOK_TOLERANCE_S = 300;
 
 export function stripeSecretKey(): string | null {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
-  return key ? key : null;
+  return env.STRIPE_SECRET_KEY ?? null;
 }
 
 export function isStripeEnabled(): boolean {
@@ -40,12 +41,12 @@ export function isStripeEnabled(): boolean {
 }
 
 export function isProduction(): boolean {
-  return process.env.NODE_ENV === 'production';
+  return env.isProduction;
 }
 
 /** Clé de test explicitement autorisée en production (préproduction). */
 export function testPaymentsAllowed(): boolean {
-  return process.env.WOLLEEN_ALLOW_TEST_PAYMENTS?.trim() === '1';
+  return env.WOLLEEN_ALLOW_TEST_PAYMENTS === '1';
 }
 
 const isTestKey = (key: string) => /^(sk|rk)_test_/.test(key);
@@ -105,7 +106,7 @@ export function getStripe(): Stripe {
 export type ChargeModel = 'destination' | 'direct';
 
 /** CHARGE_MODEL=destination|direct (défaut destination ; valeur inconnue → destination + avertissement). */
-export function chargeModel(raw: string | undefined = process.env.CHARGE_MODEL): ChargeModel {
+export function chargeModel(raw: string | undefined = env.CHARGE_MODEL): ChargeModel {
   const v = raw?.trim().toLowerCase();
   if (!v || v === 'destination') return 'destination';
   if (v === 'direct') return 'direct';
@@ -114,7 +115,7 @@ export function chargeModel(raw: string | undefined = process.env.CHARGE_MODEL):
 }
 
 /** STRIPE_AUTOMATIC_TAX=1 → Stripe Tax activé sur les sessions Checkout. Désactivé par défaut (choix TVA non tranché). */
-export function automaticTaxEnabled(raw: string | undefined = process.env.STRIPE_AUTOMATIC_TAX): boolean {
+export function automaticTaxEnabled(raw: string | undefined = env.STRIPE_AUTOMATIC_TAX): boolean {
   return raw?.trim() === '1';
 }
 
@@ -127,7 +128,7 @@ export function automaticTaxEnabled(raw: string | undefined = process.env.STRIPE
  * STRIPE_CONNECT_WEBHOOK_SECRET (endpoint « comptes connectés », pour account.updated et les charges directes).
  */
 export function webhookSecrets(): string[] {
-  return [process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_CONNECT_WEBHOOK_SECRET]
+  return [env.STRIPE_WEBHOOK_SECRET, env.STRIPE_CONNECT_WEBHOOK_SECRET]
     .map((s) => s?.trim() ?? '')
     .filter((s) => s.length > 0);
 }
@@ -163,7 +164,7 @@ export function verifyStripeEvent(
  * Host) et OBLIGATOIRE en production ; hors production, repli sur l'origine de la requête ou ses en-têtes.
  */
 export async function appOrigin(req?: Request): Promise<string> {
-  const fromEnv = process.env.APP_URL?.trim();
+  const fromEnv = env.APP_URL;
   if (fromEnv) return fromEnv.replace(/\/+$/, '');
   if (isProduction()) throw new Error('APP_URL doit être défini en production (URL de retour Stripe).');
   if (req) return new URL(req.url).origin;
