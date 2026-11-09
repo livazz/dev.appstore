@@ -31,8 +31,8 @@ export interface DemoConfig {
 }
 
 export const DEMO_KEYS = {
-  crystal: { apiKey: 'wk_test_demo_crystal_clash', publishableKey: 'wk_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
-  farm: { apiKey: 'wk_test_demo_pixel_farm', publishableKey: 'wk_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
+  crystal: { apiKey: 'wk_secret_demo_crystal_clash', publishableKey: 'wk_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
+  farm: { apiKey: 'wk_secret_demo_pixel_farm', publishableKey: 'wk_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
 } as const;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DemoConfig {

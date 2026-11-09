@@ -19,7 +19,7 @@ async function attendreRefus(page: Page, res: Response | null) {
   const versLogin = new URL(page.url()).pathname === '/login';
   expect(versLogin || [401, 403, 404].includes(status), `statut ${status} sur ${page.url()}`).toBe(true);
   await expect(new StudioEditeur(page).boutonAjouterArticle).toHaveCount(0);
-  await expect(page.getByText(/wk_test_|whsec_/)).toHaveCount(0);
+  await expect(page.getByText(/wk_secret_|wk_test_|whsec_/)).toHaveCount(0);
 }
 
 test.describe('Sécurité — espace studio', () => {

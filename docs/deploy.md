@@ -175,7 +175,7 @@ docker build --target migrator -t wolleen-migrate . && docker run --rm -e DATABA
   qui lui est attribuée au moment du build, sans contrôle.
 - **Sans interruption** : migrations « expand / contract » — ajouter une colonne nullable, déployer le code qui
   l'écrit, remplir, puis rendre `NOT NULL` / supprimer l'ancienne colonne dans une migration suivante.
-- `npm run db:seed` ne doit **jamais** viser la production (clés `wk_test_demo_*`, CHK-CFG-04).
+- `npm run db:seed` ne doit **jamais** viser la production (clés `wk_secret_demo_*` / `wk_pub_demo_*`, CHK-CFG-04).
 
 ## 5. Fichiers : Cloudflare R2
 

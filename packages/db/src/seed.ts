@@ -1,16 +1,24 @@
 /* Données de démo : `npm run db:push && npm run db:seed` (idempotent). */
 import { DEFAULT_ITEM_STYLE, hashApiKey, type ItemStyle } from '@wolleen/core';
 import { hashPassword } from 'better-auth/crypto';
-import { account, and, db, eq, games, isNull, items, studios, studioMembers, user } from './index';
+import { account, and, db, eq, games, isNull, items, platformAdmins, studios, studioMembers, user } from './index';
 import * as A from './demo-assets';
 import { seedLoyalty } from './seed-loyalty';
 
 /** Clés de développement connues — utilisées par apps/demo-game. Jamais en production. */
 export const DEMO_KEYS = {
-  // apiKey = clé SECRÈTE (serveur du studio) ; publishableKey = clé PUBLIQUE (SDK embarqué dans le client du jeu).
-  crystal: { apiKey: 'wk_test_demo_crystal_clash', publishableKey: 'wk_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
-  farm: { apiKey: 'wk_test_demo_pixel_farm', publishableKey: 'wk_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
+  // apiKey = clé SECRÈTE au format actuel `wk_secret_…` (serveur du studio) ; publishableKey = clé PUBLIQUE `wk_pub_…`
+  // (SDK embarqué dans le client du jeu).
+  crystal: { apiKey: 'wk_secret_demo_crystal_clash', publishableKey: 'wk_pub_demo_crystal_clash', webhookSecret: 'whsec_demo_crystal_clash' },
+  farm: { apiKey: 'wk_secret_demo_pixel_farm', publishableKey: 'wk_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
 };
+
+/** Anciennes clés secrètes de démo (`wk_test_…`) : une base déjà initialisée avec elles passe aux clés actuelles. */
+const LEGACY_DEMO_API_KEYS = { crystal: 'wk_test_demo_crystal_clash', farm: 'wk_test_demo_pixel_farm' } as const;
+const DEMO_API_KEY_PREFIX = 'wk_secret_demo';
+
+/** Superadmin du back-office /admin (table platform_admins) : le compte de démo développeur. */
+export const DEMO_PLATFORM_ADMIN = { email: 'dev@wolleen.test', role: 'superadmin' } as const;
 
 const lavender: ItemStyle = { ...DEFAULT_ITEM_STYLE, bg1: '#eef0ff', bg2: '#9fb0f0', titleColor: '#ffffff', titleOutline: true, titleShadow: true, subtitleColor: '#2d3a6b', priceBg: 'transparent', priceOutline: true, priceShadow: true, borderWidth: 3, borderColor: '#141826' };
 const gold: ItemStyle = { ...DEFAULT_ITEM_STYLE, bgType: 'linear', bg1: '#fff4cc', bg2: '#ffd46b', titleColor: '#ffffff', titleBg: '#f59f1c', subtitleColor: '#6b4a00', priceBg: '#5cc31f', priceShadow: true, borderWidth: 0 };
@@ -60,7 +68,7 @@ async function main() {
       theme: { gradient: { enabled: true, c1: '#026ab3', c2: '#ffffff', style: 'linear' as const }, grid: { width: 205, height: 300, margin: 25 } },
       status: 'live' as const, linkMethods: ['code', 'id_confirm'] as ('code' | 'id_confirm')[],
       playerLookupUrl: 'http://localhost:4100/wolleen/players/{player_id}', webhookUrl: 'http://localhost:4100/wolleen/webhook',
-      webhookSecret: DEMO_KEYS.crystal.webhookSecret, apiKeyHash: hashApiKey(DEMO_KEYS.crystal.apiKey), apiKeyPrefix: 'wk_test_demo',
+      webhookSecret: DEMO_KEYS.crystal.webhookSecret, apiKeyHash: hashApiKey(DEMO_KEYS.crystal.apiKey), apiKeyPrefix: DEMO_API_KEY_PREFIX,
       publishableKey: DEMO_KEYS.crystal.publishableKey,
     },
     {
@@ -69,7 +77,7 @@ async function main() {
       iconUrl: A.ICON_FARM, bannerUrl: A.BANNER_FARM,
       theme: { gradient: { enabled: true, c1: '#8fd16a', c2: '#ffffff', style: 'radial' as const }, grid: { width: 200, height: 260, margin: 24 } },
       status: 'live' as const, linkMethods: ['code'] as 'code'[],
-      webhookSecret: DEMO_KEYS.farm.webhookSecret, apiKeyHash: hashApiKey(DEMO_KEYS.farm.apiKey), apiKeyPrefix: 'wk_test_demo',
+      webhookSecret: DEMO_KEYS.farm.webhookSecret, apiKeyHash: hashApiKey(DEMO_KEYS.farm.apiKey), apiKeyPrefix: DEMO_API_KEY_PREFIX,
       publishableKey: DEMO_KEYS.farm.publishableKey,
     },
   ];
@@ -77,6 +85,14 @@ async function main() {
     await db.insert(games).values(g).onConflictDoNothing();
     // Base créée avant l'ajout des clés publiques : on les complète sans toucher au reste.
     await db.update(games).set({ publishableKey: g.publishableKey }).where(and(eq(games.id, g.id), isNull(games.publishableKey)));
+  }
+  // Base créée avec les anciennes clés secrètes `wk_test_demo_*` : passage aux clés `wk_secret_demo_*` (une clé
+  // régénérée depuis l'onglet Intégration n'est pas touchée).
+  for (const k of ['crystal', 'farm'] as const) {
+    await db
+      .update(games)
+      .set({ apiKeyHash: hashApiKey(DEMO_KEYS[k].apiKey), apiKeyPrefix: DEMO_API_KEY_PREFIX })
+      .where(and(eq(games.id, k === 'crystal' ? 'gam_crystal' : 'gam_farm'), eq(games.apiKeyHash, hashApiKey(LEGACY_DEMO_API_KEYS[k]))));
   }
 
   const it = (gameId: string, position: number, v: Omit<typeof items.$inferInsert, 'id' | 'gameId' | 'position' | 'style'> & { style?: ItemStyle }) => ({
@@ -97,7 +113,9 @@ async function main() {
   // Points Wolleen : récompenses de démo + points des commandes payées du joueur de démo (idempotent).
   const loyalty = await seedLoyalty(DEMO_USERS.player.id);
   console.log(`Seed Points Wolleen : ${loyalty.rewards} récompenses, ${loyalty.awards} attributions ajoutées (${loyalty.points} points au total)`);
-  // Seed admin (packages/db/src/seed-admin.ts) : à brancher ici quand le module existera.
+  // Back-office /admin : dev@wolleen.test superadmin de la plateforme (idempotent ; un rôle modifié depuis est conservé).
+  await db.insert(platformAdmins).values({ userId: DEMO_USERS.dev.id, role: DEMO_PLATFORM_ADMIN.role }).onConflictDoNothing();
+  console.log(`Seed administration : ${DEMO_PLATFORM_ADMIN.email} est ${DEMO_PLATFORM_ADMIN.role} de Dev AppStore — back-office sur /admin`);
 }
 
 /*
