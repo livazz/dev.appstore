@@ -43,6 +43,7 @@ import {
   type WeeklyGameStats,
 } from '@wolleen/emails';
 import { env } from '@/env';
+import { CGV_VERSION } from '@/lib/legal-versions';
 
 /**
  * E-mails transactionnels (propriétaire : tâche « notifications »).
@@ -295,7 +296,7 @@ const itemOf = (o: { itemTitle: string; quantity: number }) => ({ name: o.itemTi
  * antérieure à l'enregistrement de la preuve de consentement (la version acceptée est stockée sur la commande).
  */
 export function cgvVersion() {
-  return env.WOLLEEN_CGV_VERSION || env.CGV_VERSION || '2026-11-09';
+  return env.WOLLEEN_CGV_VERSION || env.CGV_VERSION || CGV_VERSION;
 }
 
 /**

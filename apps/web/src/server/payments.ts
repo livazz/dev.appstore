@@ -7,6 +7,7 @@ import * as delivery from '@/server/delivery';
 import { getGameLink } from '@/server/links';
 import { awardPointsForOrder, revokePointsForOrder } from '@/server/loyalty';
 import { sendPurchaseReceipt, WITHDRAWAL_WAIVER_LABEL } from '@/server/notifications';
+import { CGV_VERSION } from '@/lib/legal-versions';
 import {
   acceptsTestModeEvents,
   automaticTaxEnabled,
@@ -108,7 +109,7 @@ async function countOpenPendingOrders(userId: string, now = new Date()): Promise
 // ---------------------------------------------------------------------------------------------
 
 /** Version des CGV présentée au joueur (WOLLEEN_CGV_VERSION pour la surcharger au déploiement). */
-export const DEFAULT_TERMS_VERSION = 'cgv-2026-11-09-draft';
+export const DEFAULT_TERMS_VERSION = `cgv-${CGV_VERSION}`;
 
 export function currentTermsVersion(): string {
   const v = env.WOLLEEN_CGV_VERSION;

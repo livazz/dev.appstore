@@ -1,11 +1,13 @@
 import 'server-only';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
+import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { newId } from '@wolleen/core';
 import { account, db, session, user, verification, type DB } from '@wolleen/db';
 import { env } from '@/env';
 import { resolveAuthSecret, sessionCookieOptions } from './auth-config';
+import { isUserDisabled } from './user-suspension';
 
 /*
  * Instance Better Auth (tâche « auth »).
@@ -83,6 +85,18 @@ export function createAuth(database: DB) {
     session: {
       expiresIn: 60 * 60 * 24 * 30, // 30 jours
       updateAge: 60 * 60 * 24, // rafraîchie au plus une fois par jour
+    },
+    // Compte désactivé depuis le back-office : aucune nouvelle session (connexion e-mail ou sociale).
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (s) => {
+            if (await isUserDisabled(s.userId, database)) {
+              throw new APIError('FORBIDDEN', { message: 'Ce compte a été désactivé. Contactez le support Dev AppStore.' });
+            }
+          },
+        },
+      },
     },
     // Limitation intégrée de Better Auth pour les routes HTTP /api/auth/* (les Server Actions ont la leur :
     // auth-rate-limit.ts). Désactivée sous vitest pour ne pas perturber les tests d'intégration.
