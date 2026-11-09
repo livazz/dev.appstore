@@ -370,6 +370,14 @@ export async function enableUser(userId: string, note?: string): Promise<void> {
   const admin = await requireAdminPermission('users.disable');
   const parsed = optionalNoteSchema.safeParse(note);
   if (!parsed.success) throw new AdminError(firstIssue(parsed.error));
+  if (userId === admin.user.id) throw new AdminError('Vous ne pouvez pas réactiver votre propre compte.');
+  // Revue de sécurité A-01 : même garde que disableUser — réactiver un administrateur lui rend aussitôt son rôle.
+  const [target] = await db
+    .select({ adminRole: platformAdmins.role })
+    .from(user)
+    .leftJoin(platformAdmins, eq(platformAdmins.userId, user.id))
+    .where(eq(user.id, userId));
+  if (target?.adminRole && admin.role !== 'superadmin') throw new AdminError('Seul un superadmin peut réactiver un administrateur de la plateforme.');
   await db.transaction(async (tx) => {
     const removed = await tx.delete(userSuspensions).where(eq(userSuspensions.userId, userId)).returning({ reason: userSuspensions.reason });
     if (!removed.length) throw new AdminError('Ce compte n’est pas désactivé.');

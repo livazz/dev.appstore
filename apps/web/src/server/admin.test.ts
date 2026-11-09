@@ -281,6 +281,21 @@ describe('désactivation des comptes', () => {
     await expect(admin.disableUser(U.finance.id, { reason: 'Test de désactivation d’un administrateur.' })).rejects.toThrow('Seul un superadmin');
     expect(await auditFor(U.finance.id)).toHaveLength(0);
   });
+
+  it('A-01 : le support ne réactive pas un administrateur désactivé ; le superadmin, si', async () => {
+    login(U.support);
+    await expect(admin.enableUser(U.disabledAdmin.id, 'Retour dans l’équipe.')).rejects.toThrow('Seul un superadmin');
+    expect(await h.db.select().from(userSuspensions).where(eq(userSuspensions.userId, U.disabledAdmin.id))).toHaveLength(1);
+    expect((await auditFor(U.disabledAdmin.id)).filter((l) => l.action === 'user.enable')).toHaveLength(0);
+    login(U.disabledAdmin);
+    await expect(admin.requirePlatformAdmin()).rejects.toThrow('NEXT_NOT_FOUND');
+
+    login(U.super);
+    await admin.enableUser(U.disabledAdmin.id, 'Retour dans l’équipe.');
+    expect(await h.db.select().from(userSuspensions).where(eq(userSuspensions.userId, U.disabledAdmin.id))).toHaveLength(0);
+    // Remise en l'état pour les autres tests.
+    await h.db.insert(userSuspensions).values({ userId: U.disabledAdmin.id, adminId: U.super.id, reason: 'Départ de l’équipe Dev AppStore.' });
+  });
 });
 
 describe('lectures', () => {
