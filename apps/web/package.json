@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:storage": "tsx scripts/check-storage.ts"
   },
   "dependencies": {
     "@wolleen/core": "*",
@@ -31,6 +32,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.7",
     "tailwindcss": "^4",
+    "tsx": "^4.20.5",
     "typescript": "^5",
     "vitest": "^3.2.4"
   }
