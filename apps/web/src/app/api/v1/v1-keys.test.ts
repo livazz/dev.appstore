@@ -132,6 +132,19 @@ describe('authentification de l’API v1 (CHK-API-01/03/04, D-04)', () => {
     expect((await apiKey.authenticateGame(req('/', { key: SECRET_A })))?.id).toBe('gam_a');
   });
 
+  it('un jeu créé sans clé publique en reçoit une (stable) à l’ouverture de l’onglet Intégration', async () => {
+    await db.insert(D.games).values({
+      id: 'gam_nokey', studioId: 'std_t', slug: 'gam_nokey', name: 'Sans clé', theme: DEFAULT_THEME,
+      webhookSecret: 'whsec_x', apiKeyHash: hashApiKey('wk_secret_nokey'), apiKeyPrefix: 'wk_secret_noke',
+    });
+    const [k1, k2] = await Promise.all([apiKey.ensurePublishableKey('gam_nokey'), apiKey.ensurePublishableKey('gam_nokey')]);
+    expect(k1).toMatch(/^wk_pub_/);
+    expect(k2).toBe(k1);
+    expect(await apiKey.ensurePublishableKey('gam_nokey')).toBe(k1);
+    expect((await apiKey.authenticateApi(req('/', { key: k1! })))?.game.id).toBe('gam_nokey');
+    expect(await apiKey.ensurePublishableKey('gam_inconnu')).toBeNull();
+  });
+
   it('nouvelles clés : secrète wk_secret_ (empreinte seule), publique wk_pub_, jeton wk_pt_', () => {
     const s = apiKey.generateSecretApiKey();
     expect(s.key.startsWith('wk_secret_')).toBe(true);
