@@ -19,7 +19,7 @@ de Pixel Farm est transmise au navigateur.
 | Jeu | Mode | Clé | Chemin d'un achat |
 |---|---|---|---|
 | **Crystal Clash** (`gam_crystal`) | Jeu avec serveur (webhook) | secrète, sur le serveur du jeu | Dev AppStore → `POST /devappstore/webhook` (signé) → inventaire en mémoire (idempotent par `delivery_id`) → poussé à la page du jeu (SSE `/api/events`) → ack API (clé secrète) en tâche de fond |
-| **Pixel Farm** (`gam_farm`) | Jeu sans serveur (SDK client) | publique `das_pub_…` + jeton joueur | La page du jeu importe `@devappstore/sdk` (`/sdk/index.js`, transpilé à la volée) et appelle Dev AppStore directement (CORS) → liaison par code → `waitForLink` reçoit le jeton joueur (localStorage) → `onPurchase` (flux SSE + rattrapage, achats de CE joueur uniquement) → crédit local → ack automatique |
+| **Pixel Farm** (`gam_farm`) | Jeu sans serveur (SDK client) | publique `das_pub_…` + jeton joueur | La page du jeu importe `@devappstore/sdk` (`/sdk/index.js`, fichiers ESM du paquet construit `dist/`) et appelle Dev AppStore directement (CORS) → liaison par code → `waitForLink` reçoit le jeton joueur (localStorage) → `onPurchase` (flux SSE + rattrapage, achats de CE joueur uniquement) → crédit local → ack automatique |
 
 Remboursements (`purchase.refunded`) : les deux jeux retirent exactement ce que la commande (`order_id`) avait crédité,
 et ignorent le remboursement d'une commande jamais créditée.

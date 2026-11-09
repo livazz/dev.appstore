@@ -4,6 +4,7 @@ import { CodeTabs } from '@/components/docs/CodeTabs';
 import { A, C, Callout, DocPage, Endpoint, H2, H3, P, Table, UL, docMetadata } from '@/components/docs/prose';
 import { EXAMPLE_PURCHASE, SHELL_ENV, json } from '@/lib/docs/examples';
 import { DOCS_FACTS } from '@/lib/docs/facts';
+import { OPENAPI_PATH } from '@/lib/openapi/serve';
 
 export const metadata = docMetadata('api');
 
@@ -31,6 +32,14 @@ export default function ApiReferencePage() {
         exemples utilisent ces variables :
       </P>
       <CodeBlock lang="bash" code={SHELL_ENV} />
+      <P>
+        Spécification complète au format <strong>OpenAPI 3.1</strong> (routes, schémas, erreurs, flux SSE, webhooks signés), pour Swagger UI,
+        Postman, Insomnia ou un générateur de clients :{' '}
+        <a href={OPENAPI_PATH} download="devappstore-openapi.json" className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary">
+          télécharger openapi.json
+        </a>{' '}
+        (<C>GET {OPENAPI_PATH}</C>).
+      </P>
 
       <H2 id="authentification">Authentification</H2>
       <P>

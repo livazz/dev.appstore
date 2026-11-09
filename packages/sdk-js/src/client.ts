@@ -12,7 +12,7 @@ import type {
   DevAppStoreOptions,
 } from './types.js';
 
-export const SDK_VERSION = '0.2.0';
+export const SDK_VERSION = '0.1.0';
 const DEFAULT_BASE_URL = 'https://devappstore.com';
 const PROCESSED_KEEP = 500;
 /** En-tête du jeton joueur (clé publique). */

@@ -5,9 +5,13 @@
   "description": "Faux jeu + faux serveur du studio Nova Games : démontre la livraison automatique des achats Dev AppStore.",
   "type": "module",
   "scripts": {
+    "predev": "npm run build -w @devappstore/sdk",
     "dev": "tsx watch src/main.ts",
+    "prestart": "npm run build -w @devappstore/sdk",
     "start": "tsx src/main.ts",
+    "pretest": "npm run build -w @devappstore/sdk",
     "test": "vitest run",
+    "pretypecheck": "npm run build -w @devappstore/sdk",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
