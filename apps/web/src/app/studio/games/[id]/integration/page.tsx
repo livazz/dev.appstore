@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
@@ -168,6 +169,9 @@ wolleen.onPurchase(player.id, async (e) => {
         <p className="mt-1 text-sm text-ink-2">
           Connectez {game.name} à Wolleen : chaque achat est livré automatiquement à votre jeu, par webhook signé vers votre serveur (clé
           secrète) ou en temps réel via le SDK embarqué (clé publique + jeton joueur).
+        </p>
+        <p className="mt-1 text-sm text-ink-2">
+          Guide complet : <Link href="/docs/demarrage-rapide" className="text-primary underline">documentation développeur</Link>.
         </p>
       </div>
 

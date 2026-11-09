@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { SearchBar, SearchForm } from '@/components/catalog/SearchBar';
 import { UserMenu } from '@/components/auth/UserMenu';
+import { LEGAL_DOCUMENTS } from '@/lib/legal-versions';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL || 'http://localhost:3000'),
@@ -39,11 +40,18 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
       </header>
       <main className="flex-1">{children}</main>
       <footer className="border-t border-line bg-surface">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-ink-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-ink-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>© Wolleen — achats in-app sur le web, livrés automatiquement dans votre jeu.</p>
-          <Link href="/studio" className="hover:text-ink">
-            Vous êtes un studio ?
-          </Link>
+          <nav aria-label="Liens de pied de page" className="flex flex-wrap gap-x-4">
+            {LEGAL_DOCUMENTS.map((d) => (
+              <Link key={d.slug} href={d.href} className="inline-flex min-h-11 items-center hover:text-ink">
+                {d.shortTitle}
+              </Link>
+            ))}
+            <Link href="/pour-les-studios" className="inline-flex min-h-11 items-center hover:text-ink">
+              Vous êtes un studio ?
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

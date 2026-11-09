@@ -163,6 +163,9 @@ export default function StudiosPage() {
               <a href="#calculateur" className={ctaSecondary}>
                 Estimer mes gains
               </a>
+              <Link href="/docs/demarrage-rapide" className={ctaSecondary}>
+                Documentation
+              </Link>
             </div>
           </div>
 

@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
-import { formatMoney, type Currency } from '@wolleen/core';
+import { formatMoney, type Currency } from '@wolleen/core/client';
+import { CGV_URL, CGV_VERSION, formatLegalDate } from '@/lib/legal-versions';
 
 /** Réponse de GET /api/checkout?gameId=…&itemId=… */
 interface BuyContext {
@@ -136,6 +137,16 @@ export function BuyButton({ gameId, gameSlug, itemId }: { gameId: string; gameSl
         )}
         {label}
       </button>
+
+      {canPay && (
+        <p className="text-center text-xs text-ink-3">
+          En payant, vous acceptez les{' '}
+          <a href={CGV_URL} target="_blank" rel="noopener" className="text-primary underline">
+            conditions générales de vente
+          </a>{' '}
+          (version du {formatLegalDate(CGV_VERSION)}).
+        </p>
+      )}
 
       <p className="min-h-4 text-center text-xs text-balance text-ink-2" aria-live="polite">
         {ctx?.link ? (

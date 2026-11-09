@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { LEGAL_DOCUMENTS } from '@/lib/legal-versions';
 
 const navLink =
   'inline-flex min-h-11 items-center rounded px-2 text-ink-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary';
@@ -29,6 +30,9 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
             <Link href="/pour-les-studios" className={navLink}>
               Studios
             </Link>
+            <Link href="/docs" className={`${navLink} hidden sm:inline-flex`}>
+              Documentation
+            </Link>
             <Link
               href="/studio/signup"
               className="inline-flex min-h-11 items-center rounded-[var(--radius)] bg-primary px-3 font-semibold text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -48,6 +52,12 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
             <Link href="/" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Catalogue</Link>
             <Link href="/pour-les-studios" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Pour les studios</Link>
             <Link href="/studio/signup" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Créer un espace studio</Link>
+            <Link href="/docs" className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">Documentation</Link>
+            {LEGAL_DOCUMENTS.filter((d) => d.slug !== 'retractation').map((d) => (
+              <Link key={d.slug} href={d.href} className="inline-flex min-h-11 items-center hover:text-ink focus-visible:outline-2 focus-visible:outline-primary">
+                {d.shortTitle}
+              </Link>
+            ))}
           </nav>
         </div>
       </footer>

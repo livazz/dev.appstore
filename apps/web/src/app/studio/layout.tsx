@@ -29,6 +29,9 @@ export default async function StudioLayout({ children }: { children: React.React
             <Link href="/studio/payouts" className="inline-flex min-h-11 items-center rounded-[var(--radius)] px-3 hover:bg-black/5 hover:text-ink">
               Paiements
             </Link>
+            <Link href="/docs" className="inline-flex min-h-11 items-center rounded-[var(--radius)] px-3 hover:bg-black/5 hover:text-ink">
+              Documentation
+            </Link>
           </nav>
           <div className="ml-auto flex-none">
             <UserMenu variant="studio" />
