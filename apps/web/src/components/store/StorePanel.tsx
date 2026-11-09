@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import type { Currency, GameTheme } from '@wolleen/core';
+import type { Currency, GameTheme } from '@wolleen/core/client';
 import { cardBackground, ItemCard, textEffects, type CardItem } from './ItemCard';
 import s from './store.module.css';
 

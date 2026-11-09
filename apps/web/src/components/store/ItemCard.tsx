@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { formatMoney, PERIODS, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@wolleen/core';
+import { formatMoney, PERIODS, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@wolleen/core/client';
 import s from './store.module.css';
 
 /** Sous-ensemble d'un article nécessaire à l'affichage (ligne DB ou brouillon de l'éditeur). */
