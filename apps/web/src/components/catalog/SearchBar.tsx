@@ -15,9 +15,9 @@ export function SearchForm({ q = '', cat = '' }: { q?: string; cat?: string }) {
     <form
       action="/search"
       role="search"
-      className="flex h-10 w-full min-w-0 items-center rounded-full border border-line bg-bg pl-3 transition-colors focus-within:border-primary focus-within:bg-surface"
+      className="flex h-11 w-full min-w-0 items-center rounded-full border border-line bg-bg pl-3 transition-colors focus-within:border-primary focus-within:bg-surface focus-within:ring-2 focus-within:ring-primary/40"
     >
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[18px] flex-none text-ink-3" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[18px] flex-none text-ink-2" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-3.5-3.5" />
       </svg>
@@ -28,14 +28,14 @@ export function SearchForm({ q = '', cat = '' }: { q?: string; cat?: string }) {
         placeholder="Rechercher"
         aria-label="Rechercher un jeu ou un article"
         maxLength={100}
-        className="h-full min-w-0 flex-1 bg-transparent px-2 text-[15px] outline-none placeholder:text-ink-3"
+        className="h-full min-w-0 flex-1 bg-transparent px-2 text-[15px] outline-none placeholder:text-ink-2"
       />
       <select
         name="cat"
         defaultValue={cat}
         aria-label="Catégorie"
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="h-full max-w-[45%] flex-none cursor-pointer rounded-r-full border-l border-line bg-transparent pr-2 pl-2 text-sm text-ink-2 outline-none sm:pr-3"
+        className="h-full max-w-[45%] flex-none cursor-pointer rounded-r-full border-l border-line bg-transparent pr-2 pl-2 text-sm text-ink-2 outline-none focus-visible:bg-primary/10 focus-visible:text-ink sm:pr-3"
       >
         <option value="">Toutes catégories</option>
         {GAME_CATEGORIES.map((c) => (

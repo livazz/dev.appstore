@@ -12,7 +12,7 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
         aria-checked={checked}
         aria-label={label}
         onClick={() => onChange(!checked)}
-        className={`relative h-6 w-10 flex-none rounded-full transition-colors ${checked ? 'bg-ok' : 'bg-line'}`}
+        className={`relative h-6 w-10 flex-none rounded-full transition-colors before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${checked ? 'bg-ok' : 'bg-ink-3'}`}
       >
         <span className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
       </button>
@@ -43,13 +43,13 @@ export function ColorField({
             title="Aucune couleur"
             aria-pressed={none}
             onClick={() => onChange(none ? '#888888' : 'transparent')}
-            className={`rounded-md border px-2 py-0.5 text-xs ${none ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-ink-2'}`}
+            className={`min-h-9 rounded-md border px-2.5 text-xs focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary ${none ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-ink-2'}`}
           >
             Aucun
           </button>
         )}
         <span
-          className="relative block size-7 overflow-hidden rounded-md border border-line"
+          className="relative block size-9 overflow-hidden rounded-md border border-line has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-1 has-[:focus-visible]:outline-primary"
           style={
             none
               ? { background: 'repeating-conic-gradient(#ddd 0 25%, #fff 0 50%) 0 0 / 10px 10px' }
@@ -106,7 +106,7 @@ export function Slider({
           max={max}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full accent-primary"
+          className="h-11 w-full cursor-pointer accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         />
       </div>
     </div>

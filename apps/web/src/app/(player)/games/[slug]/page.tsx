@@ -53,7 +53,7 @@ export default async function GamePage({ params, searchParams }: Props) {
             À propos de {game.name}
           </h2>
           <p className="mt-2 text-ink-2 whitespace-pre-line">{game.description}</p>
-          <p className="mt-3 text-sm text-ink-3">
+          <p className="mt-3 text-sm text-ink-2">
             Catégorie : {game.category}
             {game.publisherName ? ` · Éditeur : ${game.publisherName}` : ''}
           </p>

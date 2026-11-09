@@ -31,7 +31,7 @@ export function Modal({ children, onClose, wide, label }: { children: ReactNode;
           type="button"
           onClick={onClose}
           aria-label="Fermer"
-          className="absolute top-4 right-4 rounded-full p-1.5 text-ink-2 hover:bg-bg hover:text-ink"
+          className="absolute top-3 right-3 grid size-11 place-items-center rounded-full text-ink-2 hover:bg-bg hover:text-ink focus-visible:outline-2 focus-visible:outline-primary"
         >
           <IconClose size={18} />
         </button>
