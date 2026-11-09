@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nova Games · démo Wolleen</title>
+    <link rel="stylesheet" href="/game.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">W</span>
+        <span>Démo studio <strong>Nova Games</strong></span>
+      </div>
+      <a id="open-wolleen" class="link" href="http://localhost:3000" target="_blank" rel="noopener">Ouvrir Wolleen ↗</a>
+    </header>
+
+    <main class="layout">
+      <section class="side">
+        <h1>Le jeu se met à jour tout seul</h1>
+        <ol class="steps">
+          <li>Dans le jeu : <em>Paramètres → Lier mon compte web</em>, puis saisissez le code sur Wolleen.</li>
+          <li>Achetez un article sur la boutique Wolleen du jeu.</li>
+          <li>Revenez ici : les compteurs s'animent, sans recharger la page.</li>
+        </ol>
+
+        <h2>Jeu</h2>
+        <div class="games" role="radiogroup" aria-label="Choix du jeu">
+          <button class="game-card" data-game="crystal" role="radio">
+            <span class="game-icon crystal"></span>
+            <span class="game-meta">
+              <strong>Crystal Clash</strong>
+              <span class="badge">Webhook serveur</span>
+            </span>
+          </button>
+          <button class="game-card" data-game="farm" role="radio">
+            <span class="game-icon farm"></span>
+            <span class="game-meta">
+              <strong>Pixel Farm</strong>
+              <span class="badge sdk">SDK client</span>
+            </span>
+          </button>
+        </div>
+        <p class="hint" id="mode-hint"></p>
+
+        <h2>Joueur</h2>
+        <select id="player" aria-label="Joueur courant"></select>
+
+        <div class="journal">
+          <div class="journal-head">
+            <h2>Journal</h2>
+            <button id="simulate" class="btn-ghost" type="button" title="Envoie au serveur du jeu un webhook signé, comme le ferait Wolleen">Simuler un achat</button>
+          </div>
+          <ul id="log"><li class="muted">En attente d'un achat…</li></ul>
+        </div>
+      </section>
+
+      <section class="phone-wrap">
+        <div class="phone">
+          <div class="screen" id="screen" data-game="crystal">
+            <div class="hud">
+              <div class="player">
+                <span class="avatar" id="avatar">A</span>
+                <span class="player-meta">
+                  <strong id="player-name">—</strong>
+                  <span id="player-level">Niv. —</span>
+                </span>
+              </div>
+              <div class="pills" id="pills"></div>
+            </div>
+
+            <div class="scene">
+              <div class="title" id="game-title">Crystal Clash</div>
+              <div class="art" aria-hidden="true"><span></span><span></span><span></span></div>
+              <div class="perks" id="perks"></div>
+              <div class="status" id="status"><span class="dot"></span><span id="status-text">Connexion…</span></div>
+            </div>
+
+            <div class="bottom">
+              <a class="game-btn shop" id="shop-link" target="_blank" rel="noopener">Boutique</a>
+              <button class="game-btn" id="open-settings" type="button">Paramètres</button>
+            </div>
+
+            <div class="toast-layer" id="toasts"></div>
+
+            <div class="modal" id="settings" hidden>
+              <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+                <h3 id="settings-title">Paramètres</h3>
+                <div class="row">
+                  <span>ID joueur</span>
+                  <code id="player-id">—</code>
+                </div>
+                <div class="row">
+                  <span>Compte web Wolleen</span>
+                  <span class="muted small" id="link-via"></span>
+                </div>
+                <div class="code-box" id="code-box" hidden>
+                  <div class="small muted">Votre code de liaison</div>
+                  <div class="code" id="link-code">————-————</div>
+                  <div class="small muted" id="link-expiry"></div>
+                  <div class="small">Saisissez-le sur <a id="link-url" target="_blank" rel="noopener">Wolleen</a>.</div>
+                </div>
+                <p class="error small" id="link-error" hidden></p>
+                <div class="actions">
+                  <button class="btn cancel" id="close-settings" type="button">Annuler</button>
+                  <button class="btn primary" id="request-code" type="button">Lier mon compte web</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/game.js"></script>
+  </body>
+</html>

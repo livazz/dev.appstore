@@ -1,0 +1,23 @@
+{
+  "name": "@wolleen/demo-game",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Faux jeu + faux serveur du studio Nova Games : démontre la livraison automatique des achats Wolleen.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@wolleen/sdk": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@wolleen/core": "*",
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
