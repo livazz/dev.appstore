@@ -1,6 +1,7 @@
 /* Données de démo : `npm run db:push && npm run db:seed` (idempotent). */
 import { DEFAULT_ITEM_STYLE, hashApiKey, type ItemStyle } from '@wolleen/core';
-import { db, games, items, studios, studioMembers, user } from './index';
+import { hashPassword } from 'better-auth/crypto';
+import { account, and, db, eq, games, items, studios, studioMembers, user } from './index';
 import * as A from './demo-assets';
 
 /** Clés de développement connues — utilisées par apps/demo-game. Jamais en production. */
@@ -14,14 +15,37 @@ const gold: ItemStyle = { ...DEFAULT_ITEM_STYLE, bgType: 'linear', bg1: '#fff4cc
 const navy: ItemStyle = { ...DEFAULT_ITEM_STYLE, bg1: '#3b5cc4', bg2: '#101c4a', titleColor: '#ffffff', subtitleColor: '#c7d3ff', priceBg: '#0b1433', borderColor: '#4fa3ff', rounded: false };
 const farm: ItemStyle = { ...DEFAULT_ITEM_STYLE, bgType: 'linear', bg1: '#ffffff', bg2: '#e2f7d4', titleColor: '#ffffff', titleBg: '#4caf50', subtitleColor: '#2e5e1f', priceBg: '#f9a825', borderWidth: 0 };
 
-/** Utilisateurs de démo (sans mot de passe : la tâche « auth » ajoute les identifiants). */
+/** Utilisateurs de démo — mot de passe `DEMO_PASSWORD` (compte Better Auth « credential »). */
 export const DEMO_USERS = {
   dev: { id: 'usr_demo_dev', name: 'Développeur Démo', email: 'dev@wolleen.test' },
   player: { id: 'usr_demo_player', name: 'Joueur Démo', email: 'joueur@wolleen.test' },
 };
 
+/** Mot de passe des comptes de démo. Jamais en production. */
+export const DEMO_PASSWORD = 'demo1234';
+
+/**
+ * Donne aux utilisateurs de démo un identifiant e-mail + mot de passe Better Auth (ligne `account` provider « credential »,
+ * mot de passe haché par Better Auth). Idempotent : un compte credential existant n'est pas modifié.
+ */
+async function seedDemoCredentials() {
+  for (const u of Object.values(DEMO_USERS)) {
+    const existing = await db
+      .select({ id: account.id })
+      .from(account)
+      .where(and(eq(account.userId, u.id), eq(account.providerId, 'credential')))
+      .limit(1);
+    if (existing.length) continue;
+    await db
+      .insert(account)
+      .values({ id: `acc_${u.id.slice(4)}_credential`, accountId: u.id, providerId: 'credential', userId: u.id, password: await hashPassword(DEMO_PASSWORD) })
+      .onConflictDoNothing();
+  }
+}
+
 async function main() {
   for (const u of Object.values(DEMO_USERS)) await db.insert(user).values({ ...u, emailVerified: true }).onConflictDoNothing();
+  await seedDemoCredentials();
   await db.insert(studios).values({ id: 'std_nova', name: 'Nova Games', slug: 'nova-games' }).onConflictDoNothing();
 
   await db.insert(studioMembers).values({ studioId: 'std_nova', userId: DEMO_USERS.dev.id, role: 'owner' }).onConflictDoNothing();
@@ -60,7 +84,7 @@ async function main() {
     it('gam_farm', 1, { productId: 'coins_10000', title: 'Bourse de pièces', priceCents: 499, oldPriceCents: 699, quantity: 10000, keywords: ['Monnaie'], models: [{ imageUrl: A.ART_GOLD, label: 'Pièces' }], layout: 2, style: farm }),
   ];
   for (const r of rows) await db.insert(items).values(r).onConflictDoNothing();
-  console.log(`Seed OK : 1 studio, ${gameRows.length} jeux, ${rows.length} articles`);
+  console.log(`Seed OK : 1 studio, ${gameRows.length} jeux, ${rows.length} articles — comptes de démo : ${Object.values(DEMO_USERS).map((u) => u.email).join(', ')} / ${DEMO_PASSWORD}`);
 }
 
 main().then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
