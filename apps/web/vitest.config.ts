@@ -10,6 +10,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Importer @wolleen/db instancie la base globale. Sans DATABASE_URL, elle ouvrirait la base PGlite
+    // de dev (.data/pglite), possiblement verrouillée par `next dev`. Les tests utilisent createTestDb() :
+    // on pointe la base globale vers un Postgres fictif (postgres-js ne se connecte qu'à la 1re requête).
+    env: { DATABASE_URL: 'postgres://vitest:unused@127.0.0.1:1/unused' },
     include: ['src/**/*.test.ts'],
     testTimeout: 30_000,
     hookTimeout: 60_000,

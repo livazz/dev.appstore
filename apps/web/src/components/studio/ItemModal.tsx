@@ -266,7 +266,7 @@ export function ItemModal({
                 max={3}
                 value={draft.models.length}
                 onChange={(e) => setModelCount(Number(e.target.value))}
-                className={`${inputCls} w-20`}
+                className="w-20 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
               />
             </label>
             <div className="flex flex-wrap gap-4">
