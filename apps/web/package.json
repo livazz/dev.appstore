@@ -12,6 +12,8 @@
     "check:storage": "tsx scripts/check-storage.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@wolleen/ai-style": "*",
     "@wolleen/core": "*",
     "@wolleen/db": "*",
     "@wolleen/emails": "*",
