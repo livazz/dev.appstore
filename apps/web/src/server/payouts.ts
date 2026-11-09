@@ -11,6 +11,16 @@ import { getStripe, isStripeEnabled } from '@/server/stripe';
 
 export const PAYOUT_ROLES: StudioRole[] = ['owner', 'finance'];
 
+/**
+ * Rôles autorisés à MODIFIER les versements (création du compte Connect, onboarding, tableau de bord Stripe) :
+ * owner uniquement — `finance` est en lecture seule (matrice des rôles, threat-model § 6.6, CHK-MT-06 / CHK-PAY-12).
+ */
+export const PAYOUT_MANAGE_ROLES: StudioRole[] = ['owner'];
+
+export function canManagePayouts(role: StudioRole): boolean {
+  return PAYOUT_MANAGE_ROLES.includes(role);
+}
+
 export type PayoutStudio = typeof studios.$inferSelect & { role: StudioRole };
 
 /** Studios dont l'utilisateur est owner/finance. */
