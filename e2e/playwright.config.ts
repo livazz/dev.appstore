@@ -41,7 +41,8 @@ if (demoGameAvailable()) {
     cwd: REPO_ROOT,
     url: `${DEMO_GAME_URL}/api/config`,
     env: { PORT: String(DEMO_PORT), WOLLEEN_URL: BASE_URL },
-    reuseExistingServer: REUSE_SERVER,
+    // E2E_REUSE_DEMO=1 : réutilise un jeu de démo déjà lancé (il doit viser la même URL Wolleen pour ses ack).
+    reuseExistingServer: REUSE_SERVER || process.env.E2E_REUSE_DEMO === '1',
     timeout: 60_000,
     stdout: process.env.E2E_SERVER_LOGS === '1' ? 'pipe' : 'ignore',
     stderr: 'pipe',

@@ -20,6 +20,8 @@ export class PaiementSimule {
     await expect(this.page).toHaveURL(/\/checkout\/mock/);
     await expect(this.page.getByRole('heading', { level: 1, name: /paiement/i })).toBeVisible();
     await expect(this.bandeauDemo).toBeVisible();
+    // Laisse la page s'hydrater (compilation à la volée en `next dev`) avant d'envoyer le formulaire.
+    await this.page.waitForLoadState('networkidle');
   }
 
   /** Coche le consentement s'il existe, clique « Payer x,xx € » et attend la page de confirmation. */

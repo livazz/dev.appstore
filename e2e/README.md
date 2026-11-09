@@ -80,6 +80,8 @@ clés de démo (lus dans `packages/db/src/seed.ts`, sans l'importer : il lance l
 | `E2E_WEB_PORT` | `3000` | Port de Wolleen (utile si 3000 est déjà pris : `E2E_WEB_PORT=3317 npm run test:e2e`). |
 | `E2E_DEMO_PORT` | `4100` | Port du jeu de démo. Le seed pointe `playerLookupUrl` / `webhookUrl` sur 4100 : ne changez qu'en connaissance de cause. |
 | `E2E_REUSE_SERVER` | — | `1` : réutilise des serveurs déjà lancés et **ne touche pas** à la base (lancez-les vous-même avec `WOLLEEN_DATA_DIR=e2e/.data`, base migrée et seedée). |
+| `E2E_REUSE_DEMO` | — | `1` : réutilise un jeu de démo déjà lancé sur 4100 (Wolleen reste démarré par le harnais). |
+| `E2E_FORCER` | — | `1` : exécute aussi les specs marquées fixme (routes absentes), pour voir jusqu'où va un parcours. |
 | `E2E_DATA_DIR` | `e2e/.data` | Base PGlite de test (relative à la racine). |
 | `E2E_KEEP_DATA` | — | `1` : ne pas vider la base avant `db:push`/`db:seed`. |
 | `E2E_DEMO_GAME` | — | `0` : ne pas démarrer le jeu de démo même s'il existe. |

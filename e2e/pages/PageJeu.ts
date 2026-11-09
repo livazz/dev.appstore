@@ -27,9 +27,12 @@ export class PageJeu {
     const detail = this.detail(titre);
     if (!(await detail.isVisible())) {
       await expect(this.carteArticle(titre)).toBeVisible();
-      await this.carteArticle(titre).click();
+      // En `next dev`, un clic peut précéder l'hydratation : on réessaie jusqu'à l'ouverture du détail.
+      await expect(async () => {
+        if (!(await detail.isVisible())) await this.carteArticle(titre).click();
+        await expect(detail).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 20_000 });
     }
-    await expect(detail).toBeVisible();
     const bouton = detail.getByRole('button', { name: /acheter/i });
     await expect(bouton).toBeEnabled();
     await bouton.click();
