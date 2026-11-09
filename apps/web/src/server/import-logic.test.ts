@@ -161,6 +161,9 @@ describe('identifiants chiffrés', () => {
     await expect(saveStoreCredentials(t, game.id, 'app_store', { ...appStore, appId: 'com.app' }, { key })).rejects.toThrow(/Apple ID/);
     await expect(saveStoreCredentials(t, game.id, 'google_play', { ...googlePlay, packageName: 'crystal' }, { key })).rejects.toThrow(/package/);
     await expect(saveStoreCredentials(t, game.id, 'google_play', { ...googlePlay, serviceAccount: '{"a":1}' }, { key })).rejects.toThrow(/compte de service/);
+    // C-01 (revue 2026-11) : token_uri hors liste blanche → refus explicite (SSRF).
+    const evilSa = JSON.stringify({ ...JSON.parse(googlePlay.serviceAccount), token_uri: 'http://169.254.169.254/latest/meta-data/' });
+    await expect(saveStoreCredentials(t, game.id, 'google_play', { ...googlePlay, serviceAccount: evilSa }, { key })).rejects.toThrow(/token_uri/);
   });
 });
 

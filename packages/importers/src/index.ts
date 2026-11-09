@@ -6,7 +6,7 @@ export * from './types';
 export { suggestWebPrice, DEFAULT_WEB_DISCOUNT_BPS, SUPPORTED_CURRENCIES, toCurrency, decimalToCents, moneyToCents, microsToCents } from './pricing';
 export { applePeriod, isoPeriod } from './periods';
 export { signJwt, decodeJwt, normalizePem } from './jwt';
-export { StoreApiError, type HttpOptions } from './http';
+export { StoreApiError, StoreTransportError, type HttpOptions } from './http';
 
 export {
   AppStoreConnectClient,
@@ -21,6 +21,7 @@ export {
   createServiceAccountAssertion,
   fetchGoogleAccessToken,
   parseServiceAccount,
+  InvalidTokenUriError,
   ANDROID_PUBLISHER_SCOPE,
   GOOGLE_TOKEN_URI,
   type GoogleServiceAccountKey,

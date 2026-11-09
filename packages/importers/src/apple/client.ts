@@ -80,6 +80,10 @@ export class AppStoreConnectClient {
 
   url(path: string, query: Record<string, string | number | undefined> = {}): string {
     const u = new URL(path.startsWith('http') ? path : `${this.baseUrl}${path}`);
+    // `links.next` vient de la réponse : il doit rester sur l'origine de l'API (le jeton n'est envoyé qu'à Apple).
+    if (u.origin !== new URL(this.baseUrl).origin) {
+      throw new Error(`URL hors App Store Connect refusée : ${u.origin}`);
+    }
     for (const [k, v] of Object.entries(query)) if (v !== undefined) u.searchParams.set(k, String(v));
     return u.toString();
   }
