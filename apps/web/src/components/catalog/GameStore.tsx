@@ -7,6 +7,7 @@ import { BuyButton } from '@/components/checkout/BuyButton';
 import type { PublicGame, PublicItem } from '@/server/catalog';
 import { safeImageUrl } from '@/components/store/style-safety';
 import { GameIcon } from './GameCard';
+import { storeUrlWithItem } from './store-query';
 
 type StoreGame = Omit<PublicGame, 'items'>;
 
@@ -24,23 +25,43 @@ const toPanelItem = (i: PublicItem): PanelItem => ({
   keywords: i.keywords,
 });
 
-/** Boutique publique d'un jeu : StorePanel en lecture + panneau de détail d'article. */
-export function GameStore({ game, items, initialItemId }: { game: StoreGame; items: PublicItem[]; initialItemId?: string | null }) {
+/**
+ * Boutique publique d'un jeu : StorePanel en lecture + panneau de détail d'article.
+ * `initialItemId` vient de `?item=` ou de `?buy=` (store-query.ts) ; avec `initialBuy` (retour de liaison),
+ * le détail s'ouvre avec le focus sur l'achat.
+ */
+export function GameStore({
+  game,
+  items,
+  initialItemId,
+  initialBuy = false,
+}: {
+  game: StoreGame;
+  items: PublicItem[];
+  initialItemId?: string | null;
+  initialBuy?: boolean;
+}) {
   const [openId, setOpenId] = useState<string | null>(() => (initialItemId && items.some((i) => i.id === initialItemId) ? initialItemId : null));
+  const [focusBuy, setFocusBuy] = useState(() => initialBuy && openId !== null);
   const open = items.find((i) => i.id === openId) ?? null;
 
   const setUrlItem = useCallback((id: string | null) => {
-    const url = new URL(window.location.href);
-    if (id) url.searchParams.set('item', id);
-    else url.searchParams.delete('item');
-    window.history.replaceState(window.history.state, '', url);
+    window.history.replaceState(window.history.state, '', storeUrlWithItem(window.location.href, id));
+  }, []);
+
+  // ?buy= est consommé : un rechargement rouvre le détail (?item=) sans redéplacer le focus.
+  useEffect(() => {
+    if (new URL(window.location.href).searchParams.has('buy')) setUrlItem(openId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule fois, au montage
   }, []);
 
   const select = (item: PanelItem) => {
+    setFocusBuy(false);
     setOpenId(item.id);
     setUrlItem(item.id);
   };
   const close = useCallback(() => {
+    setFocusBuy(false);
     setOpenId(null);
     setUrlItem(null);
   }, [setUrlItem]);
@@ -56,7 +77,7 @@ export function GameStore({ game, items, initialItemId }: { game: StoreGame; ite
         emptyText="Ce jeu ne propose aucun article pour le moment."
         header={<StoreHeader game={game} />}
       />
-      {open && <ItemDetail game={game} item={open} onClose={close} />}
+      {open && <ItemDetail game={game} item={open} onClose={close} focusBuy={focusBuy} />}
     </>
   );
 }
@@ -86,8 +107,10 @@ function priceLabel(item: PublicItem, currency: Currency) {
 }
 
 /** Panneau de détail : tiroir à droite (bureau), feuille du bas (mobile). */
-function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem; onClose: () => void }) {
+function ItemDetail({ game, item, onClose, focusBuy = false }: { game: StoreGame; item: PublicItem; onClose: () => void; focusBuy?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  const buyRef = useRef<HTMLDivElement>(null);
+  const focusBuyOnOpen = useRef(focusBuy); // lu à l'ouverture seulement
   const [visual, setVisual] = useState(0);
   const models = item.models.flatMap((m) => {
     const imageUrl = safeImageUrl(m.imageUrl);
@@ -100,7 +123,9 @@ function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem
 
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    ref.current?.focus();
+    // Retour de liaison (?buy=) : focus directement sur l'achat (case de livraison immédiate, sinon le bouton).
+    const buyTarget = focusBuyOnOpen.current ? buyRef.current?.querySelector<HTMLElement>('input:not([disabled]),button:not([disabled])') : null;
+    (buyTarget ?? ref.current)?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') return onClose();
       if (e.key !== 'Tab' || !ref.current) return;
@@ -229,7 +254,7 @@ function ItemDetail({ game, item, onClose }: { game: StoreGame; item: PublicItem
           >
             Annuler
           </button>
-          <div className="min-w-0 flex-1">
+          <div ref={buyRef} className="min-w-0 flex-1">
             <BuyButton gameId={game.id} gameSlug={game.slug} itemId={item.id} />
           </div>
         </div>
