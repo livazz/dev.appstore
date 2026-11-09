@@ -13,17 +13,26 @@ export default async function StudioLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen bg-bg">
       <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6">
-          <Link href="/studio" className="flex items-center gap-3" aria-label="Espace studio — accueil">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-brand text-lg font-black text-ink shadow-sm">W</span>
-            <span className="text-base font-semibold">Espace studio</span>
+        {/* 390 px : logo + menu compte sur la 1re ligne, navigation sur la 2e (aucun scroll horizontal). */}
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 px-4 py-1.5 sm:h-14 sm:flex-nowrap sm:px-6 sm:py-0">
+          <Link href="/studio" className="flex min-h-11 min-w-0 items-center gap-3" aria-label="Espace studio — accueil">
+            <span className="flex size-9 flex-none items-center justify-center rounded-xl bg-brand text-lg font-black text-ink shadow-sm">W</span>
+            <span className="truncate text-base font-semibold">Espace studio</span>
           </Link>
-          <nav className="ml-4 hidden items-center gap-4 text-sm text-ink-2 sm:flex" aria-label="Navigation studio">
-            <Link href="/studio" className="hover:text-ink">Mes jeux</Link>
-            <Link href="/studio/payouts" className="hover:text-ink">Paiements</Link>
+          <nav
+            className="order-3 -mx-3 flex w-full items-center text-sm text-ink-2 sm:order-none sm:mx-0 sm:ml-2 sm:w-auto"
+            aria-label="Navigation studio"
+          >
+            <Link href="/studio" className="inline-flex min-h-11 items-center rounded-[var(--radius)] px-3 hover:bg-black/5 hover:text-ink">
+              Mes jeux
+            </Link>
+            <Link href="/studio/payouts" className="inline-flex min-h-11 items-center rounded-[var(--radius)] px-3 hover:bg-black/5 hover:text-ink">
+              Paiements
+            </Link>
           </nav>
-          <span className="flex-1" />
-          <UserMenu variant="studio" />
+          <div className="ml-auto flex-none">
+            <UserMenu variant="studio" />
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
