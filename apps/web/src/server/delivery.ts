@@ -159,7 +159,7 @@ export const WEBHOOK_TIMEOUT_MS = 10_000;
 /** Seul le statut compte : on ne lit (ni ne stocke) que le début de la réponse. */
 const WEBHOOK_RESPONSE_MAX_BYTES = 1024;
 /** Bail posé sur une livraison pendant l'envoi (> timeout) pour éviter les doubles envois concurrents (cron + boucle dev). */
-const DISPATCH_LEASE_MS = 30_000;
+export const DISPATCH_LEASE_MS = 30_000;
 /** Intervalle de la boucle de relance en développement (le premier délai du planning est 10 s). */
 const DEV_RETRY_INTERVAL_MS = 5_000;
 

@@ -1,4 +1,4 @@
-import type { GameTheme, ItemStyle, ItemType, Period } from './types';
+import type { Currency, GameTheme, ItemStyle, ItemType, Period } from './types';
 
 /**
  * Commission standard Apple / Google sur les achats in-app (taux « plein » historique).
@@ -19,6 +19,12 @@ export const PRICE_TIERS_CENTS = [
   49, 99, 149, 199, 299, 399, 499, 599, 699, 799, 899, 999, 1099, 1299, 1499, 1699, 1799, 1999, 2199,
   2499, 2999, 3499, 3999, 4499, 4999, 5999, 6999, 7999, 8999, 9999,
 ];
+
+/**
+ * Montant minimum accepté par Stripe par devise (centimes). Un article sous ce montant est refusé à l'écriture
+ * (éditeur, import) : sinon il serait publié mais inachetable (revue 2026-11, C-5).
+ */
+export const MIN_CHARGE_CENTS: Record<Currency, number> = { EUR: 50, USD: 50, GBP: 30 };
 
 export const ITEM_TYPES: { value: ItemType; label: string }[] = [
   { value: 'consumable', label: 'Consommable' },

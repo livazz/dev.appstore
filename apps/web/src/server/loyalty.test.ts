@@ -29,6 +29,10 @@ vi.mock('@devappstore/db', async (importOriginal) => {
 const delivery = vi.hoisted(() => ({ enqueueDelivery: vi.fn(async (orderId: string) => `dlv_${orderId}`) }));
 vi.mock('@/server/delivery', () => delivery);
 
+// Les bons de réduction sont désactivés en production tant qu'ils ne sont pas branchés au checkout (C-6) : on les
+// active ici pour tester le mécanisme (rachat, plafonds, concurrence) ; loyalty-vouchers-disabled.test.ts teste le refus.
+vi.mock('./loyalty-logic', async (importOriginal) => ({ ...(await importOriginal<typeof import('./loyalty-logic')>()), DISCOUNT_VOUCHERS_ENABLED: true }));
+
 const T0 = new Date('2026-03-01T12:00:00Z');
 let userSeq = 0;
 
@@ -176,15 +180,21 @@ describe('revokePointsForOrder', () => {
     expect(await getBalance(u, { now: addDays(T0, 1) })).toBe(10);
   });
 
-  it('ne rend jamais le solde négatif si les points ont déjà été dépensés', async () => {
+  it('points déjà dépensés : la reprise est intégrale et crée une dette (C-2)', async () => {
     const u = await newPlayer();
     const o = await givePoints(u, 60);
     const reward = await rewardDiscount();
     expect(await redeemReward(u, reward, { now: addDays(T0, 1) })).toMatchObject({ ok: true, balance: 10 });
-    expect(await revokePointsForOrder(o.id, { now: addDays(T0, 2) })).toMatchObject({ status: 'revoked', points: 10, awarded: 60 });
-    expect(await getBalance(u, { now: addDays(T0, 2) })).toBe(0);
+    expect(await revokePointsForOrder(o.id, { now: addDays(T0, 2) })).toMatchObject({ status: 'revoked', points: 60, awarded: 60 });
+    // 60 attribués − 50 dépensés − 60 repris : dette de 50.
+    expect(await getBalance(u, { now: addDays(T0, 2) })).toBe(-50);
     const [{ total }] = (await db.execute(sql`select coalesce(sum(delta), 0)::int as total from loyalty_entries where user_id = ${u}`)).rows as { total: number }[];
-    expect(total).toBe(0);
+    expect(total).toBe(-50);
+    // Aucun rachat possible tant que la dette n'est pas remboursée.
+    expect(await redeemReward(u, reward, { now: addDays(T0, 3) })).toMatchObject({ ok: false, code: 'insufficient_points' });
+    // Les points gagnés ensuite remboursent d'abord la dette.
+    await givePoints(u, 80, addDays(T0, 4));
+    expect(await getBalance(u, { now: addDays(T0, 4) })).toBe(30);
   });
 
   it('un remboursement avant attribution bloque l’attribution ultérieure', async () => {
@@ -327,6 +337,17 @@ describe('redeemReward', () => {
     const reward = await rewardDiscount();
     vi.stubEnv('LOYALTY_ENABLED', 'false');
     expect(await redeemReward(u, reward)).toMatchObject({ ok: false, code: 'disabled' });
+  });
+});
+
+describe('revue de sécurité 2026-11 — C-10 : objet bonus sur un article désactivé', () => {
+  it('ni proposé ni rachetable, aucun point débité', async () => {
+    const u = await newPlayer();
+    await givePoints(u, 100);
+    const reward = await rewardBonus({ itemId: FX.inactiveItem });
+    expect((await listRewards(u)).some((r) => r.id === reward)).toBe(false);
+    expect(await redeemReward(u, reward)).toMatchObject({ ok: false, code: 'reward_unavailable' });
+    expect(await getBalance(u)).toBe(100);
   });
 });
 

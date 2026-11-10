@@ -101,8 +101,14 @@ Notations : `c` = commission Dev AppStore d'une commande (centimes), `k` = centi
 - **Plafond par commande** : la réduction ne peut pas dépasser la commission de la commande sur laquelle elle
   s'applique. Dev AppStore n'est **jamais en perte** sur une commande et le studio touche toujours sa part entière.
   Exemple à 5 % : un bon de 1 € s'utilise sur une commande d'au moins 20 €.
-- **Remboursements** : les points sont repris ; le coût d'un avantage déjà consommé avant le remboursement est
-  borné par la reprise sur le solde restant (le reliquat est une perte assumée, elle-même plafonnée par X).
+- **Remboursements, rétractation, litiges** : les points de la commande sont repris **intégralement** (moins ceux déjà
+  expirés), y compris s'ils ont déjà été dépensés : le solde devient alors **négatif** (dette). Les points gagnés
+  ensuite remboursent d'abord la dette, et aucun rachat n'est possible tant que le solde est insuffisant. Sans cela,
+  « acheter, échanger les points, se faire rembourser » laissait la récompense gratuite (revue de sécurité 2026-11,
+  C-1/C-2 ; `pointsToRevoke`, `replayLedger` dans `loyalty-logic.ts`).
+- **Bons de réduction : pas encore branchés au checkout** — tant que `DISCOUNT_VOUCHERS_ENABLED` (`loyalty-logic.ts`)
+  vaut `false`, les récompenses `discount` ne sont ni proposées ni rachetables (revue 2026-11, C-6). À activer dans la
+  même PR que l'application du bon au checkout.
 - **Objets bonus** : coût nul pour Dev AppStore (cadeau du studio, qui y gagne de l'acquisition et de la rétention).
   Le coût en points est fixé avec le studio ; pas de contrainte X.
 

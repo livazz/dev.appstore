@@ -155,6 +155,15 @@ describe('articles', () => {
     await expect(createItemFor(t, g.id, item({ style: { ...DEFAULT_ITEM_STYLE, titleBg: 'transparent' }, oldPriceCents: null }))).resolves.toBeTruthy();
   });
 
+  it('C-5 (revue 2026-11) : refuse un prix sous le minimum Stripe de la devise (0,49 en EUR/USD), accepté en GBP', async () => {
+    const eur = await newGame();
+    await expect(createItemFor(t, eur.id, item({ productId: 'mini', priceCents: 49 }))).rejects.toThrow(/minimum/);
+    const ok = await createItemFor(t, eur.id, item({ productId: 'mini99', priceCents: 99 }));
+    await expect(updateItemFor(t, eur.id, ok.id, item({ productId: 'mini99', priceCents: 49 }))).rejects.toThrow(/minimum/);
+    const { game: gbp } = await createGameFor(t, 'usr_dev', { name: 'Jeu GBP', category: 'RPG', currency: 'GBP' });
+    await expect(createItemFor(t, gbp.id, item({ productId: 'mini', priceCents: 49 }))).resolves.toMatchObject({ priceCents: 49 });
+  });
+
   it("ne permet pas de modifier l'article d'un autre jeu via son identifiant", async () => {
     const mine = await newGame();
     const other = await newGame();

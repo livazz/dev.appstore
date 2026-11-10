@@ -1,7 +1,7 @@
 import 'server-only';
 import type Stripe from 'stripe';
-import { DEFAULT_PLATFORM_FEE_BPS, feeCents, newId, type Currency, type OrderStatus } from '@devappstore/core';
-import { and, count, db, eq, games, gt, inArray, isNull, items, lt, orders, stripeEvents, studios } from '@devappstore/db';
+import { DEFAULT_PLATFORM_FEE_BPS, feeCents, MIN_CHARGE_CENTS, newId, type Currency, type OrderStatus } from '@devappstore/core';
+import { and, count, db, eq, games, gt, inArray, isNull, items, lt, orders, sql, stripeEvents, studios, type DB } from '@devappstore/db';
 import { env } from '@/env';
 import * as delivery from '@/server/delivery';
 import { getGameLink } from '@/server/links';
@@ -64,8 +64,8 @@ export function computePlatformFee(amountCents: number, bps: number = platformFe
   return feeCents(amountCents, bps);
 }
 
-/** Montant minimum accepté par Stripe par devise (centimes). */
-export const MIN_CHARGE_CENTS: Record<Currency, number> = { EUR: 50, USD: 50, GBP: 30 };
+/** Montant minimum accepté par Stripe par devise (centimes) — défini dans @devappstore/core. */
+export { MIN_CHARGE_CENTS };
 
 // ---------------------------------------------------------------------------------------------
 // Anti-spam des commandes en attente
@@ -95,9 +95,11 @@ export async function expireStalePendingOrders(opts: { now?: Date; userId?: stri
   return rows.length;
 }
 
-async function countOpenPendingOrders(userId: string, now = new Date()): Promise<number> {
+type Tx = Parameters<Parameters<DB['transaction']>[0]>[0];
+
+async function countOpenPendingOrders(ex: DB | Tx, userId: string, now = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - PENDING_ORDER_TTL_MS);
-  const [row] = await db
+  const [row] = await ex
     .select({ n: count() })
     .from(orders)
     .where(and(eq(orders.userId, userId), eq(orders.status, 'pending'), gt(orders.createdAt, cutoff)));
@@ -242,6 +244,38 @@ export async function getPurchasableItemPrice(itemId: string, gameId?: string): 
 const connectAccountOf = (studio: Pick<StudioRow, 'stripeAccountId' | 'stripeChargesEnabled'>) =>
   studio.stripeAccountId && studio.stripeChargesEnabled ? studio.stripeAccountId : null;
 
+/**
+ * Compte Stripe sur lequel le paiement d'une commande a été encaissé (null = compte plateforme). Utilise le compte
+ * figé sur la commande au checkout ; pour une commande antérieure à ce champ, en charge directe, le compte du studio
+ * MÊME si ses paiements ont été désactivés depuis : un remboursement doit rester possible (revue 2026-11, C-3).
+ */
+export function chargeAccountOf(
+  order: Pick<OrderRow, 'stripeAccountId'>,
+  studio: Pick<StudioRow, 'stripeAccountId'> | null | undefined,
+  model: ChargeModel = chargeModel(),
+): string | null {
+  if (order.stripeAccountId) return order.stripeAccountId;
+  return model === 'direct' ? (studio?.stripeAccountId ?? null) : null;
+}
+
+/**
+ * L'événement Stripe vient-il du compte qui a encaissé la commande ? (C-9) `eventAccount` = `event.account`
+ * (défini pour les événements des comptes connectés). Un événement d'un autre compte connecté ne peut ni payer, ni
+ * rembourser, ni faire échouer la commande d'un autre studio.
+ */
+async function eventAccountMatches(order: Pick<OrderRow, 'id' | 'gameId' | 'stripeAccountId'>, eventAccount: string | null | undefined): Promise<boolean> {
+  const got = eventAccount || null;
+  if (order.stripeAccountId) return got === order.stripeAccountId;
+  if (!got) return true;
+  // Commande sans compte figé (antérieure, ou charge à destination) : seul le compte du studio du jeu est admis.
+  const [row] = await db
+    .select({ account: studios.stripeAccountId })
+    .from(games)
+    .innerJoin(studios, eq(studios.id, games.studioId))
+    .where(eq(games.id, order.gameId));
+  return !!row?.account && row.account === got;
+}
+
 export interface CheckoutSessionInput {
   order: Pick<OrderRow, 'id' | 'itemTitle' | 'productId' | 'playerId' | 'amountCents' | 'platformFeeCents' | 'currency' | 'gameId' | 'itemId'> &
     Partial<Pick<OrderRow, 'termsVersion'>>;
@@ -313,6 +347,9 @@ export function buildCheckoutSessionParams(input: CheckoutSessionInput, opts: Ch
       },
     ],
     automatic_tax: { enabled: tax },
+    // Pas de conversion de devise par Stripe (Adaptive Pricing) : le montant et la devise payés doivent rester ceux de
+    // la commande, contrôlés par le webhook (revue 2026-11, C-4).
+    adaptive_pricing: { enabled: false },
     custom_text: {
       submit: { message: 'Livraison immédiate dans le jeu : vous avez renoncé à votre droit de rétractation pour cet achat.' },
     },
@@ -401,38 +438,46 @@ export async function createCheckout(params: {
 
   const now = new Date();
   await expireStalePendingOrders({ now, userId: user.id });
-  if ((await countOpenPendingOrders(user.id, now)) >= MAX_PENDING_ORDERS_PER_USER) {
-    throw new CheckoutError('too_many_pending', 'Trop de paiements en attente : terminez ou abandonnez-les avant d’en commencer un autre.', 429);
-  }
 
   const orderId = newId('ord');
-  const [order] = await db
-    .insert(orders)
-    .values({
-      id: orderId,
-      userId: user.id,
-      gameId: game.id,
-      itemId: item.id,
-      productId: item.productId,
-      itemTitle: item.title,
-      playerId: link.playerId,
-      quantity: item.quantity,
-      amountCents,
-      platformFeeCents: computePlatformFee(amountCents),
-      currency: game.currency,
-      status: 'pending',
-      withdrawalWaiverAt: now,
-      termsVersion: currentTermsVersion(),
-      consentIp: truncateIp(consent.ip),
-    })
-    .returning();
+  // Compte + insertion sous verrou consultatif par utilisateur : des requêtes simultanées ne dépassent pas le
+  // plafond de commandes en attente (revue 2026-11, C-8).
+  const order = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`devappstore:checkout:${user.id}`}))`);
+    if ((await countOpenPendingOrders(tx, user.id, now)) >= MAX_PENDING_ORDERS_PER_USER) {
+      throw new CheckoutError('too_many_pending', 'Trop de paiements en attente : terminez ou abandonnez-les avant d’en commencer un autre.', 429);
+    }
+    const [row] = await tx
+      .insert(orders)
+      .values({
+        id: orderId,
+        userId: user.id,
+        gameId: game.id,
+        itemId: item.id,
+        productId: item.productId,
+        itemTitle: item.title,
+        playerId: link.playerId,
+        quantity: item.quantity,
+        amountCents,
+        platformFeeCents: computePlatformFee(amountCents),
+        currency: game.currency,
+        status: 'pending',
+        withdrawalWaiverAt: now,
+        termsVersion: currentTermsVersion(),
+        consentIp: truncateIp(consent.ip),
+        // Compte qui encaissera (charge directe : compte Connect du studio) — figé pour les remboursements (C-3).
+        stripeAccountId: stripeOn && model === 'direct' ? connectAccountOf(studio) : null,
+      })
+      .returning();
+    return row!;
+  });
 
   if (!stripeOn) return { orderId, url: mockCheckoutPath(orderId), mode: 'simulation' };
 
   let session: Stripe.Checkout.Session;
   try {
     session = await createCheckoutSession(
-      { order: order!, game, studio, link, playerName: link.playerName, customerEmail: user.email, origin },
+      { order, game, studio, link, playerName: link.playerName, customerEmail: user.email, origin },
       { model, now },
     );
   } catch (e) {
@@ -567,17 +612,58 @@ export async function markOrderRefunded(orderId: string): Promise<MarkOrderRefun
 
 const refId = (x: string | { id: string } | null | undefined) => (typeof x === 'string' ? x : (x?.id ?? null));
 
-async function findOrderIdByPayment(paymentIntentId: string | null, metadataOrderId?: string | null): Promise<string | null> {
+/** Sous-ensemble du client Stripe utilisé pour rembourser (injectable dans les tests). */
+export type StripeRefunder = {
+  refunds: Pick<Stripe['refunds'], 'create'>;
+  paymentIntents: Pick<Stripe['paymentIntents'], 'retrieve'>;
+};
+
+/**
+ * Remboursement Stripe intégral d'un paiement, sur le compte qui l'a encaissé (`account`, null = plateforme).
+ * Charge directe : commission remboursée ; charge à destination : transfert au studio annulé et commission remboursée.
+ * `idempotencyKey` obligatoire (un rejeu ne rembourse jamais deux fois).
+ */
+export async function refundPaymentIntent(
+  stripe: StripeRefunder,
+  paymentIntent: string,
+  opts: { account: string | null; idempotencyKey: string; metadata: Record<string, string>; reason?: Stripe.RefundCreateParams.Reason },
+): Promise<string> {
+  const accountOpts: Stripe.RequestOptions = opts.account ? { stripeAccount: opts.account } : {};
+  const params: Stripe.RefundCreateParams = {
+    payment_intent: paymentIntent,
+    metadata: opts.metadata,
+    ...(opts.reason ? { reason: opts.reason } : {}),
+  };
+  if (opts.account) params.refund_application_fee = true;
+  else {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntent, {}, accountOpts);
+    if (pi.transfer_data?.destination) {
+      params.reverse_transfer = true;
+      params.refund_application_fee = true;
+    }
+  }
+  const refund = await stripe.refunds.create(params, { ...accountOpts, idempotencyKey: opts.idempotencyKey });
+  return refund.id;
+}
+
+/**
+ * Commande d'un paiement (remboursement, litige) : par l'id du PaymentIntent, sinon par la métadonnée si la commande
+ * n'est rattachée à aucun autre paiement. Dans les deux cas, l'événement doit venir du compte qui a encaissé (C-9).
+ */
+async function findOrderIdByPayment(paymentIntentId: string | null, metadataOrderId?: string | null, eventAccount?: string | null): Promise<string | null> {
+  const cols = { id: orders.id, gameId: orders.gameId, stripeAccountId: orders.stripeAccountId, pi: orders.stripePaymentIntentId };
+  let found: { id: string; gameId: string; stripeAccountId: string | null } | null = null;
   if (paymentIntentId) {
-    const [o] = await db.select({ id: orders.id }).from(orders).where(eq(orders.stripePaymentIntentId, paymentIntentId));
-    if (o) return o.id;
+    const [o] = await db.select(cols).from(orders).where(eq(orders.stripePaymentIntentId, paymentIntentId));
+    if (o) found = o;
   }
-  if (metadataOrderId) {
-    const [o] = await db.select({ id: orders.id, pi: orders.stripePaymentIntentId }).from(orders).where(eq(orders.id, metadataOrderId));
+  if (!found && metadataOrderId) {
+    const [o] = await db.select(cols).from(orders).where(eq(orders.id, metadataOrderId));
     // La métadonnée ne suffit pas si la commande est rattachée à un autre paiement.
-    if (o && (!o.pi || o.pi === paymentIntentId)) return o.id;
+    if (o && (!o.pi || o.pi === paymentIntentId)) found = o;
   }
-  return null;
+  if (!found || !(await eventAccountMatches(found, eventAccount))) return null;
+  return found.id;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -642,7 +728,47 @@ export interface StripeEventResult {
  * Contrôles : commande retrouvée par l'id de session (repli sur la métadonnée seulement si la commande n'a pas encore
  * de session), montant et devise identiques à la commande, paiement réellement reçu. Sinon : alerte, pas de livraison.
  */
-export async function applyCheckoutSession(session: Stripe.Checkout.Session): Promise<StripeEventResult> {
+export interface ApplySessionContext {
+  /** `event.account` (compte connecté émetteur), ou le compte interrogé lors d'une resynchronisation. */
+  account?: string | null;
+  /** Client Stripe pour le remboursement automatique d'une anomalie (défaut : getStripe()). */
+  stripe?: StripeRefunder;
+}
+
+/**
+ * Paiement encaissé mais montant/devise différents de la commande (C-4) : la commande n'est jamais livrée ; le
+ * paiement est remboursé automatiquement (clé d'idempotence par session) et la commande passe à `refunded` avec le
+ * motif dans `paymentAnomaly`. Si le remboursement échoue, la commande est marquée « action manuelle requise » et
+ * l'erreur remonte (le webhook répond 500 : Stripe rejouera, sans double remboursement).
+ */
+async function handlePaidAmountMismatch(order: OrderRow, session: Stripe.Checkout.Session, ctx: ApplySessionContext, reason: string): Promise<string> {
+  const pi = refId(session.payment_intent);
+  const mark = (note: string) =>
+    db.update(orders).set({ paymentAnomaly: note.slice(0, 500) }).where(eq(orders.id, order.id));
+  if (!pi) {
+    await mark(`${reason} — paiement introuvable : action manuelle requise`);
+    return 'action manuelle requise (paiement introuvable)';
+  }
+  let refundId: string;
+  try {
+    refundId = await refundPaymentIntent(ctx.stripe ?? getStripe(), pi, {
+      account: ctx.account ?? null,
+      idempotencyKey: `devappstore_anomaly_${session.id}`,
+      metadata: { order_id: order.id, devappstore_reason: 'amount_mismatch' },
+    });
+  } catch (e) {
+    await mark(`${reason} — remboursement automatique impossible : action manuelle requise`);
+    throw new Error(`Remboursement automatique impossible pour ${order.id} : ${e instanceof Error ? e.message : 'erreur inconnue'}`);
+  }
+  await mark(`${reason} — remboursé automatiquement (${refundId})`);
+  await db
+    .update(orders)
+    .set({ status: 'refunded', refundedAt: new Date() })
+    .where(and(eq(orders.id, order.id), inArray(orders.status, ['pending', 'failed'])));
+  return `remboursé automatiquement (${refundId})`;
+}
+
+export async function applyCheckoutSession(session: Stripe.Checkout.Session, ctx: ApplySessionContext = {}): Promise<StripeEventResult> {
   let [order] = await db.select().from(orders).where(eq(orders.stripeCheckoutSessionId, session.id));
   if (!order) {
     const orderId = session.metadata?.order_id || session.client_reference_id;
@@ -657,15 +783,22 @@ export async function applyCheckoutSession(session: Stripe.Checkout.Session): Pr
     }
   }
   const orderId = order.id;
+  if (!(await eventAccountMatches(order, ctx.account))) {
+    return { handled: false, orderId, detail: 'compte Stripe différent de celui de la commande', alert: `session ${session.id} reçue du compte ${ctx.account ?? 'plateforme'} pour la commande ${orderId} : ignorée` };
+  }
   const subtotal = session.amount_subtotal ?? session.amount_total;
   const discount = session.total_details?.amount_discount ?? 0;
   const currencyOk = session.currency?.toLowerCase() === order.currency.toLowerCase();
   if (session.amount_total !== order.amountCents || subtotal !== order.amountCents || discount !== 0 || !currencyOk) {
+    const reason = `montant/devise incohérents : attendu ${order.amountCents} ${order.currency}, reçu ${session.amount_total} ${session.currency}`;
+    const outcome = session.payment_status === 'paid' && order.status !== 'paid' && order.status !== 'refunded'
+      ? await handlePaidAmountMismatch(order, session, ctx, reason)
+      : 'aucun paiement encaissé';
     return {
       handled: false,
       orderId,
       detail: 'montant ou devise incohérents',
-      alert: `montant/devise incohérents pour ${orderId} : attendu ${order.amountCents} ${order.currency}, reçu ${session.amount_total} ${session.currency} — commande NON payée, aucune livraison`,
+      alert: `${reason} pour ${orderId} — commande NON payée, aucune livraison ; ${outcome}`,
     };
   }
   if (session.payment_status !== 'paid') return { handled: false, orderId, detail: `paiement non finalisé (${session.payment_status})` };
@@ -684,23 +817,29 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<StripeEven
   switch (event.type) {
     case 'checkout.session.completed':
     case 'checkout.session.async_payment_succeeded':
-      return applyCheckoutSession(event.data.object);
+      return applyCheckoutSession(event.data.object, { account: event.account ?? null });
 
     case 'checkout.session.async_payment_failed':
     case 'checkout.session.expired': {
       const session = event.data.object;
       const orderId = session.metadata?.order_id || session.client_reference_id;
       if (!orderId) return { handled: false, detail: 'session sans order_id' };
-      const [order] = await db.select({ sessionId: orders.stripeCheckoutSessionId }).from(orders).where(eq(orders.id, orderId));
+      const [order] = await db
+        .select({ id: orders.id, gameId: orders.gameId, stripeAccountId: orders.stripeAccountId, sessionId: orders.stripeCheckoutSessionId })
+        .from(orders)
+        .where(eq(orders.id, orderId));
       if (!order || (order.sessionId && order.sessionId !== session.id)) return { handled: false, detail: 'commande ou session inconnue' };
+      if (!(await eventAccountMatches(order, event.account))) {
+        return { handled: false, orderId, detail: 'compte Stripe différent de celui de la commande', alert: `${event.type} du compte ${event.account} pour ${orderId} : ignoré` };
+      }
       const changed = await markOrderFailed(orderId);
       return { handled: true, orderId, detail: changed ? 'commande échouée' : 'aucun changement' };
     }
 
     case 'charge.refunded': {
       const charge = event.data.object;
-      const orderId = await findOrderIdByPayment(refId(charge.payment_intent), charge.metadata?.order_id);
-      if (!orderId) return { handled: false, detail: 'remboursement d’un paiement inconnu', alert: `charge.refunded ${charge.id} sans commande Dev AppStore` };
+      const orderId = await findOrderIdByPayment(refId(charge.payment_intent), charge.metadata?.order_id, event.account);
+      if (!orderId) return { handled: false, detail: 'remboursement d’un paiement inconnu', alert: `charge.refunded ${charge.id} sans commande Dev AppStore (ou d’un autre compte)` };
       if (!charge.refunded) {
         return {
           handled: false,
@@ -715,8 +854,8 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<StripeEven
 
     case 'charge.dispute.created': {
       const dispute = event.data.object;
-      const orderId = await findOrderIdByPayment(refId(dispute.payment_intent), dispute.metadata?.order_id);
-      if (!orderId) return { handled: false, detail: 'litige sur un paiement inconnu', alert: `litige ${dispute.id} sans commande Dev AppStore` };
+      const orderId = await findOrderIdByPayment(refId(dispute.payment_intent), dispute.metadata?.order_id, event.account);
+      if (!orderId) return { handled: false, detail: 'litige sur un paiement inconnu', alert: `litige ${dispute.id} sans commande Dev AppStore (ou d’un autre compte)` };
       const r = await markOrderRefunded(orderId);
       return {
         handled: true,
@@ -770,7 +909,7 @@ export async function processStripeEvent(event: Stripe.Event): Promise<StripeEve
 export async function syncOrderWithStripe(orderId: string): Promise<void> {
   if (!isStripeEnabled() || paymentsConfigProblem()) return;
   const [row] = await db
-    .select({ order: orders, studio: { stripeAccountId: studios.stripeAccountId, stripeChargesEnabled: studios.stripeChargesEnabled } })
+    .select({ order: orders, studio: { stripeAccountId: studios.stripeAccountId } })
     .from(orders)
     .innerJoin(games, eq(games.id, orders.gameId))
     .innerJoin(studios, eq(studios.id, games.studioId))
@@ -778,15 +917,12 @@ export async function syncOrderWithStripe(orderId: string): Promise<void> {
   const order = row?.order;
   if (!row || !order || order.status !== 'pending' || !order.stripeCheckoutSessionId) return;
   try {
-    const opts = checkoutRequestOptions(order.id, row.studio);
-    const session = await getStripe().checkout.sessions.retrieve(
-      order.stripeCheckoutSessionId,
-      {},
-      opts.stripeAccount ? { stripeAccount: opts.stripeAccount } : {},
-    );
+    // Compte qui a encaissé (figé sur la commande), indépendant de l'état actuel du studio (C-3).
+    const account = chargeAccountOf(order, row.studio);
+    const session = await getStripe().checkout.sessions.retrieve(order.stripeCheckoutSessionId, {}, account ? { stripeAccount: account } : {});
     if (session.status === 'expired') await markOrderFailed(orderId);
     else {
-      const r = await applyCheckoutSession(session);
+      const r = await applyCheckoutSession(session, { account });
       if (r.alert) console.error(`[payments][ALERTE] resynchronisation ${orderId} : ${r.alert}`);
     }
   } catch (e) {

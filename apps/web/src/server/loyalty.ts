@@ -25,6 +25,7 @@ import {
 import { enqueueDelivery } from '@/server/delivery';
 import {
   addDays,
+  DISCOUNT_VOUCHERS_ENABLED,
   expiringSoon,
   isLoyaltyEnabled,
   isRewardWithinBudget,
@@ -138,7 +139,8 @@ export type RevokeResult =
 
 /**
  * Reprend les points d'une commande remboursée — IDEMPOTENT (une reprise par commande).
- * Reprend les points attribués moins ceux déjà expirés, bornés par le solde disponible : le solde n'est jamais négatif.
+ * Reprend les points attribués moins ceux déjà expirés, même s'ils ont été dépensés : le solde peut alors devenir
+ * négatif (dette remboursée par les prochains points, rachats bloqués entre-temps — revue 2026-11, C-2).
  * Si la commande n'avait pas (encore) de points, une reprise de 0 point est inscrite : elle bloque toute attribution
  * ultérieure (remboursement traité avant le passage à « payé » d'un webhook en retard).
  * Fonctionne même programme désactivé (on ne laisse jamais des points sur une commande remboursée).
@@ -172,7 +174,7 @@ export async function revokePointsForOrder(orderId: string, opts: { now?: Date; 
 // Lecture
 // -------------------------------------------------------------------------------------------------
 
-/** Solde disponible (lots non expirés), jamais négatif. */
+/** Solde disponible (lots non expirés − dette de reprise) : peut être négatif après un remboursement (C-2). */
 export async function getBalance(userId: string, opts: { now?: Date } = {}): Promise<number> {
   return (await ledgerState(db, userId, opts.now ?? new Date())).balance;
 }
@@ -276,12 +278,22 @@ export async function listRewards(userId: string, opts: { now?: Date } = {}): Pr
   const now = opts.now ?? new Date();
   const cfg = getLoyaltyConfig();
   const rows = await db
-    .select({ reward: loyaltyRewards, game: { id: games.id, name: games.name, slug: games.slug, iconUrl: games.iconUrl, status: games.status } })
+    .select({
+      reward: loyaltyRewards,
+      game: { id: games.id, name: games.name, slug: games.slug, iconUrl: games.iconUrl, status: games.status },
+      itemActive: items.active,
+    })
     .from(loyaltyRewards)
     .leftJoin(games, eq(games.id, loyaltyRewards.gameId))
+    .leftJoin(items, eq(items.id, loyaltyRewards.itemId))
     .where(eq(loyaltyRewards.active, true))
     .orderBy(asc(loyaltyRewards.position), asc(loyaltyRewards.pointsCost));
-  const visible = rows.filter(({ reward: r, game }) => isRewardOpen(r, now) && isRewardWithinBudget(r, cfg) && (r.kind === 'discount' || game?.status === 'live'));
+  const visible = rows.filter(
+    ({ reward: r, game, itemActive }) =>
+      isRewardOpen(r, now) &&
+      isRewardWithinBudget(r, cfg) &&
+      (r.kind === 'discount' ? DISCOUNT_VOUCHERS_ENABLED : game?.status === 'live' && itemActive === true),
+  );
   if (!visible.length) return [];
 
   const balance = await getBalance(userId, { now });
@@ -367,6 +379,8 @@ export async function redeemReward(userId: string, rewardId: string, opts: { now
       await lockUser(tx, userId);
       const [reward] = await tx.select().from(loyaltyRewards).where(eq(loyaltyRewards.id, rewardId));
       if (!reward || !isRewardOpen(reward, now) || !isRewardWithinBudget(reward, cfg)) throw new RedeemAbort('reward_unavailable');
+      // Bons de réduction pas encore utilisables au checkout : rachat refusé (C-6).
+      if (reward.kind === 'discount' && !DISCOUNT_VOUCHERS_ENABLED) throw new RedeemAbort('reward_unavailable');
 
       let bonus: { gameId: string; currency: Currency; item: typeof items.$inferSelect; playerId: string } | null = null;
       if (reward.kind === 'bonus_item') {
@@ -374,7 +388,7 @@ export async function redeemReward(userId: string, rewardId: string, opts: { now
           .select({ game: { id: games.id, status: games.status, currency: games.currency }, item: items })
           .from(items)
           .innerJoin(games, eq(games.id, items.gameId))
-          .where(and(eq(items.id, reward.itemId ?? ''), eq(games.id, reward.gameId ?? '')));
+          .where(and(eq(items.id, reward.itemId ?? ''), eq(games.id, reward.gameId ?? ''), eq(items.active, true)));
         if (!row || row.game.status !== 'live') throw new RedeemAbort('reward_unavailable');
         const [link] = await tx
           .select({ playerId: gameLinks.playerId })

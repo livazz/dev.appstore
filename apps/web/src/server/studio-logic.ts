@@ -4,10 +4,12 @@ import {
   DEFAULT_THEME,
   GAME_CATEGORIES,
   GRID_LIMITS,
+  MIN_CHARGE_CENTS,
   PRICE_TIERS_CENTS,
   newId,
   randomToken,
   slugify,
+  type Currency,
   type GameTheme,
 } from '@devappstore/core';
 import { and, asc, count, eq, games, gte, inArray, items, orders, studioMembers, studios, sum, type DB } from '@devappstore/db';
@@ -336,9 +338,20 @@ function normalizeItem(data: z.output<typeof itemInputSchema>) {
   };
 }
 
+/**
+ * Refuse un prix sous le minimum accepté par Stripe pour la devise du jeu (ex. palier 0,49 en EUR/USD) : l'article
+ * serait publié mais tout achat échouerait (revue 2026-11, C-5).
+ */
+export function assertChargeablePrice(currency: Currency, priceCents: number): void {
+  const min = MIN_CHARGE_CENTS[currency];
+  if (priceCents < min) {
+    throw new StudioError(`Prix trop bas pour le paiement en ligne : ${(min / 100).toFixed(2).replace('.', ',')} ${currency} minimum dans cette devise.`);
+  }
+}
+
 export async function createItemFor(database: DB, gameId: string, input: ItemInput) {
   const data = normalizeItem(parseOrThrow(itemInputSchema, input));
-  await getGame(database, gameId);
+  assertChargeablePrice((await getGame(database, gameId)).currency, data.priceCents);
   await assertUploadsBelongToGameStudio(database, gameId, data.models.map((m) => m.imageUrl));
   await assertProductIdFree(database, gameId, data.productId);
   const current = await listItems(database, gameId);
@@ -359,6 +372,7 @@ export async function updateItemFor(database: DB, gameId: string, itemId: string
   const data = normalizeItem(parseOrThrow(itemInputSchema, input));
   const existing = await getItemOfGame(database, gameId, itemId);
   if (!existing.active) throw new StudioError('Article archivé : il ne peut plus être modifié.');
+  assertChargeablePrice((await getGame(database, gameId)).currency, data.priceCents);
   await assertUploadsBelongToGameStudio(
     database,
     gameId,
