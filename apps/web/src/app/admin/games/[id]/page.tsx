@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { formatMoney } from '@devappstore/core';
 import { getGameForAdmin, requireAdminPermission } from '@/server/admin';
 import { MODERATION_ACTION_LABELS, SUSPENSION_GROUNDS, can, type SuspensionGround } from '@/server/admin-logic';
+import { isSuspensionGround } from '@/server/reports-logic';
 import { Card, DELIVERY_STATUS, Facts, GameStatusBadge, Mono, PageHeader, TableWrap, Time, td, th } from '@/components/admin/ui';
 import { ModerationPanel } from '@/components/admin/ModerationPanel';
 import { AuditList } from '@/components/admin/AuditList';
@@ -12,9 +13,12 @@ export const metadata = { title: 'Fiche jeu' };
 
 const LINK_METHODS: Record<string, string> = { code: 'Code affiché dans le jeu', id_confirm: 'Confirmation de l’ID joueur', oauth: 'OAuth' };
 
-export default async function AdminGame({ params }: { params: Promise<{ id: string }> }) {
+export default async function AdminGame({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ground?: string | string[] }> }) {
   const admin = await requireAdminPermission('games.read');
   const data = await getGameForAdmin((await params).id);
+  // ?ground= : fondement prérempli depuis /admin/reports (« Suspendre le jeu »).
+  const groundParam = (await searchParams).ground;
+  const defaultGround = isSuspensionGround(groundParam) ? groundParam : undefined;
   if (!data) notFound();
   const { game, items, sales30, deliveriesByStatus, notices, audit } = data;
 
@@ -101,9 +105,11 @@ export default async function AdminGame({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <Card title="Modération">
-            <ModerationPanel gameId={game.id} status={game.status} canModerate={can(admin.role, 'games.moderate')} />
-          </Card>
+          <div id="moderation" className="scroll-mt-32">
+            <Card title="Modération">
+              <ModerationPanel gameId={game.id} status={game.status} canModerate={can(admin.role, 'games.moderate')} defaultGround={defaultGround} />
+            </Card>
+          </div>
           <Card title="Décisions communiquées au studio">
             {notices.length ? (
               <ol className="flex flex-col gap-3">

@@ -10,7 +10,18 @@ import { ActionForm, ActionResult, SelectField, TextAreaField } from './ActionFo
  * Actions de modération d'un jeu, selon son statut. L'état de l'action appartient au panneau (qui reste monté) :
  * après succès, le statut change et le formulaire utilisé est remplacé par celui du nouveau statut, le résultat reste.
  */
-export function ModerationPanel({ gameId, status, canModerate }: { gameId: string; status: GameStatus; canModerate: boolean }) {
+export function ModerationPanel({
+  gameId,
+  status,
+  canModerate,
+  defaultGround,
+}: {
+  gameId: string;
+  status: GameStatus;
+  canModerate: boolean;
+  /** Fondement prérempli (lien « Suspendre le jeu » de /admin/reports). */
+  defaultGround?: string;
+}) {
   const [state, formAction, pending] = useActionState(moderateGameAction, null);
   if (!canModerate) return <p className="text-sm text-ink-2">Votre rôle permet de consulter ce jeu, pas de le modérer.</p>;
   const common = { formAction, pending };
@@ -57,7 +68,7 @@ export function ModerationPanel({ gameId, status, canModerate }: { gameId: strin
             pendingLabel="Suspension…"
             confirm="Suspendre ce jeu ? Le studio recevra le motif par e-mail."
           >
-            <SelectField name="ground" label="Fondement" required options={Object.entries(SUSPENSION_GROUNDS)} />
+            <SelectField name="ground" label="Fondement" required options={Object.entries(SUSPENSION_GROUNDS)} defaultValue={defaultGround} />
             <TextAreaField
               name="reason"
               label="Motif communiqué au studio"

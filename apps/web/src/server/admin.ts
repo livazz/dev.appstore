@@ -35,6 +35,7 @@ import { contextFromEnv, createMailerFromEnv, sendEmail, type Mailer } from '@de
 import { ADMIN_RECENT_LOGIN_MS, getCurrentUser, requireRecentLogin, type SessionUser } from './session';
 import { dispatchDelivery } from './delivery';
 import { moderationEmail } from './admin-emails';
+import { closeOpenReports, notifyReportersOfDecision } from './report-decisions';
 import {
   PAGE_SIZE,
   disableUserSchema,
@@ -154,6 +155,8 @@ export interface ModerationResult {
   status: GameStatus;
   noticeId: string;
   notified: boolean;
+  /** Suspension : signalements ouverts du jeu clos par la décision (leurs auteurs sont informés par e-mail). */
+  closedReports: number;
 }
 
 const ACTION_REFUSED: Record<ModerationAction, string> = {
@@ -170,7 +173,7 @@ async function moderateGame(
   deps: AdminDeps,
 ): Promise<ModerationResult> {
   const now = deps.now ?? new Date();
-  const { noticeId, to } = await db.transaction(async (tx) => {
+  const { noticeId, to, reportIds } = await db.transaction(async (tx) => {
     const [g] = await tx.select({ id: games.id, status: games.status, studioId: games.studioId }).from(games).where(eq(games.id, gameId));
     if (!g) throw new AdminError('Jeu introuvable.');
     const to = nextGameStatus(g.status, action);
@@ -193,17 +196,31 @@ async function moderateGame(
       reason: extra.reason ?? null,
       createdAt: now,
     });
+    // Signalements (reports.ts) : une suspension clôt tous les signalements ouverts du jeu, dans la même transaction.
+    const reportIds =
+      action === 'suspend'
+        ? await closeOpenReports(tx, { gameId: g.id, adminId: admin.user.id, decision: 'actioned', reason: extra.reason ?? '', ground: extra.ground, noticeId, now })
+        : [];
     await logAdminAction(tx, {
       adminId: admin.user.id,
       action: `game.${action}`,
       targetType: 'game',
       targetId: g.id,
-      details: { from: g.status, to, studioId: g.studioId, noticeId, ...(extra.ground ? { ground: extra.ground } : {}), ...(extra.reason ? { reason: extra.reason } : {}) },
+      details: {
+        from: g.status,
+        to,
+        studioId: g.studioId,
+        noticeId,
+        ...(extra.ground ? { ground: extra.ground } : {}),
+        ...(extra.reason ? { reason: extra.reason } : {}),
+        ...(reportIds.length ? { closedReports: reportIds } : {}),
+      },
     });
-    return { noticeId, to };
+    return { noticeId, to, reportIds };
   });
   const notified = await notifyStudioOfModeration(noticeId, deps);
-  return { status: to, noticeId, notified };
+  await notifyReportersOfDecision(reportIds, deps);
+  return { status: to, noticeId, notified, closedReports: reportIds.length };
 }
 
 /** Revue approuvée : `review` → `live`. */

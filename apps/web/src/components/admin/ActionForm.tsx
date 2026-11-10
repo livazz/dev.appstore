@@ -118,7 +118,19 @@ export function TextAreaField({
   );
 }
 
-export function SelectField({ name, label, options, required }: { name: string; label: string; options: [string, string][]; required?: boolean }) {
+export function SelectField({
+  name,
+  label,
+  options,
+  required,
+  defaultValue,
+}: {
+  name: string;
+  label: string;
+  options: [string, string][];
+  required?: boolean;
+  defaultValue?: string;
+}) {
   const id = useId();
   return (
     <div className="flex flex-col gap-1">
@@ -126,7 +138,7 @@ export function SelectField({ name, label, options, required }: { name: string; 
         {label}
         {required ? <span className="text-danger"> *</span> : null}
       </label>
-      <select id={id} name={name} required={required} defaultValue="" className={fieldBase}>
+      <select id={id} name={name} required={required} defaultValue={defaultValue && options.some(([v]) => v === defaultValue) ? defaultValue : ''} className={fieldBase}>
         <option value="" disabled>
           Choisir…
         </option>

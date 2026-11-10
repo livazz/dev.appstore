@@ -15,6 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const LINKS: (AdminNavLink & { permission: AdminPermission })[] = [
   { href: '/admin', label: 'Tableau de bord', permission: 'dashboard.read' },
   { href: '/admin/games', label: 'Jeux', permission: 'games.read' },
+  { href: '/admin/reports', label: 'Signalements', permission: 'reports.moderate' },
   { href: '/admin/studios', label: 'Studios', permission: 'studios.read' },
   { href: '/admin/orders', label: 'Commandes', permission: 'orders.read' },
   { href: '/admin/users', label: 'Utilisateurs', permission: 'users.read' },

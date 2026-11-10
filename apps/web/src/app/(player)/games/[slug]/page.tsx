@@ -1,5 +1,6 @@
 import { cache } from 'react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { GameStore } from '@/components/catalog/GameStore';
 import { initialStoreItem, type StoreSearchParams } from '@/components/catalog/store-query';
@@ -62,6 +63,11 @@ export default async function GamePage({ params, searchParams }: Props) {
           </p>
         </section>
       )}
+      <p className="mx-4 mt-4 mb-6 text-right text-xs sm:mx-0">
+        <Link href={`/games/${encodeURIComponent(game.slug)}/report`} className="text-ink-2 underline-offset-2 hover:text-ink hover:underline">
+          Signaler ce contenu
+        </Link>
+      </p>
     </div>
   );
 }

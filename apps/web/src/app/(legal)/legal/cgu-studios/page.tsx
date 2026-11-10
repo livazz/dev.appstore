@@ -121,6 +121,39 @@ const sections: LegalSection[] = [
           Dev AppStore peut refuser ou retirer un contenu manifestement illicite, trompeur ou contraire aux présentes, dans les conditions de l’
           <a href="#suspension">article 12</a>.
         </p>
+        <h3 id="contenus-interdits" className="scroll-mt-24">
+          Contenus interdits et signalement
+        </h3>
+        <p>
+          Le Studio publie sa Boutique <strong>sans revue préalable</strong> de Dev AppStore. Il s’interdit d’y publier (textes, visuels, Objets,
+          prix, liens) :
+        </p>
+        <ul>
+          <li>tout contenu illicite : incitation à la haine ou à la violence, contenu pédopornographique, apologie du terrorisme, harcèlement ;</li>
+          <li>
+            tout contenu <strong>trompeur ou frauduleux</strong> : prix ou quantités faux, fausse réduction, Objet qui ne sera pas livré, usurpation
+            d’un autre Jeu ou d’un autre Studio, collecte de données ou de paiements hors de la plateforme ;
+          </li>
+          <li>
+            tout contenu <strong>inapproprié pour les mineurs</strong> lorsque le Jeu leur est accessible (contenu sexuel explicite, violence
+            gratuite, incitation à l’achat visant directement les enfants) ;
+          </li>
+          <li>tout contenu portant atteinte aux droits d’un tiers : contrefaçon, marque, droits d’auteur, droit à l’image ;</li>
+          <li>tout contenu contraire aux garanties ci-dessus (probabilités non affichées, loi applicable aux objets aléatoires payants).</li>
+        </ul>
+        <p>
+          <strong>Signalement.</strong> Toute personne, même sans compte, peut signaler un contenu qu’elle estime illicite ou contraire à la présente
+          charte grâce au lien « Signaler ce contenu » présent sur chaque Boutique et sur chaque Objet. Le signalement précise la catégorie, une
+          explication motivée, l’Objet visé le cas échéant, l’adresse e-mail du signalant et une déclaration de bonne foi ; un accusé de réception
+          est envoyé (mécanisme inspiré de l’article 16 du règlement (UE) 2022/2065 sur les services numériques).
+        </p>
+        <p>
+          Les signalements sont examinés par l’équipe Dev AppStore de façon objective et diligente, dans un délai de{' '}
+          <Todo>délai cible, ex. 7 jours</Todo>. Ils sont soit <strong>classés sans suite</strong>, soit suivis d’une <strong>suspension</strong> de
+          la Boutique dans les conditions de l’<a href="#suspension">article 12</a> (motifs communiqués au Studio). Le signalant est informé de la
+          décision et de son motif. Un simple signalement n’est pas communiqué au Studio et l’identité du signalant ne lui est pas révélée. Les
+          signalements manifestement abusifs peuvent être ignorés.
+        </p>
       </>
     ),
   },
