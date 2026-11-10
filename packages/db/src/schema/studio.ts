@@ -3,11 +3,29 @@ import type { Currency, GameStatus, GameTheme, ItemModel, ItemStyle, ItemType, L
 import { user } from './auth';
 
 /**
- * Présentation éditoriale d'un jeu : pourquoi il compte parmi les meilleurs, et l'article conseillé avec son argument.
+ * Histoire mise en avant sur l'accueil pour un jeu : une actualité (saison, tournoi, nouveautés, success story) ou un
+ * coup de cœur, toujours portée par une image, puis l'article conseillé et son argument.
  * `angle` : à qui s'adresse l'article (débuter, compléter sa progression, rester au sommet).
  */
 export type SpotlightAngle = 'start' | 'complete' | 'top';
-export type GameSpotlight = { headline: string; reasons: string[]; productId: string; angle: SpotlightAngle; pitch: string };
+export type SpotlightKind = 'season' | 'tournament' | 'update' | 'success' | 'pick';
+export type GameSpotlight = {
+  kind: SpotlightKind;
+  /** Titre court de l'histoire (une ligne). */
+  title: string;
+  /** Une ou deux phrases au plus. */
+  text: string;
+  /** Repère temporel affiché en pastille (« Jusqu'au 16 novembre », « Finale samedi »). */
+  date?: string;
+  productId: string;
+  angle: SpotlightAngle;
+  /** Argument court pour l'article. */
+  pitch: string;
+  /** Ordre d'affichage (croissant) ; à défaut, rang de ventes. */
+  order?: number;
+  /** Images de couverture : une image paysage, ou jusqu'à trois captures portrait juxtaposées. À défaut : première capture du jeu. */
+  covers?: string[];
+};
 
 /** Studio (compte vendeur). Le paiement est reversé sur son compte Stripe Connect. */
 export const studios = pgTable('studios', {

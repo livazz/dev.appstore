@@ -90,14 +90,16 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
    dev seulement).
 3. Dépôt GitHub **public** : https://github.com/livazz/dev.appstore (Node et gh installés dans `~/.local/bin`).
 
-## Accueil : « Les meilleurs jeux du moment »
+## Accueil : « En ce moment dans vos jeux »
 
-Section éditoriale en tête d'accueil (`components/catalog/SpotlightSection.tsx`, `server/spotlight.ts`) : pour chaque jeu
-live doté d'une présentation (`games.spotlight`, jsonb, migration 0006) — accroche, 2 à 4 points forts, article conseillé
-(`productId`) avec son angle (`start` débuter, `complete` compléter, `top` rester au sommet) et son argument. Tri par rang de
-ventes, 8 jeux. Le jeu disparaît de la section si son article est désactivé. Présentations : Crystal Clash et Pixel Farm
-dans `seed.ts` ; vrais jeux dans `.data/real-tops/editorial.json` (local, slug → présentation, lu par `real-tops:seed`).
-Pas encore d'écran studio / admin pour l'éditer.
+Section d'histoires en tête d'accueil (`components/catalog/SpotlightSection.tsx`, `server/spotlight.ts`) : une grande carte
+puis six cartes illustrées. Chaque histoire vient de `games.spotlight` (jsonb, migration 0006) : type (`season`, `tournament`,
+`update`, `success`, `pick`), titre, une phrase, repère de date, article conseillé (`productId`) avec son angle (`start`,
+`complete`, `top`) et son argument, ordre d'affichage, images de couverture (une capture paysage ou trois portraits côte à
+côte ; à défaut la première capture du jeu). Le logo-bannière du jeu est posé sur l'image. Règle du fondateur : toujours
+une image, très peu de texte, et une histoire liée à l'actualité. L'histoire disparaît si son article est désactivé.
+Contenus : Crystal Clash et Pixel Farm dans `seed.ts` ; vrais jeux dans `.data/real-tops/editorial.json` (local, slug →
+histoire, lu par `real-tops:seed`), à tenir à jour à la main selon l'actualité. Pas encore d'écran studio / admin.
 
 ## Vrais tops en local
 

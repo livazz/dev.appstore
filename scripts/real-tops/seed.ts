@@ -12,13 +12,15 @@ import { existsSync, readFileSync } from 'node:fs';
 import { DEFAULT_ITEM_STYLE, SKIN_PALETTES, hashApiKey, type GameTheme, type ItemStyle } from '@devappstore/core';
 import { and, eq, like, notInArray, sql } from 'drizzle-orm';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { db, games, items, studios, type GameSpotlight } from '@devappstore/db';
 import { seedPromosSales } from '../../packages/db/src/seed-promos-sales';
 import { seedReviews } from '../../packages/db/src/seed-reviews';
-import { CATALOG_FILE, artFile, artUrl, assertLocalOnly, importManualBanner, skinFor, slugify, type RealCatalog, type RealGame } from './common';
+import { ROOT, CATALOG_FILE, artFile, artUrl, assertLocalOnly, importManualBanner, skinFor, slugify, type RealCatalog, type RealGame } from './common';
 
 assertLocalOnly();
 
+const sharp: typeof import('sharp').default = createRequire(path.join(ROOT, 'apps/web/package.json'))('sharp');
 const EDITORIAL_FILE = path.join(path.dirname(CATALOG_FILE), 'editorial.json');
 const REAL_GAME = 'gam_real_';
 const REAL_STUDIO = 'std_real_';
@@ -40,6 +42,19 @@ function themeFor(g: RealGame): GameTheme {
 
 function styleFor(g: RealGame, i: number): ItemStyle {
   return { ...DEFAULT_ITEM_STYLE, ...SKIN_PALETTES[skinFor(g.category)][i % 4]!.style };
+}
+
+/** Couverture d'une histoire : la première capture paysage, sinon jusqu'à trois captures portrait (affichées côte à côte). */
+async function pickCovers(screenshots: string[]): Promise<string[]> {
+  const portrait: string[] = [];
+  for (const url of screenshots) {
+    const file = path.join(ROOT, 'apps/web/public', url);
+    if (!existsSync(file)) continue;
+    const { width = 0, height = 0 } = await sharp(file).metadata();
+    if (width >= height) return [url];
+    portrait.push(url);
+  }
+  return portrait.slice(0, 3);
 }
 
 async function remove() {
@@ -83,7 +98,7 @@ async function seed() {
     const values = {
       studioId, slug, name: g.name.slice(0, 80), subtitle: g.subtitle.slice(0, 80), publisherName: g.publisher, category: g.category,
       description: g.description, storeDescription: g.storeDescription, platform: g.platform, screenshots: g.screenshots,
-      iconUrl: g.icon, bannerUrl: banner, spotlight: editorial[g.slug] ?? null, theme: themeFor(g), status: 'live' as const, updatedAt: new Date(),
+      iconUrl: g.icon, bannerUrl: banner, spotlight: editorial[g.slug] ? { ...editorial[g.slug]!, covers: await pickCovers(g.screenshots) } : null, theme: themeFor(g), status: 'live' as const, updatedAt: new Date(),
     };
     await db
       .insert(games)

@@ -104,7 +104,7 @@ async function Catalog({ platform }: { platform: GamePlatform | null }) {
     getPromoItems({ platform, now }),
     platform === 'pc' ? Promise.resolve([]) : getGameRanking({ platform: 'mobile', limit: 10, now }),
     platform === 'mobile' ? Promise.resolve([]) : getGameRanking({ platform: 'pc', limit: 10, now }),
-    getSpotlights({ platform, limit: 8, now }),
+    getSpotlights({ platform, limit: 7, now }),
   ]);
   const tops = [
     { id: 'top-mobile', title: 'Top 10 mobile', href: '/classements/mobile', list: topMobile },

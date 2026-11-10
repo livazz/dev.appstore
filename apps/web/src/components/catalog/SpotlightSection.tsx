@@ -1,86 +1,98 @@
 import Link from 'next/link';
 import { formatMoney } from '@devappstore/core';
 import { safeImageUrl } from '@/components/store/style-safety';
-import { SPOTLIGHT_ANGLES, type SpotlightEntry } from '@/server/spotlight';
+import { SPOTLIGHT_ANGLES, SPOTLIGHT_KINDS, type SpotlightEntry } from '@/server/spotlight';
 import { GameIcon } from './GameCard';
 
-const platformLabel = (p: string) => (p === 'pc' ? 'PC' : 'mobile');
+const KIND_STYLE: Record<SpotlightEntry['kind'], string> = {
+  season: 'bg-[#7c3aed] text-white',
+  tournament: 'bg-[#dc2626] text-white',
+  update: 'bg-[#0d9488] text-white',
+  success: 'bg-brand text-ink',
+  pick: 'bg-white text-ink',
+};
 
-/** Rang précis dans le top 10, « Top 50 » ensuite, rien au-delà (un rang lointain dessert un jeu mis en avant). */
-export function rankLabel(s: Pick<SpotlightEntry, 'rank'> & { game: Pick<SpotlightEntry['game'], 'platform'> }): string | null {
-  if (s.rank == null || s.rank > 50) return null;
-  return s.rank <= 10 ? `N° ${s.rank} du top ${platformLabel(s.game.platform)}` : `Top 50 ${platformLabel(s.game.platform)}`;
-}
-
-/** Carte éditoriale d'un jeu : pourquoi il compte parmi les meilleurs, puis l'article conseillé et son argument. */
-export function SpotlightCard({ s }: { s: SpotlightEntry }) {
-  const cover = safeImageUrl(s.game.cover);
+/**
+ * Carte « histoire » : grande image (capture paysage, ou trois captures portrait côte à côte), logo du jeu par-dessus,
+ * puis un titre, une phrase et l'article conseillé avec son visuel et son prix. `hero` : première carte, pleine largeur.
+ * La hauteur de l'image vient d'un padding en % (et non d'aspect-ratio, capricieux sur les éléments flex de Safari).
+ */
+export function SpotlightCard({ s, hero = false }: { s: SpotlightEntry; hero?: boolean }) {
+  const covers = s.covers.map((c) => safeImageUrl(c)).filter((c): c is string => !!c);
+  const banner = safeImageUrl(s.game.bannerUrl);
   const itemImg = safeImageUrl(s.item.imageUrl);
   const price = formatMoney(s.item.priceCents, s.game.currency);
   return (
-    <article className="flex min-w-0 flex-col overflow-hidden rounded-[18px] border border-line bg-surface">
+    <article className={`flex min-w-0 flex-col overflow-hidden rounded-[20px] bg-ink text-white ${hero ? 'md:col-span-2 lg:col-span-3 lg:flex-row' : ''}`}>
       <Link
         href={`/games/${s.game.slug}`}
-        className="group relative block aspect-[16/7] overflow-hidden bg-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+        aria-label={`${s.game.name} : voir la boutique`}
+        className={`group relative block flex-none overflow-hidden focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-brand ${hero ? 'lg:w-[62%]' : ''}`}
       >
-        {cover && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt="" loading="lazy" className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none" />
-        )}
-        <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,20,.15)_0%,rgba(10,10,20,.88)_100%)]" />
-        <span className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-          {rankLabel(s) && <span className="rounded-full bg-brand px-2.5 py-1 text-xs font-black text-ink">{rankLabel(s)}</span>}
-          {s.rating && s.rating.average >= 4 && (
-            <span className="rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white" aria-label={`Note ${s.rating.average.toLocaleString('fr-FR')} sur 5, ${s.rating.count} avis`}>
-              <span aria-hidden="true">★ {s.rating.average.toLocaleString('fr-FR', { minimumFractionDigits: 1 })}</span>
+        <div className="pt-[56.25%]" />
+        <div
+          className="absolute inset-0 grid transition-transform duration-500 group-hover:scale-[1.04] motion-reduce:transition-none"
+          style={{ gridTemplateColumns: `repeat(${Math.max(covers.length, 1)}, minmax(0, 1fr))` }}
+        >
+          {covers.map((c) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={c} src={c} alt="" loading={hero ? 'eager' : 'lazy'} className="size-full min-h-0 object-cover" />
+          ))}
+        </div>
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,20,.4)_0%,rgba(10,10,20,0)_30%,rgba(10,10,20,.55)_62%,rgba(10,10,20,.96)_100%)]" />
+        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-black tracking-wide uppercase shadow ${KIND_STYLE[s.kind]}`}>{SPOTLIGHT_KINDS[s.kind]}</span>
+          {s.date && <span className="rounded-full bg-black/65 px-2.5 py-1 text-[11px] font-semibold text-white">{s.date}</span>}
+        </div>
+        <div className="absolute right-3 bottom-3 left-3 flex items-end">
+          {banner ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={banner}
+              alt={s.game.name}
+              loading="lazy"
+              className={`w-auto max-w-[70%] object-contain object-left-bottom drop-shadow-[0_4px_14px_rgba(0,0,0,.65)] ${hero ? 'h-20 sm:h-28 lg:h-32' : 'h-16 sm:h-20'}`}
+            />
+          ) : (
+            <span className="flex items-center gap-3">
+              <GameIcon name={s.game.name} iconUrl={s.game.iconUrl} size={hero ? 72 : 56} />
+              <span className={`font-black drop-shadow-[0_2px_8px_rgba(0,0,0,.8)] ${hero ? 'text-2xl sm:text-3xl' : 'text-xl'}`}>{s.game.name}</span>
             </span>
           )}
-        </span>
-        <div className="absolute right-3 bottom-3 left-3 flex items-center gap-3 text-white">
-          <GameIcon name={s.game.name} iconUrl={s.game.iconUrl} size={56} />
-          <div className="min-w-0">
-            <h3 className="truncate text-lg leading-tight font-bold sm:text-xl">{s.game.name}</h3>
-            <p className="truncate text-xs text-white/75">
-              {s.game.category} · {s.game.publisherName}
-            </p>
-          </div>
         </div>
       </Link>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <p className="font-semibold">{s.headline}</p>
-        <ul className="space-y-1.5 text-sm text-ink-2">
-          {s.reasons.map((r) => (
-            <li key={r} className="flex gap-2">
-              <span aria-hidden="true" className="mt-px font-bold text-[color-mix(in_srgb,var(--ok)_70%,black)]">
-                ✓
-              </span>
-              <span>{r}</span>
-            </li>
-          ))}
-        </ul>
+      <div className={`flex min-w-0 flex-1 flex-col gap-2 p-4 ${hero ? 'lg:justify-center lg:gap-3 lg:p-7' : ''}`}>
+        <p className="flex min-w-0 items-center gap-1.5 text-xs text-white/60">
+          <GameIcon name={s.game.name} iconUrl={s.game.iconUrl} size={18} />
+          <span className="truncate">
+            {s.game.name} · {s.game.platform === 'pc' ? 'PC' : 'Mobile'}
+          </span>
+        </p>
+        <h3 className={`leading-snug font-bold ${hero ? 'text-xl sm:text-2xl lg:text-3xl' : 'text-lg'}`}>{s.title}</h3>
+        <p className={`text-white/70 ${hero ? 'text-sm sm:text-base' : 'line-clamp-3 text-sm'}`}>{s.text}</p>
 
         <Link
           href={`/games/${s.game.slug}?item=${encodeURIComponent(s.item.id)}`}
           aria-label={`${s.item.title}, ${s.game.name} : ${price}. ${SPOTLIGHT_ANGLES[s.angle]}`}
-          className="group mt-auto flex items-center gap-3 rounded-[14px] bg-[linear-gradient(135deg,#fff6d1,#ffe9a8)] p-3 text-ink transition-shadow hover:shadow-[0_6px_18px_rgba(0,0,0,.10)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="group mt-auto flex items-center gap-3 rounded-[14px] bg-white/[0.08] p-2.5 ring-1 ring-white/10 transition-colors hover:bg-white/[0.14] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
-          <span className="grid size-16 flex-none place-items-center">
+          <span className="grid size-14 flex-none place-items-center overflow-hidden rounded-[10px] bg-white/10">
             {itemImg ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={itemImg} alt="" loading="lazy" className="size-full object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,.18)]" />
+              <img src={itemImg} alt="" loading="lazy" className="size-full object-contain" />
             ) : (
-              <GameIcon name={s.game.name} iconUrl={s.game.iconUrl} size={48} />
+              <GameIcon name={s.game.name} iconUrl={s.game.iconUrl} size={40} />
             )}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[11px] font-black tracking-wide text-[#7a4b00] uppercase">{SPOTLIGHT_ANGLES[s.angle]}</span>
-            <span className="block truncate font-bold">{s.item.title}</span>
-            <span className="mt-0.5 block text-sm text-[#4a3a12]">{s.pitch}</span>
+            <span className="block text-[10px] font-black tracking-wide text-brand uppercase">{SPOTLIGHT_ANGLES[s.angle]}</span>
+            <span className="block truncate text-sm font-bold">{s.item.title}</span>
+            <span className="block text-xs text-white/65">{s.pitch}</span>
           </span>
-          <span className="flex flex-none flex-col items-end gap-1">
-            {s.item.oldPriceCents != null && <s className="text-xs text-[#6b5a2e]">{formatMoney(s.item.oldPriceCents, s.game.currency)}</s>}
-            <span className="rounded-full bg-ink px-3 py-1.5 text-sm font-bold text-white group-hover:bg-black">{price}</span>
+          <span className="flex flex-none flex-col items-end gap-0.5">
+            {s.item.oldPriceCents != null && <s className="text-[11px] text-white/55">{formatMoney(s.item.oldPriceCents, s.game.currency)}</s>}
+            <span className="rounded-full bg-brand px-3 py-1.5 text-sm font-black text-ink">{price}</span>
           </span>
         </Link>
       </div>
@@ -88,18 +100,18 @@ export function SpotlightCard({ s }: { s: SpotlightEntry }) {
   );
 }
 
-/** « Les meilleurs jeux du moment » : grille de cartes éditoriales (rien si aucun jeu n'a de présentation). */
+/** « À la une » : une grande histoire puis une grille de cartes illustrées (rien si aucun jeu n'a d'histoire). */
 export function SpotlightSection({ entries }: { entries: SpotlightEntry[] }) {
   if (!entries.length) return null;
   return (
-    <section className="mt-10" aria-labelledby="meilleurs-jeux">
-      <h2 id="meilleurs-jeux" className="text-xl font-bold sm:text-2xl">
-        Les meilleurs jeux du moment
+    <section className="mt-10" aria-labelledby="a-la-une-histoires">
+      <h2 id="a-la-une-histoires" className="text-xl font-bold sm:text-2xl">
+        En ce moment dans vos jeux
       </h2>
-      <p className="mt-1 text-sm text-ink-2">Pourquoi tout le monde y joue, et l’achat qui vaut vraiment le coup dans chacun.</p>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {entries.map((s) => (
-          <SpotlightCard key={s.game.id} s={s} />
+      <p className="mt-1 text-sm text-ink-2">Nouvelles saisons, tournois, nouveautés : l’actualité, et l’achat qui va avec.</p>
+      <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {entries.map((s, i) => (
+          <SpotlightCard key={s.game.id} s={s} hero={i === 0} />
         ))}
       </div>
     </section>
