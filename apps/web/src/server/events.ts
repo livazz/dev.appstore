@@ -60,6 +60,12 @@ export interface EventBusOptions {
   retryDelaysMs?: number[];
   /** Écoute initiale en échec : délai avant un nouvel essai. */
   listenRetryMs?: number;
+  /**
+   * Étalement des rattrapages après une (re)connexion LISTEN (revue 2026-11, F13) : chaque abonné est rappelé après
+   * un délai aléatoire de 0 à `resyncJitterMs`, au lieu que tous les flux relisent la base au même instant.
+   * Défaut : 5 s (0 sous vitest).
+   */
+  resyncJitterMs?: number;
 }
 
 export interface EventBus {
@@ -77,6 +83,7 @@ export interface EventBus {
 const DEFAULT_CHANNEL = 'devappstore_deliveries';
 const DEFAULT_RETRY_DELAYS_MS = [200, 1_000, 5_000];
 const DEFAULT_LISTEN_RETRY_MS = 5_000;
+const DEFAULT_RESYNC_JITTER_MS = 5_000;
 
 interface Sub {
   listener: PurchaseListener;
@@ -101,6 +108,7 @@ export function createEventBus(opts: EventBusOptions = {}): EventBus {
   const channel = opts.channel ?? DEFAULT_CHANNEL;
   const retryDelays = opts.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
   const listenRetryMs = opts.listenRetryMs ?? DEFAULT_LISTEN_RETRY_MS;
+  const resyncJitterMs = opts.resyncJitterMs ?? (process.env.VITEST ? 0 : DEFAULT_RESYNC_JITTER_MS);
   const resolve = opts.resolve ?? resolveFromDb;
   const subs = new Map<string, Set<Sub>>();
   const pending = new Set<Promise<unknown>>();
@@ -131,13 +139,18 @@ export function createEventBus(opts: EventBusOptions = {}): EventBus {
   const readyP = new Promise<void>((r) => (readyResolve = r));
 
   const resyncAll = () => {
+    const call = (s: Sub) => {
+      try {
+        s.onResync?.();
+      } catch (e) {
+        console.error('[events] onResync en erreur', e);
+      }
+    };
     for (const set of subs.values())
       for (const s of [...set]) {
-        try {
-          s.onResync?.();
-        } catch (e) {
-          console.error('[events] onResync en erreur', e);
-        }
+        if (!s.onResync) continue;
+        if (resyncJitterMs <= 0) call(s);
+        else setTimeout(() => !closed && call(s), Math.floor(Math.random() * resyncJitterMs)).unref?.();
       }
   };
 

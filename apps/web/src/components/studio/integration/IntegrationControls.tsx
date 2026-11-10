@@ -9,6 +9,7 @@ import {
   retryDeliveryAction,
   revealWebhookSecret,
   revokePlayerTokensAction,
+  revokePreviousApiKey,
   sendTestEvent,
   updateWebhookUrl,
 } from '@/app/studio/games/[id]/integration/actions';
@@ -136,21 +137,43 @@ export function RevokePlayerTokensControl({ gameId }: { gameId: string }) {
 
 /* ---------------------------------------------------------------- clé secrète */
 
-export function ApiKeyControl({ gameId, prefix, canEdit }: { gameId: string; prefix: string; canEdit: boolean }) {
+export interface PreviousKeyInfo {
+  prefix: string;
+  /** ISO */
+  expiresAt: string;
+  /** ISO */
+  lastUsedAt: string | null;
+}
+
+const shortDate = (iso: string) => new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+
+/** `canEdit` : rotation autorisée (propriétaire / administrateur du studio). */
+export function ApiKeyControl({ gameId, prefix, canEdit, previous: initialPrevious = null }: { gameId: string; prefix: string; canEdit: boolean; previous?: PreviousKeyInfo | null }) {
   const [confirming, setConfirming] = useState(false);
+  const [immediate, setImmediate] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [currentPrefix, setCurrentPrefix] = useState(prefix);
+  const [previous, setPrevious] = useState<PreviousKeyInfo | null>(initialPrevious);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   const regenerate = () =>
     start(async () => {
       setError(null);
-      const r = await regenerateApiKey(gameId);
+      const oldPrefix = currentPrefix;
+      const r = await regenerateApiKey(gameId, { immediate });
       setConfirming(false);
       if (!r.ok) return setError(r.error);
       setNewKey(r.apiKey);
       setCurrentPrefix(r.prefix);
+      setPrevious(r.previousExpiresAt ? { prefix: oldPrefix, expiresAt: r.previousExpiresAt, lastUsedAt: null } : null);
+    });
+  const revokePrevious = () =>
+    start(async () => {
+      setError(null);
+      const r = await revokePreviousApiKey(gameId);
+      if (!r.ok) return setError(r.error);
+      setPrevious(null);
     });
 
   return (
@@ -165,7 +188,13 @@ export function ApiKeyControl({ gameId, prefix, canEdit }: { gameId: string; pre
       </div>
       {confirming && (
         <div className="mt-3 rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm">
-          <p className="text-ink">L&apos;ancienne clé secrète cessera de fonctionner immédiatement : votre serveur devra utiliser la nouvelle.</p>
+          <p className="text-ink">
+            L&apos;ancienne clé secrète reste acceptée 24 h, le temps de déployer la nouvelle sur votre serveur.
+          </p>
+          <label className="mt-2 flex items-center gap-2 text-ink-2">
+            <input type="checkbox" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} />
+            Clé compromise : révoquer l&apos;ancienne immédiatement
+          </label>
           <div className="mt-3 flex gap-2">
             <button type="button" className={btnCancel} onClick={() => setConfirming(false)} disabled={pending}>
               Annuler
@@ -174,6 +203,19 @@ export function ApiKeyControl({ gameId, prefix, canEdit }: { gameId: string; pre
               {pending ? 'Génération…' : 'Générer une nouvelle clé'}
             </button>
           </div>
+        </div>
+      )}
+      {previous && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-2">
+          <span>
+            Ancienne clé <span className="font-mono">{previous.prefix}…</span> acceptée jusqu&apos;au {shortDate(previous.expiresAt)}
+            {previous.lastUsedAt ? ` · dernière utilisation ${shortDate(previous.lastUsedAt)}` : ' · non utilisée depuis la rotation'}
+          </span>
+          {canEdit && (
+            <button type="button" className={btnGhost} onClick={revokePrevious} disabled={pending}>
+              Révoquer maintenant
+            </button>
+          )}
         </div>
       )}
       {newKey && (
@@ -195,9 +237,11 @@ export function ApiKeyControl({ gameId, prefix, canEdit }: { gameId: string; pre
 
 /* ---------------------------------------------------------------- secret webhook */
 
-export function WebhookSecretControl({ gameId, canEdit }: { gameId: string; canEdit: boolean }) {
+/** `canEdit` : affichage du secret ; `canRotate` : rotation (propriétaire / administrateur). */
+export function WebhookSecretControl({ gameId, canEdit, canRotate = canEdit }: { gameId: string; canEdit: boolean; canRotate?: boolean }) {
   const [secret, setSecret] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [immediate, setImmediate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -211,7 +255,7 @@ export function WebhookSecretControl({ gameId, canEdit }: { gameId: string; canE
   const regenerate = () =>
     start(async () => {
       setError(null);
-      const r = await regenerateWebhookSecret(gameId);
+      const r = await regenerateWebhookSecret(gameId, { immediate });
       setConfirming(false);
       if (!r.ok) return setError(r.error);
       setSecret(r.secret);
@@ -235,7 +279,7 @@ export function WebhookSecretControl({ gameId, canEdit }: { gameId: string; canE
             </button>
           )
         )}
-        {canEdit && !confirming && (
+        {canRotate && !confirming && (
           <button type="button" className={btnGhost} onClick={() => setConfirming(true)} disabled={pending}>
             Régénérer
           </button>
@@ -243,7 +287,14 @@ export function WebhookSecretControl({ gameId, canEdit }: { gameId: string; canE
       </div>
       {confirming && (
         <div className="mt-3 rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm">
-          <p className="text-ink">Les signatures seront calculées avec le nouveau secret dès maintenant. Mettez à jour votre serveur.</p>
+          <p className="text-ink">
+            Pendant 24 h, chaque envoi porte deux signatures (<code className="font-mono">v1=</code> nouveau et ancien secret) : mettez à
+            jour votre serveur sans interruption.
+          </p>
+          <label className="mt-2 flex items-center gap-2 text-ink-2">
+            <input type="checkbox" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} />
+            Secret compromis : ne plus signer avec l&apos;ancien
+          </label>
           <div className="mt-3 flex gap-2">
             <button type="button" className={btnCancel} onClick={() => setConfirming(false)} disabled={pending}>
               Annuler
@@ -261,7 +312,8 @@ export function WebhookSecretControl({ gameId, canEdit }: { gameId: string; canE
 
 /* ---------------------------------------------------------------- URL webhook + test */
 
-export function WebhookUrlControl({ gameId, initialUrl, canEdit }: { gameId: string; initialUrl: string | null; canEdit: boolean }) {
+/** `canEdit` : événement de test ; `canChangeUrl` : modification de l'URL (propriétaire / administrateur). */
+export function WebhookUrlControl({ gameId, initialUrl, canEdit, canChangeUrl = canEdit }: { gameId: string; initialUrl: string | null; canEdit: boolean; canChangeUrl?: boolean }) {
   const [url, setUrl] = useState(initialUrl ?? '');
   const [saved, setSaved] = useState(initialUrl ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -308,11 +360,11 @@ export function WebhookUrlControl({ gameId, initialUrl, canEdit }: { gameId: str
           inputMode="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          disabled={!canEdit}
+          disabled={!canChangeUrl}
           placeholder="https://api.monjeu.com/devappstore/webhook"
           className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm outline-none focus:border-primary"
         />
-        {canEdit && dirty && (
+        {canChangeUrl && dirty && (
           <>
             <button type="button" className={btnCancel} onClick={() => setUrl(saved)} disabled={pending}>
               Annuler

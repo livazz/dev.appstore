@@ -29,7 +29,7 @@ type Init = { method?: string; key?: string; ip?: string; body?: unknown; signal
 function req(path: string, init: Init = {}) {
   const headers: Record<string, string> = {};
   if (init.key) headers.authorization = `Bearer ${init.key}`;
-  if (init.ip) headers['x-forwarded-for'] = `${init.ip}, 10.0.0.1`;
+  if (init.ip) headers['x-forwarded-for'] = `10.0.0.1, ${init.ip}`; // la valeur de gauche (falsifiable) est ignorée
   if (init.body !== undefined) headers['content-type'] = 'application/json';
   return new Request(`http://devappstore.test${path}`, {
     method: init.method ?? 'GET',
@@ -124,7 +124,7 @@ describe('flux SSE : connexions simultanées et durée maximale', () => {
     again.abort();
     for (const c of ctrls) c.abort();
     await new Promise((r) => setTimeout(r, 10));
-    expect(RL.getStreamSlots().active('stream:player:gam_rl:P_many')).toBe(0);
+    expect(RL.getStreamSlots().active('stream:player:gam_rl:secret:P_many')).toBe(0);
     expect(RL.getStreamSlots().active('stream:key:secret:gam_rl')).toBe(0);
   });
 
@@ -142,7 +142,7 @@ describe('flux SSE : connexions simultanées et durée maximale', () => {
         if (Date.now() - started > 5000) throw new Error('flux jamais fermé');
       }
       expect(Date.now() - started).toBeGreaterThanOrEqual(100);
-      expect(RL.getStreamSlots().active('stream:player:gam_rl:P_long')).toBe(0);
+      expect(RL.getStreamSlots().active('stream:player:gam_rl:secret:P_long')).toBe(0);
     } finally {
       G.STREAM_LIMITS.maxDurationMs = saved;
     }

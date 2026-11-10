@@ -2,10 +2,11 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { SIGNATURE_HEADER, formatMoney, type DeliveryStatus, type PurchaseEvent } from '@devappstore/core';
+import { SIGNATURE_HEADER, formatMoney, type DeliveryStatus, type PurchaseEvent, type StudioRole } from '@devappstore/core';
 import { db, eq, games } from '@devappstore/db';
 import { PLAYER_TOKEN_HEADER, ensurePublishableKey } from '@/server/api-key';
 import { listDeliveryLog } from '@/server/delivery';
+import { INTEGRATION_ADMINS, listIntegrationAudit } from '@/server/integration-audit';
 import { playerTokenSummary } from '@/server/player-tokens';
 import { requireGameAccess } from '@/server/session';
 import {
@@ -58,7 +59,7 @@ function CodeBlock({ children }: { children: string }) {
 
 export default async function IntegrationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let role: string;
+  let role: StudioRole;
   try {
     ({ role } = await requireGameAccess(id));
   } catch (e) {
@@ -74,14 +75,28 @@ export default async function IntegrationPage({ params }: { params: Promise<{ id
       currency: games.currency,
       webhookUrl: games.webhookUrl,
       apiKeyPrefix: games.apiKeyPrefix,
+      apiKeyPreviousPrefix: games.apiKeyPreviousPrefix,
+      apiKeyPreviousExpiresAt: games.apiKeyPreviousExpiresAt,
+      apiKeyPreviousLastUsedAt: games.apiKeyPreviousLastUsedAt,
     })
     .from(games)
     .where(eq(games.id, id));
   if (!game) notFound();
   const canEdit = role !== 'finance';
+  // Rotations de clés / secret et changement d'URL : propriétaire et administrateur seulement (A-08, F8).
+  const canAdmin = INTEGRATION_ADMINS.includes(role);
+  const previousKey =
+    game.apiKeyPreviousPrefix && game.apiKeyPreviousExpiresAt && game.apiKeyPreviousExpiresAt.getTime() > Date.now()
+      ? { prefix: game.apiKeyPreviousPrefix, expiresAt: game.apiKeyPreviousExpiresAt.toISOString(), lastUsedAt: game.apiKeyPreviousLastUsedAt?.toISOString() ?? null }
+      : null;
   const origin = await baseUrl();
   const storeUrl = `${origin}/games/${game.slug}`;
-  const [publishableKey, log, tokens] = await Promise.all([ensurePublishableKey(game.id), listDeliveryLog(game.id, 50), playerTokenSummary(game.id)]);
+  const [publishableKey, log, tokens, audit] = await Promise.all([
+    ensurePublishableKey(game.id),
+    listDeliveryLog(game.id, 50),
+    playerTokenSummary(game.id),
+    listIntegrationAudit(game.id, 20),
+  ]);
 
   const samplePayload: PurchaseEvent = {
     event: 'purchase.completed',
@@ -202,7 +217,7 @@ devappstore.onPurchase(player.id, async (e) => {
               lui donne accès aux achats de <strong>ce joueur</strong> (et de lui seul).
             </p>
             {publishableKey ? (
-              <PublishableKeyControl gameId={game.id} initialKey={publishableKey} canEdit={canEdit} />
+              <PublishableKeyControl gameId={game.id} initialKey={publishableKey} canEdit={canAdmin} />
             ) : (
               <p className="text-sm text-danger">Clé publique indisponible.</p>
             )}
@@ -214,7 +229,7 @@ devappstore.onPurchase(player.id, async (e) => {
               l&apos;embarquez <strong>jamais</strong> dans le jeu ni dans une page web. Seul son préfixe est conservé : elle n&apos;est affichée
               qu&apos;à sa création.
             </p>
-            <ApiKeyControl gameId={game.id} prefix={game.apiKeyPrefix} canEdit={canEdit} />
+            <ApiKeyControl gameId={game.id} prefix={game.apiKeyPrefix} canEdit={canAdmin} previous={previousKey} />
           </div>
           <div className="-mx-5 overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
@@ -254,11 +269,11 @@ devappstore.onPurchase(player.id, async (e) => {
         <div className="flex flex-col gap-5">
           <div>
             <h3 className="mb-2 text-sm font-medium text-ink">URL du webhook</h3>
-            <WebhookUrlControl gameId={game.id} initialUrl={game.webhookUrl} canEdit={canEdit} />
+            <WebhookUrlControl gameId={game.id} initialUrl={game.webhookUrl} canEdit={canEdit} canChangeUrl={canAdmin} />
           </div>
           <div>
             <h3 className="mb-2 text-sm font-medium text-ink">Secret de signature</h3>
-            <WebhookSecretControl gameId={game.id} canEdit={canEdit} />
+            <WebhookSecretControl gameId={game.id} canEdit={canEdit} canRotate={canAdmin} />
           </div>
         </div>
       </Section>
@@ -294,6 +309,26 @@ devappstore.onPurchase(player.id, async (e) => {
 
       <Section title="Liaison des comptes" description="Comment vos joueurs relient leur compte Dev AppStore à leur compte de jeu.">
         <LinkSettings gameId={game.id} />
+      </Section>
+
+      <Section title="Journal des modifications" description="Rotations de clés et de secret, changements d'URL, affichages du secret (20 dernières entrées).">
+        {audit.length === 0 ? (
+          <p className="text-sm text-ink-3">Aucune modification enregistrée.</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-lg border border-line text-sm">
+            {audit.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                <span>
+                  <span className="font-mono text-xs">{a.action}</span>
+                  {a.details.to !== undefined && <span className="ml-2 text-xs text-ink-3">→ {String(a.details.to ?? '(vide)')}</span>}
+                </span>
+                <span className="text-xs text-ink-3">
+                  {dateFmt.format(a.createdAt)} · {a.actorRole} · <span className="font-mono">{a.actorUserId}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </Section>
 
       <Section title="Journal des livraisons" description="Les 50 derniers événements de ce jeu (achats et remboursements).">

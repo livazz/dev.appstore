@@ -78,9 +78,23 @@ Règles appliquées par `env.ts` (les messages d'erreur listent les variables fa
 | `NEXT_PUBLIC_S3_PUBLIC_URL` | — | obligatoire si `s3`, **= `S3_PUBLIC_URL`** | lue par le rendu client des boutiques (`safeImageUrl`) ; injectée au build |
 | `RESEND_API_KEY` | optionnel | **obligatoire** | `re_…` ; `MAIL_TRANSPORT=console` est refusé en production (aucun e-mail ne partirait) |
 | `ANTHROPIC_API_KEY` | optionnel | optionnel | `sk-ant-…` (assistant de style) |
+| `TRUSTED_PROXY_HOPS` | 1 | **à régler selon l'hébergement** (Vercel : 1) | entier 0–10 ; voir « IP du client » ci-dessous (lu par `src/server/client-ip.ts`, pas encore validé par `env.ts`) |
 
 > Écart assumé avec l'énoncé initial : `CRON_SECRET` est **obligatoire en production** (CHK-CFG-02, P0) — sans lui,
 > n'importe qui peut déclencher les relances de webhooks.
+
+**IP du client (`TRUSTED_PROXY_HOPS`).** Tous les limiteurs (API v1, connexion, inscription, liaison de compte)
+utilisent la même IP, calculée par `src/server/client-ip.ts` : la n-ième valeur de `X-Forwarded-For` **en partant de
+la droite**, n = nombre de proxys de confiance qui ajoutent l'adresse qu'ils voient. Les valeurs de gauche sont
+fournies par le client et ne sont jamais crues. Vercel, ou un seul nginx / ALB : `1` (défaut). CDN devant un proxy :
+`2`. Application exposée sans proxy : `0` (en-têtes ignorés ; toutes les requêtes partagent la limite « unknown »).
+Une valeur trop petite donne l'IP d'un proxy (tous les clients partagent une limite) ; trop grande, une valeur
+falsifiable.
+
+**Secret webhook chiffré.** Les secrets webhook des jeux sont chiffrés au repos (AES-256-GCM, clé dérivée de
+`AUTH_SECRET` / `BETTER_AUTH_SECRET` par HKDF, comme les identifiants des stores). Changer ce secret rend les secrets
+webhook illisibles : les livraisons échouent avec « Secret webhook illisible » jusqu'à ce que chaque studio régénère son
+secret (onglet Intégration). Les secrets historiques en clair sont chiffrés à leur première utilisation.
 
 Sur Vercel : *Settings → Environment Variables*. Renseigner **Production** et **Preview** séparément : les previews
 utilisent une branche Neon et des clés Stripe de test avec `DEVAPPSTORE_ALLOW_TEST_PAYMENTS=1`. Ne jamais donner aux

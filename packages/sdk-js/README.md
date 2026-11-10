@@ -133,7 +133,10 @@ const event = JSON.parse(rawBody); // ou constructWebhookEvent(rawBody, header, 
 
 La signature est `HMAC-SHA256(secret, "<t>.<corps>")` en hexadécimal ; les signatures de plus de 5 minutes sont refusées.
 Dev AppStore ne suit pas les redirections : l'URL du webhook doit répondre directement (2xx), en `https://` en production.
-L'appel « player lookup » (`GET …/players/{player_id}`) est signé de la même façon, le corps signé étant l'ID joueur brut.
+L'appel « player lookup » (`GET …/players/{player_id}`) est signé avec le même secret, sur la chaîne
+`devappstore-lookup-v1:<ID joueur brut>` (séparation de domaine : une signature de lookup ne vaut jamais signature de
+webhook) : vérifiez-le avec `verifyLookupSignature(playerId, header, secret)`. Pendant une rotation du secret webhook,
+l'en-tête porte deux `v1=` (nouveau et ancien secret) pendant 24 h : les fonctions du SDK acceptent l'un ou l'autre.
 
 ## Développement
 

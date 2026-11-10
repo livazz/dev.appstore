@@ -1,13 +1,17 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { PlayerLookupResponse } from '@devappstore/core';
+import { clientIp } from '@/server/client-ip';
 import { confirmIdLink, getLinkableGame, linkReturnPath, redeemLinkCode, startIdConfirm } from '@/server/linking';
 import { requireUser } from '@/server/session';
 
 export interface CodeFormState {
   error?: string;
   code?: string;
+  /** Code demandé par le jeu sans serveur (clé publique) : compte de jeu à confirmer avant la liaison. */
+  confirm?: { playerId: string; playerName: string | null };
 }
 export interface LookupFormState {
   error?: string;
@@ -34,10 +38,14 @@ async function context(fd: FormData) {
 
 export async function redeemCodeAction(_prev: CodeFormState, fd: FormData): Promise<CodeFormState> {
   const code = field(fd, 'code').slice(0, 32);
+  const confirmed = field(fd, 'confirm') === '1';
   const { user, game, item } = await context(fd);
   if (!game) return { error: 'Jeu introuvable.', code };
-  const r = await redeemLinkCode(user.id, game, code);
-  if (!r.ok) return { error: r.message, code };
+  const r = await redeemLinkCode(user.id, game, code, { ip: clientIp(await headers()), confirmed });
+  if (!r.ok) {
+    if (r.error === 'confirmation_required' && r.candidate) return { code, confirm: r.candidate };
+    return { error: r.message, code };
+  }
   redirect(await linkReturnPath(game, item));
 }
 
@@ -45,7 +53,7 @@ export async function lookupPlayerAction(_prev: LookupFormState, fd: FormData): 
   const playerId = field(fd, 'playerId').slice(0, 128);
   const { user, game } = await context(fd);
   if (!game) return { error: 'Jeu introuvable.', playerId };
-  const r = await startIdConfirm(user.id, game, playerId);
+  const r = await startIdConfirm(user.id, game, playerId, { ip: clientIp(await headers()) });
   if (!r.ok) return { error: r.message, playerId };
   return { playerId, candidate: { attemptId: r.attemptId, player: r.player } };
 }

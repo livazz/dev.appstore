@@ -33,7 +33,7 @@ export const API_RATE_LIMITS = {
 };
 
 export const STREAM_LIMITS = {
-  /** Flux simultanés par joueur (jeu, player_id) : un client légitime n'en ouvre qu'un. */
+  /** Flux simultanés par joueur (jeu, player_id) et par origine (clé secrète, ou compte du jeton) : un client légitime n'en ouvre qu'un. */
   perPlayer: 3,
   /** Flux simultanés par clé. */
   perSecretKey: 500,
@@ -107,8 +107,12 @@ export function acquireStreamSlot(
   playerId: string,
   slots: ConcurrencyLimiter = getStreamSlots(),
 ): { ok: true; release: () => void } | { ok: false; res: Response } {
+  // Place par joueur ET par origine (revue 2026-11, F2) : n'importe qui peut obtenir un jeton pour n'importe quel
+  // player_id (code demandé avec la clé publique, saisi avec son propre compte) ; ses flux ne doivent pas consommer
+  // les places du compte acheteur légitime ni celles du serveur du studio (clé secrète).
+  const owner = auth.kind === 'secret' ? 'secret' : `user:${auth.player?.userId ?? 'anonyme'}`;
   const release = slots.acquire([
-    { key: `stream:player:${auth.game.id}:${playerId}`, max: STREAM_LIMITS.perPlayer },
+    { key: `stream:player:${auth.game.id}:${owner}:${playerId}`, max: STREAM_LIMITS.perPlayer },
     { key: `stream:key:${keyId(auth)}`, max: auth.kind === 'secret' ? STREAM_LIMITS.perSecretKey : STREAM_LIMITS.perPublishableKey },
   ]);
   if (!release) {

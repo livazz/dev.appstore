@@ -4,7 +4,7 @@ import { Readable } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { fileURLToPath } from 'node:url';
 import { DevAppStore, DevAppStoreError, type PlayerLookupResponse, type PurchaseEvent } from '@devappstore/sdk';
-import { SIGNATURE_HEADER, signWebhookPayload, verifyWebhookSignature } from '@devappstore/sdk/server';
+import { SIGNATURE_HEADER, signWebhookPayload, verifyLookupSignature, verifyWebhookSignature } from '@devappstore/sdk/server';
 import { findPlayer, GRANTS, PLAYERS, STARTING_INVENTORY } from './catalog';
 import type { DemoConfig, DemoGame, GameKey } from './config';
 import { sdkModule } from './sdk-bundle';
@@ -155,9 +155,9 @@ export function createDemoApp(opts: DemoAppOptions): DemoApp {
     }
     const sig = req.headers[SIGNATURE_HEADER.toLowerCase()];
     if (sig !== undefined) {
-      // Dev AppStore signe l'ID brut saisi (espaces de bord retirés) avec le secret webhook du jeu.
+      // Dev AppStore signe « devappstore-lookup-v1:<ID brut saisi> » (espaces de bord retirés) avec le secret webhook du jeu.
       const header = Array.isArray(sig) ? sig[0] : sig;
-      const ok = games.some((g) => verifyWebhookSignature(input.trim(), header, g.webhookSecret));
+      const ok = games.some((g) => verifyLookupSignature(input.trim(), header, g.webhookSecret));
       if (!ok) throw new HttpError(401, 'invalid_signature', 'Signature Dev AppStore invalide.');
     }
     const p = findPlayer(input);

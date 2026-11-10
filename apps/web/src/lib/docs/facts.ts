@@ -27,8 +27,9 @@ export const DOCS_FACTS = {
   retrySchedule: WEBHOOK_RETRY_SCHEDULE_MS.map(formatDelay),
   /** delivery.ts : WEBHOOK_TIMEOUT_MS. */
   webhookTimeoutS: 10,
-  /** linking.ts : LINK_LIMITS.codesPerGame. */
+  /** linking.ts : LINK_LIMITS.codesPerGame (clé secrète) et codesPerGamePublishable (clé publique, compté à part). */
   linkCodesPerMinute: 120,
+  linkCodesPerMinutePublishable: 600,
   /** linking.ts : LINK_LIMITS.lookupTimeoutMs / lookupMaxBytes / lookupsPerUser. */
   lookupTimeoutS: 5,
   lookupMaxKb: 16,

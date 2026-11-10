@@ -353,3 +353,20 @@ describe('onPurchase', () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('clé secrète dans un navigateur (revue 2026-11, F13)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  it('refusée quand window et document existent, sauf option explicite ; la clé publique reste acceptée', () => {
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('document', {});
+    const fetch = vi.fn();
+    expect(() => new DevAppStore({ apiKey: 'das_secret_x', fetch })).toThrow(/navigateur/);
+    expect(() => new DevAppStore({ apiKey: 'das_secret_x', fetch, dangerouslyAllowSecretKeyInBrowser: true })).not.toThrow();
+    expect(() => new DevAppStore({ publishableKey: 'das_pub_x', fetch })).not.toThrow();
+  });
+  it('acceptée côté serveur (Node, sans window)', () => {
+    expect(() => new DevAppStore({ apiKey: 'das_secret_x', fetch: vi.fn() })).not.toThrow();
+  });
+});

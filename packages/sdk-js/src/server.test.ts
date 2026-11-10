@@ -46,3 +46,22 @@ describe('types', () => {
     expectTypeOf<PlayerLookupResponse>().toEqualTypeOf<CoreLookup>();
   });
 });
+
+describe('verifyLookupSignature (revue 2026-11, F5)', () => {
+  it('accepte la signature d’un lookup Dev AppStore (@devappstore/core signLookup) et refuse un autre joueur', async () => {
+    const { signLookup, signPayloadMulti, lookupSignedString } = await import('@devappstore/core');
+    const { verifyLookupSignature, signLookupRequest } = await import('./server');
+    const header = signLookup('player_42', 'whsec');
+    expect(verifyLookupSignature('player_42', header, 'whsec')).toBe(true);
+    expect(verifyLookupSignature('player_43', header, 'whsec')).toBe(false);
+    expect(signLookupRequest('player_42', 'whsec', 1700000000)).toBe(signLookup('player_42', 'whsec', 1700000000));
+    // Rotation : deux v1, l'ancien secret vérifie aussi.
+    const both = signPayloadMulti(lookupSignedString('p'), ['nouveau', 'ancien']);
+    expect(verifyLookupSignature('p', both, 'ancien')).toBe(true);
+  });
+  it('une signature de lookup ne vaut jamais signature de webhook (et inversement)', async () => {
+    const { verifyLookupSignature } = await import('./server');
+    const header = signPayload('player_42', 'whsec');
+    expect(verifyLookupSignature('player_42', header, 'whsec')).toBe(false);
+  });
+});

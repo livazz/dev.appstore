@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { LINK_CODE_TTL_MS, hashApiKey, verifySignature } from '@devappstore/core';
+import { LINK_CODE_TTL_MS, hashApiKey, verifyLookupSignature } from '@devappstore/core';
 import { createTestDb } from '@devappstore/db/testing';
 
 vi.mock('server-only', () => ({}));
@@ -59,7 +59,7 @@ function startLookupServer() {
     const url = req.url ?? '/';
     const raw = decodeURIComponent(url.replace(/^\/players\//, ''));
     const signature = req.headers['devappstore-signature'] as string | undefined;
-    hits.push({ url, signature, valid: verifySignature(raw, signature, SECRET, Math.floor(T0.getTime() / 1000)) });
+    hits.push({ url, signature, valid: verifyLookupSignature(raw, signature, SECRET, Math.floor(T0.getTime() / 1000)) });
     if (url.startsWith('/slow')) return; // ne répond jamais
     if (url.startsWith('/redirect')) {
       res.writeHead(302, { location: `${base}/players/P1` });
@@ -278,7 +278,7 @@ describe('protection SSRF', () => {
 
   it("n'appelle pas une IP interne en production", async () => {
     const before = hits.length;
-    const r = await L.fetchPlayerLookup({ playerLookupUrl: `${base}/players/{player_id}`, webhookSecret: SECRET }, 'P1', { allowPrivate: false, now: T0 });
+    const r = await L.fetchPlayerLookup({ id: 'gam_lookup', playerLookupUrl: `${base}/players/{player_id}`, webhookSecret: SECRET }, 'P1', { allowPrivate: false, now: T0 });
     expect(r).toMatchObject({ ok: false, error: 'unsafe_url' });
     expect(hits.length).toBe(before);
   });
@@ -328,7 +328,7 @@ describe('confirmation par identifiant (id_confirm)', () => {
     expect(await L.startIdConfirm(user, gameLookup, 'unknown', { now: T0 })).toMatchObject({ ok: false, error: 'player_not_found' });
     expect(await L.startIdConfirm(user, gameLookup, 'bad-shape', { now: T0 })).toMatchObject({ ok: false, error: 'invalid_response' });
     const lookup = (path: string, timeoutMs = 2000) =>
-      L.fetchPlayerLookup({ playerLookupUrl: `${base}${path}`, webhookSecret: SECRET }, 'P1', { allowPrivate: true, timeoutMs, now: T0 });
+      L.fetchPlayerLookup({ id: 'gam_lookup', playerLookupUrl: `${base}${path}`, webhookSecret: SECRET }, 'P1', { allowPrivate: true, timeoutMs, now: T0 });
     expect(await lookup('/garbage/{player_id}')).toMatchObject({ ok: false, error: 'invalid_response' });
     const before = hits.length;
     expect(await lookup('/redirect/{player_id}')).toMatchObject({ ok: false, error: 'lookup_failed' });
@@ -465,7 +465,7 @@ describe('revue de sécurité — liaison', () => {
       await L.updateLinkSettings(g.id, { methods: ['id_confirm'], playerLookupUrl: 'http://api.example.com/p/{player_id}' }, { allowPrivate: false, requireHttps: true }),
     ).toMatchObject({ ok: false, error: 'unsafe_url' });
     const before = hits.length;
-    const r = await L.fetchPlayerLookup({ playerLookupUrl: `${base}/players/{player_id}`, webhookSecret: SECRET }, 'P1', { allowPrivate: true, requireHttps: true, now: T0 });
+    const r = await L.fetchPlayerLookup({ id: 'gam_lookup', playerLookupUrl: `${base}/players/{player_id}`, webhookSecret: SECRET }, 'P1', { allowPrivate: true, requireHttps: true, now: T0 });
     expect(r).toMatchObject({ ok: false, error: 'unsafe_url' });
     expect(hits.length).toBe(before);
   });
@@ -483,7 +483,7 @@ describe('revue de sécurité — liaison', () => {
     // Modèle déjà en base (enregistré avant la règle) : refusé à l'appel, aucune requête.
     const before = hits.length;
     expect(
-      await L.fetchPlayerLookup({ playerLookupUrl: 'http://{player_id}/players', webhookSecret: SECRET }, '127.0.0.1', { allowPrivate: true, now: T0 }),
+      await L.fetchPlayerLookup({ id: 'gam_lookup', playerLookupUrl: 'http://{player_id}/players', webhookSecret: SECRET }, '127.0.0.1', { allowPrivate: true, now: T0 }),
     ).toMatchObject({ ok: false, error: 'unsafe_url' });
     expect(hits.length).toBe(before);
   });
@@ -562,7 +562,7 @@ describe('revue de sécurité (int/security) — liaison', () => {
     const user = await newUser();
     const pub = await issue(gameA, 'p-src-pub');
     await D.db.update(D.linkCodes).set({ source: 'publishable' }).where(D.eq(D.linkCodes.code, pub.code));
-    const r1 = await L.redeemLinkCode(user, gameA, pub.code, { now: at(1000) });
+    const r1 = await L.redeemLinkCode(user, gameA, pub.code, { now: at(1000), confirmed: true });
     expect(r1.ok && r1.link).toMatchObject({ playerId: 'p-src-pub', method: 'code', verified: 0 });
 
     const sec = await issue(gameB, 'p-src-sec');

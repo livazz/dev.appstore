@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LINK_CODE_TTL_MS, SIGNATURE_HEADER, SIGNATURE_TOLERANCE_S, WEBHOOK_RETRY_SCHEDULE_MS, signPayload, verifySignature } from '@devappstore/core';
+import { LINK_CODE_TTL_MS, SIGNATURE_HEADER, SIGNATURE_TOLERANCE_S, WEBHOOK_RETRY_SCHEDULE_MS, signLookup, signPayload, verifySignature } from '@devappstore/core';
 import {
   EXAMPLE_BODY,
   EXAMPLE_LOOKUP_PLAYER_ID,
@@ -26,8 +26,8 @@ describe('vecteur de test de signature affiché dans la doc', () => {
     expect(verifySignature(EXAMPLE_BODY + ' ', EXAMPLE_SIGNATURE_HEADER, EXAMPLE_SECRET, EXAMPLE_TIMESTAMP)).toBe(false);
   });
 
-  it('signature du player lookup : corps signé = identifiant joueur brut', () => {
-    expect(signPayload(EXAMPLE_LOOKUP_PLAYER_ID, EXAMPLE_SECRET, EXAMPLE_TIMESTAMP)).toBe(`t=${EXAMPLE_TIMESTAMP},v1=${EXAMPLE_LOOKUP_V1}`);
+  it('signature du player lookup : chaîne signée = devappstore-lookup-v1:<identifiant joueur brut>', () => {
+    expect(signLookup(EXAMPLE_LOOKUP_PLAYER_ID, EXAMPLE_SECRET, EXAMPLE_TIMESTAMP)).toBe(`t=${EXAMPLE_TIMESTAMP},v1=${EXAMPLE_LOOKUP_V1}`);
   });
 
   it('la vérification Node documentée accepte la signature de core', async () => {

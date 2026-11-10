@@ -1,6 +1,6 @@
 import 'server-only';
 import { hashApiKey, randomToken } from '@devappstore/core';
-import { and, db, eq, games, isNull, lt, or, playerTokens } from '@devappstore/db';
+import { and, db, eq, games, gt, isNull, lt, or, playerTokens, sql } from '@devappstore/db';
 
 /*
  * Authentification de l'API publique /api/v1 (D-05 du modèle de menaces : séparation des clés).
@@ -21,8 +21,15 @@ export const PLAYER_TOKEN_PREFIX = 'das_pt_';
 export const PLAYER_TOKEN_HEADER = 'DevAppStore-Player-Token';
 /** Longueur max d'une clé / d'un jeton acceptée avant toute requête en base. */
 const MAX_CREDENTIAL_LENGTH = 200;
-/** `lastUsedAt` d'un jeton n'est réécrit qu'au plus toutes les 5 min. */
+/** `lastUsedAt` d'un jeton ou d'une clé n'est réécrit qu'au plus toutes les 5 min. */
 const TOKEN_TOUCH_MS = 5 * 60_000;
+/**
+ * Expiration glissante des jetons joueur (revue 2026-11, F12) : un jeton inutilisé depuis ce délai est refusé
+ * (`401 player_token_required` : le SDK l'oublie et repasse en attente de liaison). L'usage le prolonge.
+ */
+export const PLAYER_TOKEN_IDLE_TTL_MS = 90 * 24 * 3600_000;
+/** Rotation de la clé secrète (F9) : l'ancienne clé reste acceptée pendant ce délai par défaut. */
+export const SECRET_KEY_OVERLAP_MS = 24 * 3600_000;
 
 /** Jeu authentifié, sans aucun secret (ni `webhookSecret`, ni `apiKeyHash`). */
 export interface ApiGame {
@@ -87,14 +94,22 @@ export async function ensurePublishableKey(gameId: string): Promise<string | nul
   return after?.key ?? null;
 }
 
-/** Jeton joueur valide (non révoqué) pour ce jeu, ou null. */
+/** Jeton joueur valide (non révoqué, utilisé depuis moins de PLAYER_TOKEN_IDLE_TTL_MS) pour ce jeu, ou null. */
 export async function resolvePlayerToken(gameId: string, raw: string | null | undefined, now = new Date()): Promise<PlayerTokenAuth | null> {
   const token = raw?.trim() ?? '';
   if (!token.startsWith(PLAYER_TOKEN_PREFIX) || token.length > MAX_CREDENTIAL_LENGTH) return null;
+  const idleSince = new Date(now.getTime() - PLAYER_TOKEN_IDLE_TTL_MS);
   const [row] = await db
     .select({ tokenId: playerTokens.id, playerId: playerTokens.playerId, userId: playerTokens.userId })
     .from(playerTokens)
-    .where(and(eq(playerTokens.gameId, gameId), eq(playerTokens.tokenHash, hashApiKey(token)), isNull(playerTokens.revokedAt)));
+    .where(
+      and(
+        eq(playerTokens.gameId, gameId),
+        eq(playerTokens.tokenHash, hashApiKey(token)),
+        isNull(playerTokens.revokedAt),
+        gt(sql`coalesce(${playerTokens.lastUsedAt}, ${playerTokens.createdAt})`, idleSince),
+      ),
+    );
   if (!row) return null;
   await db
     .update(playerTokens)
@@ -106,6 +121,7 @@ export async function resolvePlayerToken(gameId: string, raw: string | null | un
 /**
  * Authentifie un appel de l'API v1 : clé secrète (serveur du studio) ou clé publique (+ jeton joueur éventuel).
  * Renvoie null (→ 401) si la clé est absente, inconnue, ou si le jeu est suspendu.
+ * (L'ancienne fonction `authenticateGame`, qui renvoyait la ligne complète avec les secrets, a été supprimée.)
  */
 export async function authenticateApi(req: Request): Promise<ApiAuth | null> {
   const key = bearer(req);
@@ -116,21 +132,68 @@ export async function authenticateApi(req: Request): Promise<ApiAuth | null> {
     const player = await resolvePlayerToken(game.id, req.headers.get(PLAYER_TOKEN_HEADER));
     return { kind: 'publishable', game, player };
   }
-  const [game] = await db.select(gameColumns).from(games).where(eq(games.apiKeyHash, hashApiKey(key)));
-  if (!game || game.status === 'suspended') return null;
+  return authenticateSecretKey(key);
+}
+
+/**
+ * Clé secrète : la clé courante, ou l'ancienne pendant la période de recouvrement d'une rotation (F9). Met à jour
+ * la date de dernière utilisation de la clé employée (au plus toutes les 5 min).
+ */
+async function authenticateSecretKey(key: string, now = new Date()): Promise<ApiAuth | null> {
+  const hash = hashApiKey(key);
+  const [row] = await db
+    .select({ ...gameColumns, currentHash: games.apiKeyHash })
+    .from(games)
+    .where(or(eq(games.apiKeyHash, hash), and(eq(games.apiKeyPreviousHash, hash), gt(games.apiKeyPreviousExpiresAt, now))));
+  if (!row || row.status === 'suspended') return null;
+  const { currentHash, ...game } = row;
+  const stale = new Date(now.getTime() - TOKEN_TOUCH_MS);
+  const column = currentHash === hash ? games.apiKeyLastUsedAt : games.apiKeyPreviousLastUsedAt;
+  await db
+    .update(games)
+    .set(currentHash === hash ? { apiKeyLastUsedAt: now } : { apiKeyPreviousLastUsedAt: now })
+    .where(and(eq(games.id, game.id), or(isNull(column), lt(column, stale))));
   return { kind: 'secret', game };
 }
 
 /**
- * CONTRAT PARTAGÉ (historique) — authentifie un appel par la clé SECRÈTE du jeu uniquement.
- * En-tête : `Authorization: Bearer das_…`. Renvoie le jeu, ou null (→ répondre 401) : clé inconnue, clé publique,
- * jeu suspendu. Préférez `authenticateApi`, qui ne renvoie aucun secret.
+ * Nouvelle clé secrète (F9) : l'ancienne reste acceptée `overlapMs` (0 = révocation immédiate, après une fuite).
+ * Renvoie la clé en clair (affichée une seule fois), ou null si le jeu n'existe pas.
  */
-export async function authenticateGame(req: Request) {
-  const key = bearer(req);
-  if (!key || key.startsWith(PUBLISHABLE_KEY_PREFIX)) return null;
-  const [game] = await db.select().from(games).where(eq(games.apiKeyHash, hashApiKey(key)));
-  return game && game.status !== 'suspended' ? game : null;
+export async function rotateSecretApiKey(gameId: string, opts: { now?: Date; overlapMs?: number } = {}) {
+  const now = opts.now ?? new Date();
+  const overlapMs = opts.overlapMs ?? SECRET_KEY_OVERLAP_MS;
+  const [g] = await db
+    .select({ hash: games.apiKeyHash, prefix: games.apiKeyPrefix, lastUsedAt: games.apiKeyLastUsedAt })
+    .from(games)
+    .where(eq(games.id, gameId));
+  if (!g) return null;
+  const { key, hash, prefix } = generateSecretApiKey();
+  const keep = overlapMs > 0;
+  await db
+    .update(games)
+    .set({
+      apiKeyHash: hash,
+      apiKeyPrefix: prefix,
+      apiKeyLastUsedAt: null,
+      apiKeyPreviousHash: keep ? g.hash : null,
+      apiKeyPreviousPrefix: keep ? g.prefix : null,
+      apiKeyPreviousExpiresAt: keep ? new Date(now.getTime() + overlapMs) : null,
+      apiKeyPreviousLastUsedAt: keep ? g.lastUsedAt : null,
+      updatedAt: now,
+    })
+    .where(eq(games.id, gameId));
+  return { key, prefix };
+}
+
+/** Révoque immédiatement l'ancienne clé secrète encore en période de recouvrement. */
+export async function revokePreviousSecretApiKey(gameId: string): Promise<boolean> {
+  const rows = await db
+    .update(games)
+    .set({ apiKeyPreviousHash: null, apiKeyPreviousPrefix: null, apiKeyPreviousExpiresAt: null, apiKeyPreviousLastUsedAt: null, updatedAt: new Date() })
+    .where(and(eq(games.id, gameId), sql`${games.apiKeyPreviousHash} is not null`))
+    .returning({ id: games.id });
+  return rows.length > 0;
 }
 
 export function apiError(status: number, code: string, message: string) {

@@ -107,6 +107,11 @@ export interface DevAppStoreOptions {
    * achats de tous les joueurs. Une valeur `das_pub_…` passée ici est traitée comme une clé publique.
    */
   apiKey?: string;
+  /**
+   * Autorise une clé secrète dans un navigateur (déconseillé : n'importe quel visiteur la lirait). Sans cette option,
+   * le constructeur refuse une clé secrète quand `window` et `document` existent.
+   */
+  dangerouslyAllowSecretKeyInBrowser?: boolean;
   /** URL de Dev AppStore, ex. `https://devappstore.com` ou `http://localhost:3000`. */
   baseUrl?: string;
   /** Implémentation fetch (par défaut `globalThis.fetch`). */

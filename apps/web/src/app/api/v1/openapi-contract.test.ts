@@ -123,7 +123,7 @@ describe('GET /api/v1/link-requests/{id}', () => {
     expect((await contract(P, 'get', await get(PUB), 200)).status).toBe('pending');
 
     const [game] = await db.select().from(D.games).where(D.eq(D.games.id, 'gam_c'));
-    expect((await redeemLinkCode('usr_c1', game!, created.code!)).ok).toBe(true);
+    expect((await redeemLinkCode('usr_c1', game!, created.code!, { confirmed: true })).ok).toBe(true);
     const linked = await contract(P, 'get', await get(PUB), 200);
     expect(linked).toMatchObject({ status: 'linked', player_id: 'player_42' });
     playerToken = String(linked.player_token);

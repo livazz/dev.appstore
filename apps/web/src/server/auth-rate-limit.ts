@@ -98,11 +98,7 @@ export function recordSignInFailure(limiter: SlidingWindowLimiter, email: string
 export const authLimiter = new SlidingWindowLimiter();
 
 /**
- * IP du client à partir des en-têtes posés par le proxy (premier élément de X-Forwarded-For, sinon X-Real-IP).
- * Derrière un proxy de confiance uniquement ; sans en-tête : « unknown » (toutes ces requêtes partagent la limite).
+ * IP du client : utilitaire unique partagé avec l'API v1 et la liaison (proxys de confiance `TRUSTED_PROXY_HOPS`,
+ * valeur prise en partant de la droite de X-Forwarded-For). Voir `./client-ip`.
  */
-export function clientIp(headers?: Headers | null): string {
-  const xff = headers?.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const ip = xff || headers?.get('x-real-ip')?.trim() || 'unknown';
-  return ip.slice(0, 64);
-}
+export { clientIp } from './client-ip';
