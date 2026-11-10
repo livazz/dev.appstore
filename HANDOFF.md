@@ -68,12 +68,26 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
    `/docs/api` cite encore `das_live_` et ignore la clé publique, ARCHITECTURE.md à compléter (`/api/openapi.json`,
    multi-instance), plafond SSE et limiteur des formulaires de connexion encore par instance, concurrence du limiteur
    Postgres testée seulement sous PGlite.
-2. **Revue de sécurité complète** par un regard neuf après la vague 6 (base : `docs/security/threat-model.md`,
-   `docs/security/review-checklist.md`), puis corrections.
-3. **En premier** : créer le dépôt GitHub `dev.appstore` (privé) et pousser l'historique complet (voir CLAUDE.md, étape 0).
-   En local : Node et gh sont installés dans `~/.local/bin` (pas de Homebrew).
+2. **Revue de sécurité complète : faite et corrigée (10 novembre 2026)** — 4 rapports dans `docs/security/revue-2026-11/`
+   (auth/autorisation, API/liaison/livraison, paiement, contenu/en-têtes) : 49 constats, aucun critique, 5 hauts, tous
+   corrigés avec tests, ainsi que les moyens et la plupart des bas (statut constat par constat dans chaque rapport).
+   Migration 0003. 963 tests vitest, 24 e2e.
+   Restes : A-03 et A-04 (décisions ci-dessous), quotas d'upload par studio et purge des fichiers orphelins
+   (table `uploads` à créer), plafonds SSE et limiteurs mémoire par instance, pas d'e-mail aux propriétaires lors des
+   changements d'intégration, `createGame` écrit le secret webhook en clair jusqu'au premier envoi, rétractation
+   pendant une récupération par SDK (`delivery.ts`, filet : `purchase.refunded`), `npm audit` : 4 modérées (drizzle-kit,
+   dev seulement).
+3. Dépôt GitHub privé : https://github.com/livazz/dev.appstore (Node et gh installés dans `~/.local/bin`).
 
 ## Décisions en attente (fondateur)
+
+- **Revue avant publication (A-03)** : aujourd'hui un studio publie directement ; le statut `review` et l'approbation
+  admin existent mais ne sont pas utilisés. Imposer une validation admin ?
+- **Comptes (A-04)** : ni vérification d'e-mail, ni réinitialisation de mot de passe, ni 2FA. À ajouter maintenant ?
+- **Avant la production (revue de sécurité)** : `RESEND_API_KEY` obligatoire (sinon refus de démarrer) ; changer
+  `AUTH_SECRET` rend illisibles les secrets webhook chiffrés (chaque studio doit régénérer le sien) ; nouveau format de
+  signature du « player lookup » (`devappstore-lookup-v1:<player_id>`) à annoncer aux studios ; `TRUSTED_PROXY_HOPS`
+  selon l'hébergement (1 par défaut, Vercel) ; `NEXT_PUBLIC_S3_PUBLIC_URL` au build sinon la CSP bloque les images S3.
 
 - **Modèle de TVA** : Dev AppStore collecte la TVA via Stripe Tax (risque « fournisseur réputé », voir `docs/legal/`)
   **ou** charges directes sur le compte Stripe du studio. Le code gère les deux (`CHARGE_MODEL=destination|direct`,

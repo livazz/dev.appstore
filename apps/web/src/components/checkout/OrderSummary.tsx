@@ -1,17 +1,19 @@
 import { formatMoney } from '@devappstore/core';
 import type { OrderView } from '@/server/payments';
+import { safeImageUrl } from '@/components/store/style-safety';
 
 const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
 
 /** Icône du jeu + récapitulatif de la commande (pages /checkout/*). */
 export function OrderSummary({ view, showDate = false }: { view: OrderView; showDate?: boolean }) {
   const { order, game, playerName } = view;
+  const iconUrl = safeImageUrl(game.iconUrl);
   return (
     <div>
       <div className="flex items-center gap-3">
-        {game.iconUrl ? (
+        {iconUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- icônes en data: URL ou /api/uploads
-          <img src={game.iconUrl} alt="" className="size-12 flex-none rounded-xl border border-line object-cover" />
+          <img src={iconUrl} alt="" className="size-12 flex-none rounded-xl border border-line object-cover" />
         ) : (
           <span className="grid size-12 flex-none place-items-center rounded-xl bg-brand text-lg font-black text-ink" aria-hidden="true">
             {game.name.slice(0, 1)}
