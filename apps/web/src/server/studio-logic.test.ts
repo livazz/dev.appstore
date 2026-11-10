@@ -217,6 +217,22 @@ describe('statut et suppression du jeu', () => {
     await expect(setGameStatus(t, g.id, 'live')).rejects.toThrow('suspendu');
   });
 
+  it('A-02 : une suspension posée pendant une publication (ou une dépublication) n’est jamais écrasée', async () => {
+    for (const target of ['live', 'draft'] as const) {
+      const g = await newGame(`Course ${target}`);
+      await createItemFor(t, g.id, item());
+      if (target === 'draft') await setGameStatus(t, g.id, 'live');
+      // L'admin suspend entre la lecture du statut et l'écriture du studio (requêtes entrelacées).
+      const [pub] = await Promise.allSettled([
+        setGameStatus(t, g.id, target),
+        t.update(games).set({ status: 'suspended' }).where(eq(games.id, g.id)),
+      ]);
+      expect(pub.status).toBe('rejected');
+      const [row] = await t.select({ status: games.status }).from(games).where(eq(games.id, g.id));
+      expect(row!.status).toBe('suspended');
+    }
+  });
+
   it("liste les jeux des studios de l'utilisateur avec articles actifs et revenu payé sur 30 jours", async () => {
     const g = await newGame('Tableau de bord');
     const a = await createItemFor(t, g.id, item({ productId: 'a' }));

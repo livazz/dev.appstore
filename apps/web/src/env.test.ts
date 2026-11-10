@@ -12,6 +12,7 @@ const PROD = {
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: 'pk_live_fake',
   PLATFORM_FEE_BPS: '500',
   CRON_SECRET: 'c'.repeat(32),
+  RESEND_API_KEY: 're_fake0000000000',
 } satisfies Record<string, string>;
 
 function issuesOf(source: Record<string, string | undefined>): Record<string, string> {
@@ -155,6 +156,36 @@ describe('validateEnv — démarrage (instrumentation.ts)', () => {
     expect(parseEnv({ ...PROD, AUTH_SECRET: '', BETTER_AUTH_SECRET: 'b'.repeat(40) }).isProduction).toBe(true);
     expect(issuesOf({ ...PROD, AUTH_SECRET: '', BETTER_AUTH_SECRET: 'court' })).toHaveProperty('BETTER_AUTH_SECRET');
     expect(issuesOf({ ...PROD, AUTH_SECRET: 'devappstore-dev-secret-ne-pas-utiliser-en-production-0123456789' }).AUTH_SECRET).toMatch(/exemple/);
+  });
+});
+
+describe('revue de sécurité : NODE_ENV, SKIP_ENV_VALIDATION, transport des e-mails', () => {
+  it('C-11 : refuse un NODE_ENV inconnu au démarrage, et le traite comme la production à la lecture', () => {
+    for (const v of ['prod', 'staging', 'Production']) {
+      expect(issuesOf({ ...PROD, NODE_ENV: v }).NODE_ENV).toMatch(/valeur inconnue/);
+      expect(() => validateEnv({ ...PROD, NODE_ENV: v, SKIP_ENV_VALIDATION: '1' })).toThrow(EnvValidationError);
+      const e = readEnv({ NODE_ENV: v });
+      expect(e.NODE_ENV).toBe('production');
+      expect(e.isProduction).toBe(true);
+    }
+  });
+
+  it('A-10 : SKIP_ENV_VALIDATION=1 est ignorée en production, acceptée en développement et en test', () => {
+    expect(() => validateEnv({ NODE_ENV: 'production', SKIP_ENV_VALIDATION: '1' })).toThrow(EnvValidationError);
+    expect(validateEnv({ NODE_ENV: 'development', SKIP_ENV_VALIDATION: '1', STRIPE_SECRET_KEY: 'oops' }).paymentsMode).toBe('simulation');
+    expect(validateEnv({ NODE_ENV: 'test', SKIP_ENV_VALIDATION: '1' }).NODE_ENV).toBe('test');
+    // La compilation (next build) reste possible sans secrets.
+    expect(validateEnv({ NODE_ENV: 'production', NEXT_PHASE: 'phase-production-build', SKIP_ENV_VALIDATION: '1' }).isProduction).toBe(true);
+  });
+
+  it('C-02 : refuse le transport console en production (explicite ou par défaut, sans RESEND_API_KEY)', () => {
+    expect(issuesOf({ ...PROD, MAIL_TRANSPORT: 'console' }).MAIL_TRANSPORT).toMatch(/console interdit/);
+    expect(issuesOf({ ...PROD, MAIL_TRANSPORT: 'Console' }).MAIL_TRANSPORT).toMatch(/console interdit/);
+    expect(issuesOf({ ...PROD, RESEND_API_KEY: '' })).toHaveProperty('RESEND_API_KEY');
+    expect(issuesOf({ ...PROD, RESEND_API_KEY: '', MAIL_TRANSPORT: 'resend' })).toHaveProperty('RESEND_API_KEY');
+    expect(parseEnv({ ...PROD, MAIL_TRANSPORT: 'resend' }).MAIL_TRANSPORT).toBe('resend');
+    expect(issuesOf({ NODE_ENV: 'development', MAIL_TRANSPORT: 'smtp' })).toHaveProperty('MAIL_TRANSPORT');
+    expect(parseEnv({ NODE_ENV: 'development', MAIL_TRANSPORT: 'console' }).MAIL_TRANSPORT).toBe('console');
   });
 });
 

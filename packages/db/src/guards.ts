@@ -20,6 +20,31 @@ export function assertSeedAllowed(env: Env = process.env): void {
         'il ne doit jamais tourner sur la base de production.',
     );
   }
+  // Revue de sécurité A-06 : depuis un poste de dev (NODE_ENV vide), une DATABASE_URL distante désigne peut-être la
+  // production — le seed y créerait un superadmin au mot de passe public. Seules les bases locales sont acceptées,
+  // sauf DEVAPPSTORE_ALLOW_SEED=1 explicite (base de démo distante assumée).
+  if (env.DATABASE_URL && !isLocalDatabaseUrl(env.DATABASE_URL) && env.DEVAPPSTORE_ALLOW_SEED !== '1') {
+    throw new Error(
+      `Seed refusé : ${describeTarget(env)} n'est pas une base locale. Le seed crée un superadmin au mot de passe public ; ` +
+        'pour une base de démo distante, relancez avec DEVAPPSTORE_ALLOW_SEED=1.',
+    );
+  }
+}
+
+/**
+ * Base « locale » : localhost, 127.0.0.0/8, ::1, *.localhost, ou nom d'hôte sans point (service Docker Compose comme
+ * `db`). Toute URL illisible est considérée comme distante.
+ */
+export function isLocalDatabaseUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  } catch {
+    return false;
+  }
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '::1' || /^127(\.\d{1,3}){3}$/.test(host)) return true;
+  return !host.includes('.') && !host.includes(':');
 }
 
 /** Cible lisible d'une migration, sans jamais afficher d'identifiant ni de mot de passe. */

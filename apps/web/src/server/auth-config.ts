@@ -73,3 +73,40 @@ export function sessionCookieOptions(env: Env) {
 export function assertAuthConfig(env: Env): void {
   resolveAuthSecret(env);
 }
+
+/* ------------------------------------------------------------------------------------------------
+ * Revue de sécurité 2026-11 (A-06, A-07, A-13)
+ * ---------------------------------------------------------------------------------------------- */
+
+/** A-07 : réponse unique d'une inscription refusée (formulaire et /api/auth/sign-up/email). */
+export const SIGN_UP_FAILED_CODE = 'SIGN_UP_FAILED';
+export const SIGN_UP_FAILED_MESSAGE =
+  'Impossible de créer un compte avec ces informations. Si vous avez déjà un compte, connectez-vous ; sinon, utilisez une autre adresse.';
+
+/** A-06 : comptes du seed (`@devappstore.test`, mot de passe public) — aucune session en production. */
+export function isDemoAccountEmail(email: string | null | undefined): boolean {
+  return typeof email === 'string' && /@devappstore\.test$/i.test(email.trim());
+}
+
+/** Même limite que le formulaire d'inscription (auth-flows.ts). */
+export const USER_NAME_MAX_LENGTH = 80;
+const IMAGE_URL_MAX_LENGTH = 2048;
+
+/**
+ * A-13 : profil normalisé pour toute écriture Better Auth (inscription HTTP, connexion sociale, /update-user), qui
+ * contourne les schémas zod des formulaires : `name` coupé à 80 caractères, `image` limitée aux URL https.
+ * Lève une erreur (message français) si `name` est fourni mais vide.
+ */
+export function sanitizeUserProfile<T extends Record<string, unknown>>(data: T): T {
+  const out: Record<string, unknown> = { ...data };
+  if ('name' in data && data.name !== undefined) {
+    const name = typeof data.name === 'string' ? data.name.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, USER_NAME_MAX_LENGTH).trim() : '';
+    if (!name) throw new Error('Saisissez votre nom.');
+    out.name = name;
+  }
+  if ('image' in data && data.image != null) {
+    const img = data.image;
+    out.image = typeof img === 'string' && img.length <= IMAGE_URL_MAX_LENGTH && /^https:\/\/[^\s]+$/i.test(img) ? img : null;
+  }
+  return out as T;
+}

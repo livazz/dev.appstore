@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { newId, slugify } from '@devappstore/core';
 import { db, eq, ilike, or, studioMembers, studios, type DB } from '@devappstore/db';
 import { auth as defaultAuth, PASSWORD_MIN_LENGTH, type Auth } from './auth';
-import { AUTH_RATE_LIMITS, authLimiter, clientIp, type SlidingWindowLimiter } from './auth-rate-limit';
+import { SIGN_UP_FAILED_CODE, SIGN_UP_FAILED_MESSAGE } from './auth-config';
+import { AUTH_RATE_LIMITS, authLimiter, clientIp, recordSignInFailure, signInRetryAfter, type SlidingWindowLimiter } from './auth-rate-limit';
 import { runInBackground, sendPlayerWelcome, sendStudioWelcome } from './notifications';
 
 /*
@@ -74,7 +75,8 @@ export function authErrorMessage(e: unknown): string {
       return 'E-mail ou mot de passe incorrect.';
     case 'USER_ALREADY_EXISTS':
     case 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL':
-      return 'Un compte existe déjà avec cette adresse e-mail. Connectez-vous ou utilisez une autre adresse.';
+    case SIGN_UP_FAILED_CODE:
+      return SIGN_UP_FAILED_MESSAGE;
     case 'PASSWORD_TOO_SHORT':
       return `Le mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères.`;
     case 'PASSWORD_TOO_LONG':
@@ -119,13 +121,9 @@ export async function signInWithPassword(input: Record<string, unknown>, deps: F
   const parsed = signInSchema.safeParse(input);
   if (!parsed.success) return fieldErrors(parsed.error);
   const limiter = deps.limiter ?? authLimiter;
-  const emailKey = `signin:email:${parsed.data.email}`;
-  const ipKey = `signin:ip:${clientIp(deps.headers)}`;
+  const ip = clientIp(deps.headers);
   // Même réponse que le compte existe ou non (pas d'énumération par le blocage).
-  const wait = Math.max(
-    limiter.retryAfter(emailKey, AUTH_RATE_LIMITS.signInFailuresPerEmail),
-    limiter.retryAfter(ipKey, AUTH_RATE_LIMITS.signInFailuresPerIp),
-  );
+  const wait = signInRetryAfter(limiter, parsed.data.email, ip);
   if (wait) return rateLimited(wait);
   const a = deps.auth ?? defaultAuth;
   try {
@@ -133,8 +131,7 @@ export async function signInWithPassword(input: Record<string, unknown>, deps: F
     return { ok: true, userId: res.user.id };
   } catch (e) {
     if (!isApiError(e)) throw e;
-    limiter.record(emailKey, AUTH_RATE_LIMITS.signInFailuresPerEmail);
-    limiter.record(ipKey, AUTH_RATE_LIMITS.signInFailuresPerIp);
+    recordSignInFailure(limiter, parsed.data.email, ip);
     return { ok: false, error: authErrorMessage(e) };
   }
 }
@@ -156,9 +153,7 @@ export async function signUpWithPassword(input: Record<string, unknown>, deps: S
     return { ok: true, userId };
   } catch (e) {
     if (!isApiError(e)) throw e;
-    const error = authErrorMessage(e);
-    const code = (e as { body?: { code?: string } }).body?.code ?? '';
-    return { ok: false, error, fieldErrors: code.startsWith('USER_ALREADY_EXISTS') ? { email: error } : undefined };
+    return { ok: false, error: authErrorMessage(e) };
   }
 }
 

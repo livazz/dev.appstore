@@ -1,12 +1,20 @@
 import 'server-only';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
-import { APIError } from 'better-auth/api';
+import { APIError, createAuthMiddleware, isAPIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { newId } from '@devappstore/core';
-import { account, db, session, user, verification, type DB } from '@devappstore/db';
+import { account, db, eq, session, user, verification, type DB } from '@devappstore/db';
 import { env } from '@/env';
-import { resolveAuthSecret, sessionCookieOptions } from './auth-config';
+import {
+  SIGN_UP_FAILED_CODE,
+  SIGN_UP_FAILED_MESSAGE,
+  isDemoAccountEmail,
+  resolveAuthSecret,
+  sanitizeUserProfile,
+  sessionCookieOptions,
+} from './auth-config';
+import { authLimiter, clientIp, recordSignInFailure, signInRetryAfter, type SlidingWindowLimiter } from './auth-rate-limit';
 import { isUserDisabled } from './user-suspension';
 
 /*
@@ -63,9 +71,24 @@ export function enabledSocialProviders(): SocialProviderId[] {
   return Object.keys(socialProvidersFromEnv()) as SocialProviderId[];
 }
 
+/** Profil normalisé (A-13) ; un nom vide devient une erreur 400 Better Auth. */
+function sanitizedOrBadRequest<T extends Record<string, unknown>>(data: T): T {
+  try {
+    return sanitizeUserProfile(data);
+  } catch (e) {
+    throw new APIError('BAD_REQUEST', { message: e instanceof Error ? e.message : 'Profil invalide.' });
+  }
+}
+
+export interface CreateAuthOptions {
+  /** Limiteur des échecs de connexion de la route HTTP (instance partagée par défaut ; injectable en test). */
+  limiter?: SlidingWindowLimiter;
+}
+
 /** Construit une instance Better Auth sur une base donnée (la base partagée en prod, une base en mémoire en test). */
-export function createAuth(database: DB) {
+export function createAuth(database: DB, opts: CreateAuthOptions = {}) {
   const socialProviders = socialProvidersFromEnv();
+  const limiter = opts.limiter ?? authLimiter;
   return betterAuth({
     appName: 'Dev AppStore',
     logger: { disabled: process.env.VITEST === 'true' },
@@ -94,9 +117,46 @@ export function createAuth(database: DB) {
             if (await isUserDisabled(s.userId, database)) {
               throw new APIError('FORBIDDEN', { message: 'Ce compte a été désactivé. Contactez le support Dev AppStore.' });
             }
+            // A-06 : les comptes du seed (mot de passe public, superadmin) n'ouvrent jamais de session en production.
+            if (env.isProduction) {
+              const [u] = await database.select({ email: user.email }).from(user).where(eq(user.id, s.userId)).limit(1);
+              if (isDemoAccountEmail(u?.email)) throw new APIError('FORBIDDEN', { message: 'Compte de démonstration : connexion impossible en production.' });
+            }
           },
         },
       },
+      // A-13 : nom et image bornés quelle que soit l'entrée (formulaire, route HTTP, fournisseur social, /update-user).
+      user: {
+        create: { before: async (u) => ({ data: sanitizedOrBadRequest(u) }) },
+        update: { before: async (u) => ({ data: sanitizedOrBadRequest(u) }) },
+      },
+    },
+    /*
+     * Route HTTP /api/auth/* (ctx.request défini ; les Server Actions appellent auth.api sans requête et ont leur
+     * propre limitation dans auth-flows.ts) :
+     * - A-05 : mêmes plafonds d'échecs que le formulaire (e-mail + IP, e-mail, IP) sur /sign-in/email ;
+     * - A-07 : l'inscription refusée ne renvoie plus le code USER_ALREADY_EXISTS.
+     */
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/sign-in/email' || !ctx.request) return;
+        const email = typeof ctx.body?.email === 'string' ? ctx.body.email : '';
+        if (email && signInRetryAfter(limiter, email, clientIp(ctx.headers))) {
+          throw new APIError('TOO_MANY_REQUESTS', { message: 'Trop de tentatives. Réessayez dans quelques minutes.' });
+        }
+      }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (!ctx.request) return;
+        const returned = ctx.context.returned;
+        if (!isAPIError(returned)) return;
+        if (ctx.path === '/sign-in/email' && returned.statusCode !== 429) {
+          const email = typeof ctx.body?.email === 'string' ? ctx.body.email : '';
+          if (email) recordSignInFailure(limiter, email, clientIp(ctx.headers));
+        }
+        if (ctx.path === '/sign-up/email' && String(returned.body?.code ?? '').startsWith('USER_ALREADY_EXISTS')) {
+          throw new APIError('BAD_REQUEST', { code: SIGN_UP_FAILED_CODE, message: SIGN_UP_FAILED_MESSAGE });
+        }
+      }),
     },
     // Limitation intégrée de Better Auth pour les routes HTTP /api/auth/* (les Server Actions ont la leur :
     // auth-rate-limit.ts). Désactivée sous vitest pour ne pas perturber les tests d'intégration.

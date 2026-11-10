@@ -263,8 +263,14 @@ export async function setGameStatus(database: DB, gameId: string, status: 'draft
       .where(and(eq(items.gameId, gameId), eq(items.active, true)))) as [{ n: number }];
     if (!n) throw new StudioError('Ajoutez au moins un article avant de publier la boutique.');
   }
-  const [row] = await database.update(games).set({ status, updatedAt: new Date() }).where(eq(games.id, gameId)).returning();
-  return row!;
+  // Revue de sécurité A-02 : écriture conditionnelle — une suspension posée entre la lecture et l'écriture n'est jamais écrasée.
+  const [row] = await database
+    .update(games)
+    .set({ status, updatedAt: new Date() })
+    .where(and(eq(games.id, gameId), inArray(games.status, ['draft', 'live'])))
+    .returning();
+  if (!row) throw new StudioError('Le statut du jeu vient de changer : rechargez la page.');
+  return row;
 }
 
 /** Supprime le jeu. Refusé s'il a déjà des commandes (historique comptable à conserver). */

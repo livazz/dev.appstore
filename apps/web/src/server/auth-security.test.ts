@@ -91,6 +91,7 @@ describe('CHK-CFG-02 / T-AUTH-02 : AUTH_SECRET obligatoire en production', () =>
       STRIPE_SECRET_KEY: 'sk_live_fake000',
       STRIPE_WEBHOOK_SECRET: 'whsec_fake',
       CRON_SECRET: 'c'.repeat(32),
+      RESEND_API_KEY: 're_fake000',
       AUTH_SECRET: '',
       BETTER_AUTH_SECRET: '',
     };
@@ -133,7 +134,7 @@ describe('CHK-AUTH-03 : cookies de session', () => {
 describe('CHK-AUTH-04 / CHK-AUTH-05 : limitation de débit et énumération', () => {
   it('bloque une adresse e-mail après trop d’échecs, même avec le bon mot de passe ensuite', async () => {
     const limiter = new RL.SlidingWindowLimiter();
-    const { max } = RL.AUTH_RATE_LIMITS.signInFailuresPerEmail;
+    const { max } = RL.AUTH_RATE_LIMITS.signInFailuresPerEmailIp;
     for (let i = 0; i < max; i++) {
       const r = await flows.signInWithPassword({ email: 'joueur@sec.test', password: `mauvais-${i}` }, { limiter });
       expect(r).toEqual({ ok: false, error: 'E-mail ou mot de passe incorrect.' });
@@ -148,7 +149,7 @@ describe('CHK-AUTH-04 / CHK-AUTH-05 : limitation de débit et énumération', ()
 
   it('même message et même blocage que le compte existe ou non (pas d’énumération)', async () => {
     const limiter = new RL.SlidingWindowLimiter();
-    const { max } = RL.AUTH_RATE_LIMITS.signInFailuresPerEmail;
+    const { max } = RL.AUTH_RATE_LIMITS.signInFailuresPerEmailIp;
     const outcomes: Record<string, string[]> = { existe: [], inconnu: [] };
     for (const [label, email] of [['existe', 'joueur@sec.test'], ['inconnu', 'personne@sec.test']] as const) {
       for (let i = 0; i <= max; i++) {

@@ -33,7 +33,7 @@ const STRIPE_SECRET_RE = /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/;
 const baseSchema = z.object({
   NODE_ENV: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined),
-    z.enum(['development', 'test', 'production']).default('development'),
+    z.enum(['development', 'test', 'production'], { error: 'valeur inconnue (attendu : development, test ou production)' }).default('development'),
   ),
   /** Positionné par Next.js pendant `next build` (phase-production-build). */
   NEXT_PHASE: optionalString,
@@ -93,6 +93,11 @@ const baseSchema = z.object({
   RESEND_API_KEY: optionalString.refine((v) => v === undefined || v.startsWith('re_'), {
     message: 'doit commencer par re_',
   }),
+  /** console | resend (packages/emails) ; défaut : resend si RESEND_API_KEY, sinon console (interdit en production). */
+  MAIL_TRANSPORT: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim().toLowerCase() : undefined),
+    z.enum(['console', 'resend'], { error: 'doit valoir console ou resend' }).optional(),
+  ),
   ANTHROPIC_API_KEY: optionalString.refine((v) => v === undefined || v.startsWith('sk-ant-'), {
     message: 'doit commencer par sk-ant-',
   }),
@@ -177,6 +182,12 @@ const schema = baseSchema.superRefine((e, ctx) => {
     fail('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', 'doit être une clé pk_live_ quand STRIPE_SECRET_KEY est live');
   }
 
+  // E-mails (revue contenu C-02) : le transport console n'envoie rien (reçus, accusés de rétractation perdus).
+  if (e.MAIL_TRANSPORT === 'console') fail('MAIL_TRANSPORT', 'console interdit en production : aucun e-mail ne serait envoyé (utilisez resend)');
+  else if (!e.MAIL_TRANSPORT && !e.RESEND_API_KEY) {
+    fail('RESEND_API_KEY', 'obligatoire en production (sans elle, le transport console est utilisé et aucun e-mail ne part)');
+  } else if (e.MAIL_TRANSPORT === 'resend' && !e.RESEND_API_KEY) fail('RESEND_API_KEY', 'obligatoire quand MAIL_TRANSPORT=resend');
+
   // Les tâches planifiées (/api/cron/*, /api/checkout/expire) ne doivent pas être publiques.
   if (!e.CRON_SECRET) fail('CRON_SECRET', 'obligatoire en production (protège /api/cron/* et /api/checkout/expire)');
   else if (e.CRON_SECRET.length < 16) fail('CRON_SECRET', 'trop court (minimum 16 caractères)');
@@ -243,13 +254,28 @@ export function parseEnv(source: Source = process.env): Env {
   return withDerived(result.data);
 }
 
+const NODE_ENVS = ['development', 'test', 'production'] as const;
+
+/** NODE_ENV normalisé : vide → development ; valeur inconnue → null (traitée comme la production, jamais comme le dev). */
+function knownNodeEnv(source: Source): (typeof NODE_ENVS)[number] | null {
+  const v = typeof source.NODE_ENV === 'string' ? source.NODE_ENV.trim() : '';
+  if (!v) return 'development';
+  return (NODE_ENVS as readonly string[]).includes(v) ? (v as (typeof NODE_ENVS)[number]) : null;
+}
+
 /**
  * Pendant `next build` (NEXT_PHASE=phase-production-build, NODE_ENV=production), les secrets d'exécution
  * ne sont pas forcément disponibles (CI, image Docker) : on ne bloque pas la compilation, la validation
- * stricte a lieu au démarrage du serveur. SKIP_ENV_VALIDATION=1 permet aussi de contourner (outillage).
+ * stricte a lieu au démarrage du serveur. SKIP_ENV_VALIDATION=1 permet aussi de contourner pour l'outillage,
+ * mais JAMAIS en production ni avec un NODE_ENV inconnu (revue de sécurité A-10, paiement C-11).
  */
 function shouldSkipStrictValidation(source: Source): boolean {
-  return source.NEXT_PHASE === 'phase-production-build' || source.SKIP_ENV_VALIDATION === '1';
+  if (source.NEXT_PHASE === 'phase-production-build') return true;
+  if (source.SKIP_ENV_VALIDATION !== '1') return false;
+  const nodeEnv = knownNodeEnv(source);
+  if (nodeEnv === 'development' || nodeEnv === 'test') return true;
+  console.warn('[env] SKIP_ENV_VALIDATION=1 ignorée : interdite en production (et avec un NODE_ENV inconnu).');
+  return false;
 }
 
 /**
@@ -272,6 +298,15 @@ export function readEnv(source: Source = process.env): Env {
   const strict = schema.safeParse(source);
   if (strict.success) return withDerived(strict.data);
   const cleaned: Source = { ...source };
+  // NODE_ENV inconnu (« prod », « staging »…) : règles de production, jamais repli silencieux sur development (C-11).
+  if (knownNodeEnv(source) === null) {
+    cleaned.NODE_ENV = 'production';
+    const msg = '[env] NODE_ENV inconnu : traité comme production';
+    if (!warned.has(msg)) {
+      warned.add(msg);
+      console.warn(msg);
+    }
+  }
   for (let i = 0; i <= KEYS.length; i++) {
     const loose = baseSchema.safeParse(cleaned);
     if (loose.success) return withDerived(loose.data);

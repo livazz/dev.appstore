@@ -10,10 +10,13 @@ import { getCurrentUser } from '@/server/session';
 
 export const metadata: Metadata = { title: 'Connexion', alternates: { canonical: '/login' } };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reauth?: string }> }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
-  if (await getCurrentUser()) redirect(next);
+  // Ré-authentification (A-11, session trop ancienne pour une action sensible) : on redemande le mot de passe
+  // même si l'utilisateur est connecté ; la nouvelle session est fraîche.
+  const reauth = sp.reauth === '1';
+  if (!reauth && (await getCurrentUser())) redirect(next);
 
   return (
     <AuthCard
@@ -32,7 +35,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </>
       }
     >
-      {sp.error === 'social' ? (
+      {reauth ? (
+        <p role="status" className="mb-4 rounded-[var(--radius)] border border-line bg-surface px-3 py-2 text-sm text-ink-2">
+          Par sécurité, confirmez votre identité pour continuer : reconnectez-vous.
+        </p>
+      ) : null}
+            {sp.error === 'social' ? (
         <p role="alert" className="mb-4 rounded-[var(--radius)] border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
           La connexion avec ce fournisseur a échoué. Réessayez ou utilisez votre e-mail.
         </p>

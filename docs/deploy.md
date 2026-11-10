@@ -41,7 +41,7 @@ Fichiers fournis :
    ```
 
    Pendant `next build`, la validation stricte est sautée (`NEXT_PHASE=phase-production-build`) : la CI et l'image
-   Docker compilent sans secrets. `SKIP_ENV_VALIDATION=1` permet aussi de la sauter pour un outil ponctuel.
+   Docker compilent sans secrets. `SKIP_ENV_VALIDATION=1` permet aussi de la sauter pour un outil ponctuel, hors production (ignorée si `NODE_ENV=production` ; un `NODE_ENV` inconnu est refusé).
 2. **Lecture unique** (CHK-CFG-02) — remplacer les `process.env.X` du code serveur par `import { env } from '@/env'` :
    - `src/server/stripe.ts` : `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`, `APP_URL`,
      `isProduction()` → `env.isProduction`, `isSimulationAllowed()` → `env.paymentsMode === 'simulation'` ;
@@ -76,7 +76,7 @@ Règles appliquées par `env.ts` (les messages d'erreur listent les variables fa
 | `DEVAPPSTORE_STORAGE` | `local` | `s3` (voir § 5) | `local` \| `s3` |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | — | obligatoires si `s3` | R2 : `https://<compte>.eu.r2.cloudflarestorage.com` |
 | `NEXT_PUBLIC_S3_PUBLIC_URL` | — | obligatoire si `s3`, **= `S3_PUBLIC_URL`** | lue par le rendu client des boutiques (`safeImageUrl`) ; injectée au build |
-| `RESEND_API_KEY` | optionnel | optionnel | `re_…` (e-mails, phase 2) |
+| `RESEND_API_KEY` | optionnel | **obligatoire** | `re_…` ; `MAIL_TRANSPORT=console` est refusé en production (aucun e-mail ne partirait) |
 | `ANTHROPIC_API_KEY` | optionnel | optionnel | `sk-ant-…` (assistant de style) |
 
 > Écart assumé avec l'énoncé initial : `CRON_SECRET` est **obligatoire en production** (CHK-CFG-02, P0) — sans lui,
