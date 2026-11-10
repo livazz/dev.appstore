@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useActionState, useEffect, useRef } from 'react';
 import { CONTENT_POLICY_HREF, EXPLANATION_MAX, EXPLANATION_MIN, GOOD_FAITH_LABEL, REPORT_CATEGORIES } from '@/server/reports-logic';
 import { submitReportAction, type ReportFormState } from './actions';
+import { SiteArt } from '@/components/SiteArt';
 
 const initial: ReportFormState = {};
 
@@ -38,6 +39,7 @@ export function ReportForm({
     const d = state.done;
     return (
       <div ref={doneRef} tabIndex={-1} role="status" className="mt-6 rounded-[var(--radius)] border border-ok/30 bg-ok/10 p-5 outline-none">
+        <SiteArt name="report" className="mb-2 size-24" />
         <h2 className="text-lg font-semibold text-ink">Signalement reçu</h2>
         <p className="mt-2 text-sm text-ink">
           Merci. Votre signalement concernant <strong>{d.itemTitle ? `${d.itemTitle} (${d.gameName})` : d.gameName}</strong> a bien été enregistré le{' '}

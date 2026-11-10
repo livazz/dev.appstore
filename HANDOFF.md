@@ -58,6 +58,12 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
 - Sécurité : isolement des studios, clés secrète/publique + jetons joueur, garde SSRF, limiteurs de débit (API + auth),
   plafond SSE, en-têtes de sécurité, configuration validée au démarrage (`apps/web/src/env.ts`).
 - SDK : JS (`packages/sdk-js`), Unity, Godot, Unreal (`sdks/`, non compilés faute de moteur), jeu de démo.
+- Illustrations (2026-11-10) : 74 visuels générés (source PNG hors dépôt, `~/Downloads/illustrations-74`), convertis en
+  WebP (3,8 Mo) par `node scripts/optimize-art.mjs <dossier>` dans `apps/web/public/art/` (items, icons, games, site).
+  Bibliothèque proposée aux studios dans la fenêtre d'article (« Choisir dans la bibliothèque », `lib/art-library.ts`) ;
+  les chemins `/art/….webp` sont acceptés par `imageUrlSchema` et `safeImageUrl`. Seed, accueil, page studios, états
+  vides, 404, succès d'achat, vérification d'e-mail et signalement les utilisent. Aperçu statique : branche `gh-pages`
+  (https://livazz.github.io/dev.appstore/), régénéré à la main.
 - Migration Drizzle initiale : `packages/db/drizzle/0000_initial.sql`. Dépendances à jour (audit sans haute/critique).
 
 ## Ce qui reste à faire

@@ -4,6 +4,7 @@ import { LINK_METHOD_LABELS, listUserGameLinks } from '@/server/linking';
 import { requireUser } from '@/server/session';
 import { UnlinkButton } from './UnlinkButton';
 import { safeImageUrl } from '@/components/store/style-safety';
+import { SiteArt } from '@/components/SiteArt';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Mon compte', robots: { index: false } };
@@ -39,6 +40,7 @@ export default async function AccountPage() {
         </h2>
         {links.length === 0 ? (
           <div className="rounded-[var(--radius)] border border-line bg-surface px-6 py-10 text-center">
+            <SiteArt name="empty-links" className="mx-auto mb-3 size-36" />
             <p className="font-medium text-ink">Aucun jeu lié pour l&apos;instant</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-ink-2">
               Liez votre compte de jeu depuis la boutique d&apos;un jeu : vos achats y seront livrés automatiquement.

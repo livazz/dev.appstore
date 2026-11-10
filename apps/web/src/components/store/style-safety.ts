@@ -13,6 +13,7 @@
  *   lisible (≥ 4,5:1), même si le studio a choisi un titre blanc sur un fond clair.
  */
 import type { GameTheme, ItemStyle } from '@devappstore/core/client';
+import { isLibraryArt } from '@/lib/art-library';
 
 export const MIN_TEXT_CONTRAST = 4.5;
 
@@ -116,6 +117,7 @@ export function safeImageUrl(url: unknown, s3Base: string | null = publicS3Base(
   if (typeof url !== 'string') return null;
   const u = url.trim();
   if (!u || u.length > 600_000) return null;
+  if (isLibraryArt(u)) return u;
   if (u.startsWith(LOCAL_UPLOAD_PREFIX)) return UPLOAD_KEY_RE.test(u.slice(LOCAL_UPLOAD_PREFIX.length)) ? u : null;
   if (RASTER_DATA_RE.test(u)) return allowData ? u : null;
   const base = s3Base ? publicS3Base(s3Base) : null;

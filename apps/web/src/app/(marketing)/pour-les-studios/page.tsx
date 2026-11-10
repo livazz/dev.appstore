@@ -6,6 +6,7 @@ import { Faq, type FaqEntry } from '@/components/marketing/Faq';
 import { SavingsCalculator } from '@/components/marketing/SavingsCalculator';
 import { bpsToPercentLabel, keptPercentLabel } from '@/components/marketing/savings';
 import { publicPageMetadata } from '@/lib/seo';
+import { SiteArt } from '@/components/SiteArt';
 
 const KEPT_DEVAPPSTORE = keptPercentLabel(DEFAULT_PLATFORM_FEE_BPS);
 /** « 70 à 85 % » : ce que gardent les studios via les stores, du taux standard (30 %) au taux réduit (15 %). */
@@ -172,7 +173,9 @@ export default function StudiosPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-line bg-bg p-6" role="group" aria-labelledby="comparatif-titre">
+          <div className="relative">
+          <SiteArt name="studios-hero" priority className="mx-auto -mb-6 w-full max-w-[340px]" />
+          <div className="relative rounded-2xl border border-line bg-bg p-6" role="group" aria-labelledby="comparatif-titre">
             <p id="comparatif-titre" className="font-semibold">
               Sur une vente de {formatMoney(SAMPLE_CENTS)}, vous recevez
             </p>
@@ -209,6 +212,7 @@ export default function StudiosPage() {
               la région.
             </p>
           </div>
+            </div>
         </div>
       </section>
 

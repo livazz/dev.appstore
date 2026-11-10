@@ -5,6 +5,7 @@ import { getPlayerPurchases } from '@/server/analytics';
 import { WITHDRAWAL_ERROR_MESSAGES, withdrawableOrderIds, type WithdrawalErrorCode } from '@/server/withdrawal';
 import { formatDateTime, playerDeliveryLabel, TONE_CLASSES } from '@/lib/analytics-format';
 import { confirmWithdrawal } from './actions';
+import { SiteArt } from '@/components/SiteArt';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Mes achats', robots: { index: false } };
@@ -88,6 +89,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
 
       {rows.length === 0 ? (
         <div className="rounded-[var(--radius)] border border-line bg-surface p-10 text-center">
+          <SiteArt name="empty-purchases" className="mx-auto mb-3 size-36" />
           <p className="font-medium">Aucun achat pour l’instant.</p>
           <p className="mt-1 text-sm text-ink-2">Vos achats apparaîtront ici, avec leur statut de livraison dans le jeu.</p>
           <Link href="/" className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90">

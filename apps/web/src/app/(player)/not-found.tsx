@@ -1,8 +1,10 @@
 import Link from 'next/link';
+import { SiteArt } from '@/components/SiteArt';
 
 export default function PlayerNotFound() {
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-20 text-center">
+      <SiteArt name="not-found" priority className="size-48" />
       <p className="text-5xl font-black text-ink-3">404</p>
       <h1 className="mt-4 text-2xl font-bold">Page introuvable</h1>
       <p className="mt-2 text-ink-2">Ce jeu n’existe pas ou n’est pas encore disponible sur Dev AppStore.</p>

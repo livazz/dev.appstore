@@ -21,6 +21,7 @@ import { createItem, deleteItem, updateItem } from '@/server/studio';
 import type { EditorItem } from '@/lib/studio-types';
 import { pickAndUploadImage } from '@/lib/upload';
 import { Modal } from './Modal';
+import { ArtLibraryPicker } from './ArtLibraryPicker';
 import { ColorField, Slider, Toggle } from './Controls';
 import { IconPlus } from './icons';
 import { AiStyleButton } from './ai/AiStyleButton';
@@ -81,6 +82,7 @@ export function ItemModal({
   const [kw, setKw] = useState(draft.keywords.join(', '));
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState<number | null>(null);
+  const [library, setLibrary] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
 
   const set = (p: Partial<Draft>) => setDraft((d) => ({ ...d, ...p }));
@@ -291,6 +293,14 @@ export function ItemModal({
                       {uploading === i ? <span className="size-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <IconPlus size={16} />}
                     </span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setLibrary(library === i ? null : i)}
+                    aria-expanded={library === i}
+                    className="self-start text-xs font-medium text-primary hover:underline"
+                  >
+                    Choisir dans la bibliothèque
+                  </button>
                   {m.imageUrl && (
                     <button
                       type="button"
@@ -310,6 +320,17 @@ export function ItemModal({
                 </div>
               ))}
             </div>
+            {library !== null && draft.models[library] ? (
+              <ArtLibraryPicker
+                selected={draft.models[library]!.imageUrl}
+                onClose={() => setLibrary(null)}
+                onPick={(url, label) => {
+                  const i = library;
+                  setDraft((d) => ({ ...d, models: d.models.map((x, j) => (j === i ? { ...x, imageUrl: url, label: x.label || label } : x)) }));
+                  setLibrary(null);
+                }}
+              />
+            ) : null}
           </div>
         </div>
       ) : skin !== 'classic' ? (

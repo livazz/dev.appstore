@@ -4,6 +4,7 @@ import { formatMoney, GAME_CATEGORIES } from '@devappstore/core';
 import { DiscountBadge, GameCard, GameIcon } from '@/components/catalog/GameCard';
 import { safeImageUrl } from '@/components/store/style-safety';
 import { discountPct, searchCatalog } from '@/server/catalog';
+import { SiteArt } from '@/components/SiteArt';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,7 @@ export default async function SearchPage({ searchParams }: Props) {
       )}
       {nothing && (
         <div className="mt-10 rounded-[var(--radius)] bg-surface p-8 text-center">
+          <SiteArt name="empty-search" className="mx-auto mb-3 size-36" />
           <p className="font-semibold">Aucun résultat</p>
           <p className="mt-1 text-sm text-ink-2">Essayez un autre mot-clé ou une autre catégorie.</p>
           <Link

@@ -5,13 +5,15 @@ import { useFormStatus } from 'react-dom';
 import { forgotPasswordAction, loginAction, resendVerificationAction, resetPasswordAction, signupAction, studioSignupAction } from './actions';
 import { Field, FormActions, FormError } from './fields';
 import { initialAuthFormState } from './form-state';
+import { SiteArt } from '@/components/SiteArt';
 
 const PASSWORD_HINT = 'Au moins 8 caractères.';
 
 /** Confirmation affichée à la place du formulaire (annoncée aux lecteurs d'écran). */
-function Notice({ title, children }: { title: string; children: React.ReactNode }) {
+function Notice({ title, children, art }: { title: string; children: React.ReactNode; art?: boolean }) {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-2 rounded-[var(--radius)] border border-line bg-bg px-4 py-3 text-sm text-ink-2">
+      {art ? <SiteArt name="email-verify" priority className="mx-auto size-28" /> : null}
       <p className="font-semibold text-ink">{title}</p>
       {children}
     </div>
@@ -21,7 +23,7 @@ function Notice({ title, children }: { title: string; children: React.ReactNode 
 /** Après une inscription : même message que l'adresse soit libre ou déjà inscrite (revue A-07). */
 function CheckYourInbox({ email }: { email?: string }) {
   return (
-    <Notice title="Vérifiez votre boîte mail">
+    <Notice title="Vérifiez votre boîte mail" art>
       <p>
         Nous avons envoyé un e-mail à <strong className="text-ink">{email || 'votre adresse'}</strong>. Cliquez sur le lien qu’il contient pour
         confirmer votre adresse et vous connecter (lien valable 24 heures).

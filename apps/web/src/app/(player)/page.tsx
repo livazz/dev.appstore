@@ -4,6 +4,7 @@ import { CatalogSkeleton } from '@/components/catalog/Skeletons';
 import { GameCard } from '@/components/catalog/GameCard';
 import { getHomeCatalog } from '@/server/catalog';
 import { openGraph } from '@/lib/seo';
+import { SiteArt, type SiteArtName } from '@/components/SiteArt';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,17 +14,29 @@ export const metadata = { alternates: { canonical: '/' }, openGraph: openGraph({
 export default function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-      <section className="mt-6 overflow-hidden rounded-[18px] bg-ink px-6 py-10 text-white sm:mt-8 sm:px-10 sm:py-14">
-        <p className="text-sm font-semibold tracking-wide text-brand uppercase">Achats in-app sur le web</p>
-        <h1 className="mt-2 max-w-2xl text-3xl leading-tight font-bold sm:text-5xl">Vos jeux préférés, moins cher qu’en jeu</h1>
-        <p className="mt-4 max-w-xl text-base text-white/75 sm:text-lg">
-          Trouvez votre jeu, liez votre compte une fois, achetez : vos objets arrivent automatiquement dans le jeu.
-        </p>
-        <ol className="mt-8 flex flex-col gap-3 text-sm sm:flex-row sm:gap-8">
-          {['Cherchez votre jeu', 'Liez votre compte de jeu', 'Achetez, c’est livré'].map((step, i) => (
-            <li key={step} className="flex items-center gap-3">
-              <span className="grid size-7 flex-none place-items-center rounded-full bg-brand font-bold text-ink">{i + 1}</span>
-              {step}
+      <section className="relative mt-6 overflow-hidden rounded-[18px] bg-ink bg-[radial-gradient(ellipse_at_85%_40%,#4b2a8a_0%,transparent_60%)] px-6 py-10 text-white sm:mt-8 sm:px-10 sm:py-14">
+        <SiteArt name="hero" priority className="pointer-events-none absolute top-1/2 -right-6 hidden w-[44%] max-w-[480px] -translate-y-1/2 md:block" />
+        <div className="relative md:max-w-[56%]">
+          <p className="text-sm font-semibold tracking-wide text-brand uppercase">Achats in-app sur le web</p>
+          <h1 className="mt-2 max-w-2xl text-3xl leading-tight font-bold sm:text-5xl">Vos jeux préférés, moins cher qu’en jeu</h1>
+          <p className="mt-4 max-w-xl text-base text-white/75 sm:text-lg">
+            Trouvez votre jeu, liez votre compte une fois, achetez : vos objets arrivent automatiquement dans le jeu.
+          </p>
+        </div>
+        <ol className="relative mt-8 grid gap-3 text-sm sm:grid-cols-3 sm:gap-4 md:max-w-[62%]">
+          {(
+            [
+              ['Cherchez votre jeu', 'step-search'],
+              ['Liez votre compte de jeu', 'step-link'],
+              ['Achetez, c’est livré', 'step-delivered'],
+            ] as [string, SiteArtName][]
+          ).map(([step, art], i) => (
+            <li key={step} className="flex items-center gap-3 rounded-2xl bg-white/[0.07] p-2 pr-3 ring-1 ring-white/10">
+              <SiteArt name={art} priority className="size-14 flex-none" />
+              <span>
+                <span className="block text-xs font-bold text-brand">Étape {i + 1}</span>
+                {step}
+              </span>
             </li>
           ))}
         </ol>

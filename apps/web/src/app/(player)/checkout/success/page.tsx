@@ -6,6 +6,7 @@ import { OrderSummary } from '@/components/checkout/OrderSummary';
 import { gameItemPath, getOrderForUser, syncOrderWithStripe, type OrderView } from '@/server/payments';
 import { requireUser } from '@/server/session';
 import { isStripeEnabled } from '@/server/stripe';
+import { SiteArt } from '@/components/SiteArt';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Votre achat', robots: { index: false } };
@@ -93,7 +94,7 @@ export default async function CheckoutSuccessPage({ searchParams }: { searchPara
     <div className="mx-auto w-full max-w-md px-4 py-10">
       <section className="rounded-2xl border border-line bg-surface p-5 shadow-sm sm:p-6" aria-labelledby="status-title">
         <div className="flex flex-col items-center text-center" aria-live="polite">
-          <StatusIcon tone={tone} />
+          {phase === 'delivered' || phase === 'credited' ? <SiteArt name="purchase-success" priority className="size-40" /> : <StatusIcon tone={tone} />}
           <h1 id="status-title" className="mt-4 text-xl font-semibold tracking-tight text-ink">
             {copy[phase].title}
           </h1>
