@@ -22,6 +22,6 @@
     "@devappstore/core": "*",
     "tsx": "^4.20.5",
     "typescript": "^5.8.3",
-    "vitest": "^4.1.12"
+    "vitest": "^5.1.0"
   }
 }
