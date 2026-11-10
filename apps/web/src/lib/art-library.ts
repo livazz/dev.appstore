@@ -4,8 +4,12 @@
  * Module pur (aucune dépendance serveur) : utilisable côté client comme côté serveur.
  */
 
-/** Chemin d'une illustration de la bibliothèque : fichier statique du site, motif strict (pas de requête arbitraire). */
-export const ART_LIBRARY_RE = /^\/art\/(?:items|icons|site|games\/[a-z0-9-]+)\/[a-z0-9-]+\.webp$/;
+/**
+ * Chemin d'une illustration de la bibliothèque : fichier statique du site, motif strict (pas de requête arbitraire).
+ * `/art/local/<slug>/…` : visuels des vrais jeux chargés en local par scripts/real-tops (dossier ignoré par git,
+ * absent du dépôt et de l'aperçu public — en production ces chemins renvoient simplement 404).
+ */
+export const ART_LIBRARY_RE = /^\/art\/(?:items|icons|site|(?:games|local)\/[a-z0-9-]+)\/[a-z0-9-]+\.webp$/;
 
 export function isLibraryArt(url: unknown): boolean {
   return typeof url === 'string' && url.length <= 200 && ART_LIBRARY_RE.test(url);
