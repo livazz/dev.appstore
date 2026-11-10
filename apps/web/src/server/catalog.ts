@@ -1,8 +1,9 @@
 import 'server-only';
 import { feeCents, GAME_CATEGORIES, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@devappstore/core';
-import { and, asc, db, eq, games, ilike, inArray, items, or, sql, type DB } from '@devappstore/db';
+import { and, asc, db, eq, games, gt, ilike, inArray, isNull, items, lte, or, sql, type DB } from '@devappstore/db';
 import { env } from '@/env';
 import { isLoyaltyEnabled, loyaltyConfigFromEnv, pointsForFee } from './loyalty-logic';
+import { activeDiscountPct, displayedOldPrice, isPromoActive, isPromoUpcoming, pctOff, plannedDiscountPct, UPCOMING_PROMO_DAYS, type PromoFields } from '@/lib/promo';
 
 /*
  * Requêtes du catalogue public (tâche « catalog »).
@@ -18,6 +19,8 @@ export interface CatalogGame {
   subtitle: string;
   publisherName: string;
   category: string;
+  /** Plateforme : mobile (iOS/Android) ou PC. */
+  platform: GamePlatform;
   iconUrl: string | null;
   /** Réduction maximale (en %) des articles actifs par rapport à leur prix barré, 0 si aucune. */
   maxDiscountPct: number;
@@ -70,15 +73,25 @@ export interface CategoryRow {
   games: CatalogGame[];
 }
 
-/** Réduction en % (arrondie à l'entier inférieur) d'un prix par rapport à son prix barré. */
-export function discountPct(priceCents: number, oldPriceCents: number | null | undefined): number {
-  if (oldPriceCents == null || oldPriceCents <= 0 || oldPriceCents <= priceCents) return 0;
-  return Math.floor(((oldPriceCents - priceCents) * 100) / oldPriceCents);
+export type GamePlatform = 'mobile' | 'pc';
+
+/** Plateforme connue (sinon null) — protège contre les valeurs arbitraires de ?plateforme=. */
+export function normalizePlatform(p: string | null | undefined): GamePlatform | null {
+  const v = (p ?? '').trim().toLowerCase();
+  return v === 'mobile' || v === 'pc' ? v : null;
 }
 
-/** Plus forte réduction parmi des articles (0 si aucun n'a de prix barré supérieur). */
-export function maxDiscountPct(list: { priceCents: number; oldPriceCents: number | null }[]): number {
-  return list.reduce((m, i) => Math.max(m, discountPct(i.priceCents, i.oldPriceCents)), 0);
+/** Réduction en % (arrondie à l'entier inférieur) d'un prix par rapport à son prix barré. */
+export function discountPct(priceCents: number, oldPriceCents: number | null | undefined): number {
+  return pctOff(priceCents, oldPriceCents);
+}
+
+/**
+ * Plus forte réduction parmi des articles EN PROMO maintenant (règle de lib/promo : prix barré supérieur et date dans
+ * la fenêtre promoStartsAt / promoEndsAt) ; 0 si aucun.
+ */
+export function maxDiscountPct(list: PromoFields[], now: Date | number = Date.now()): number {
+  return list.reduce((m, i) => Math.max(m, activeDiscountPct(i, now)), 0);
 }
 
 /** Échappe les jokers LIKE (% _ \) d'une saisie utilisateur. */
@@ -99,6 +112,7 @@ const gameCols = {
   subtitle: games.subtitle,
   publisherName: games.publisherName,
   category: games.category,
+  platform: games.platform,
   iconUrl: games.iconUrl,
 };
 
@@ -124,10 +138,11 @@ type GameRow = Omit<CatalogGame, 'maxDiscountPct' | 'itemCount'>;
 async function withStats(rows: GameRow[], database: DB): Promise<CatalogGame[]> {
   if (!rows.length) return [];
   const prices = await database
-    .select({ gameId: items.gameId, priceCents: items.priceCents, oldPriceCents: items.oldPriceCents })
+    .select({ gameId: items.gameId, priceCents: items.priceCents, oldPriceCents: items.oldPriceCents, promoStartsAt: items.promoStartsAt, promoEndsAt: items.promoEndsAt })
     .from(items)
     .where(and(inArray(items.gameId, rows.map((r) => r.id)), eq(items.active, true)));
-  const byGame = new Map<string, { priceCents: number; oldPriceCents: number | null }[]>();
+  const byGame = new Map<string, PromoFields[]>();
+  const now = Date.now();
   for (const p of prices) {
     const l = byGame.get(p.gameId) ?? [];
     l.push(p);
@@ -135,7 +150,7 @@ async function withStats(rows: GameRow[], database: DB): Promise<CatalogGame[]> 
   }
   return rows.map((r) => {
     const l = byGame.get(r.id) ?? [];
-    return { ...r, maxDiscountPct: maxDiscountPct(l), itemCount: l.length };
+    return { ...r, maxDiscountPct: maxDiscountPct(l, now), itemCount: l.length };
   });
 }
 
@@ -169,9 +184,10 @@ export function groupByCategory(list: CatalogGame[]): CategoryRow[] {
   return [...known, ...other];
 }
 
-/** Données de la page d'accueil. */
-export async function getHomeCatalog(database: DB = db) {
-  const all = await listLiveGames(database);
+/** Données de la page d'accueil (filtre facultatif par plateforme). */
+export async function getHomeCatalog(database: DB = db, opts: { platform?: GamePlatform | null } = {}) {
+  const live = await listLiveGames(database);
+  const all = opts.platform ? live.filter((g) => g.platform === opts.platform) : live;
   return { featured: pickFeatured(all), categories: groupByCategory(all), total: all.length };
 }
 
@@ -204,7 +220,11 @@ export async function searchCatalog(
   let itemResults: ItemSearchResult[] = [];
   if (q) {
     const rows = await database
-      .select({ item: itemCols, game: { id: games.id, slug: games.slug, name: games.name, iconUrl: games.iconUrl, currency: games.currency } })
+      .select({
+        item: itemCols,
+        promo: { promoStartsAt: items.promoStartsAt, promoEndsAt: items.promoEndsAt },
+        game: { id: games.id, slug: games.slug, name: games.name, iconUrl: games.iconUrl, currency: games.currency },
+      })
       .from(items)
       .innerJoin(games, eq(items.gameId, games.id))
       .where(
@@ -216,7 +236,8 @@ export async function searchCatalog(
       )
       .orderBy(asc(games.name), asc(items.position))
       .limit(60);
-    itemResults = rows;
+    const now = Date.now();
+    itemResults = rows.map(({ item, promo, game }) => ({ item: { ...item, oldPriceCents: displayedOldPrice({ ...item, ...promo }, now) }, game }));
   }
 
   return { q, category, games: await withStats(gameRows, database), items: itemResults };
@@ -237,11 +258,113 @@ export async function getLiveGameBySlug(slug: string, database: DB = db): Promis
     .limit(1);
   if (!g) return null;
   const list = await database
-    .select(itemCols)
+    .select({ ...itemCols, promoStartsAt: items.promoStartsAt, promoEndsAt: items.promoEndsAt })
     .from(items)
     .where(and(eq(items.gameId, g.id), eq(items.active, true)))
     .orderBy(asc(items.position), asc(items.createdAt));
   const loyalty = isLoyaltyEnabled() ? loyaltyConfigFromEnv() : null;
   const bps = env.PLATFORM_FEE_BPS;
-  return { ...g, items: list.map((i) => ({ ...i, points: loyalty ? pointsForFee(feeCents(i.priceCents, bps), loyalty) || null : null })) };
+  const now = Date.now();
+  // Prix barré seulement dans la fenêtre de promo (lib/promo) ; le prix facturé reste priceCents.
+  return { ...g, items: list.map(({ promoStartsAt, promoEndsAt, ...i }) => ({ ...i, oldPriceCents: displayedOldPrice({ ...i, promoStartsAt, promoEndsAt }, now), points: loyalty ? pointsForFee(feeCents(i.priceCents, bps), loyalty) || null : null })) };
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Promos du jour et à venir (accueil). Règle : lib/promo.ts.
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Article en promo (ou bientôt) avec son jeu, pour les bandeaux de l'accueil. */
+export interface PromoItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageUrl: string | null;
+  priceCents: number;
+  /** Prix barré prévu par la promo (affiché seulement quand la promo est en cours). */
+  oldPriceCents: number;
+  discountPct: number;
+  /** ISO 8601 ou null (sans limite). */
+  startsAt: string | null;
+  endsAt: string | null;
+  game: Pick<CatalogGame, 'id' | 'slug' | 'name' | 'iconUrl' | 'platform' | 'category'> & { currency: Currency };
+}
+
+type PromoRow = {
+  id: string;
+  title: string;
+  subtitle: string;
+  models: ItemModel[];
+  priceCents: number;
+  oldPriceCents: number | null;
+  promoStartsAt: Date | null;
+  promoEndsAt: Date | null;
+  game: PromoItem['game'];
+};
+
+/**
+ * Trie et répartit des articles : `live` = promos limitées dans le temps en cours (fin la plus proche d'abord, puis
+ * plus forte remise), `upcoming` = promos qui commencent dans les 14 jours (début le plus proche d'abord).
+ * Les prix barrés permanents (sans date de fin) ne sont pas des « promos du jour ». Fonction pure (testée).
+ */
+export function splitPromos(rows: PromoRow[], now: Date | number = Date.now(), limits = { live: 20, upcoming: 12 }) {
+  const toItem = (r: PromoRow): PromoItem => ({
+    id: r.id,
+    title: r.title,
+    subtitle: r.subtitle,
+    imageUrl: r.models[0]?.imageUrl ?? null,
+    priceCents: r.priceCents,
+    oldPriceCents: r.oldPriceCents ?? r.priceCents,
+    discountPct: plannedDiscountPct(r),
+    startsAt: r.promoStartsAt ? r.promoStartsAt.toISOString() : null,
+    endsAt: r.promoEndsAt ? r.promoEndsAt.toISOString() : null,
+    game: r.game,
+  });
+  const byName = (a: PromoItem, b: PromoItem) => a.game.name.localeCompare(b.game.name, 'fr') || a.title.localeCompare(b.title, 'fr');
+  const live = rows
+    .filter((r) => r.promoEndsAt != null && isPromoActive(r, now))
+    .map(toItem)
+    .sort((a, b) => a.endsAt!.localeCompare(b.endsAt!) || b.discountPct - a.discountPct || byName(a, b))
+    .slice(0, limits.live);
+  const upcoming = rows
+    .filter((r) => isPromoUpcoming(r, now))
+    .map(toItem)
+    .sort((a, b) => a.startsAt!.localeCompare(b.startsAt!) || b.discountPct - a.discountPct || byName(a, b))
+    .slice(0, limits.upcoming);
+  return { live, upcoming };
+}
+
+/** Promos en cours (limitées dans le temps) et à venir des jeux live, filtre facultatif par plateforme. */
+export async function getPromoItems(
+  opts: { platform?: GamePlatform | null; now?: Date } = {},
+  database: DB = db,
+): Promise<{ live: PromoItem[]; upcoming: PromoItem[] }> {
+  const now = opts.now ?? new Date();
+  const horizon = new Date(now.getTime() + UPCOMING_PROMO_DAYS * 86_400_000);
+  const rows = await database
+    .select({
+      id: items.id,
+      title: items.title,
+      subtitle: items.subtitle,
+      models: items.models,
+      priceCents: items.priceCents,
+      oldPriceCents: items.oldPriceCents,
+      promoStartsAt: items.promoStartsAt,
+      promoEndsAt: items.promoEndsAt,
+      game: { id: games.id, slug: games.slug, name: games.name, iconUrl: games.iconUrl, platform: games.platform, category: games.category, currency: games.currency },
+    })
+    .from(items)
+    .innerJoin(games, eq(items.gameId, games.id))
+    .where(
+      and(
+        eq(games.status, 'live'),
+        eq(items.active, true),
+        sql`${items.oldPriceCents} > ${items.priceCents}`,
+        opts.platform ? eq(games.platform, opts.platform) : undefined,
+        // en cours (fin future) ou à venir (début ≤ horizon) : on exclut les fins passées et les débuts trop lointains
+        or(gt(items.promoEndsAt, now), and(isNull(items.promoEndsAt), gt(items.promoStartsAt, now))),
+        or(isNull(items.promoStartsAt), lte(items.promoStartsAt, horizon)),
+      ),
+    )
+    .limit(500);
+  return splitPromos(rows, now);
 }

@@ -25,7 +25,13 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
               </Suspense>
             </div>
           </div>
-          <div className="order-2 ml-auto flex flex-none items-center sm:order-3 sm:ml-0">
+          <div className="order-2 ml-auto flex flex-none items-center gap-1 sm:order-3 sm:ml-0 sm:gap-2">
+            <Link
+              href="/classements"
+              className="hidden min-h-11 items-center rounded-full px-3 text-sm font-semibold text-ink-2 sm:inline-flex hover:bg-bg hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Classements
+            </Link>
             <UserMenu />
           </div>
         </div>
@@ -35,6 +41,9 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-ink-3 sm:px-6">
           <nav aria-label="Liens de pied de page" className="flex flex-wrap items-center gap-x-5">
+            <Link href="/classements" className="inline-flex min-h-11 items-center font-medium text-ink-2 hover:text-ink">
+              Classements
+            </Link>
             <Link href="/pour-les-studios" className="inline-flex min-h-11 items-center font-medium text-ink-2 hover:text-ink">
               Vous êtes un studio ?
             </Link>
