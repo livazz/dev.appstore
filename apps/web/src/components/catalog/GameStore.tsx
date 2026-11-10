@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatMoney, ITEM_TYPES, PERIODS, type Currency } from '@devappstore/core';
 import { StorePanel, type PanelItem } from '@/components/store/StorePanel';
@@ -244,6 +245,14 @@ function ItemDetail({ game, item, onClose, focusBuy = false }: { game: StoreGame
               <dd className="text-right font-medium">Automatique dans le jeu</dd>
             </div>
           </dl>
+          <p className="mt-4 text-right text-xs">
+            <Link
+              href={`/games/${encodeURIComponent(game.slug)}/report?item=${encodeURIComponent(item.id)}`}
+              className="text-ink-2 underline-offset-2 hover:text-ink hover:underline"
+            >
+              Signaler cet article
+            </Link>
+          </p>
         </div>
 
         {/* Pied : une seule action (achat) sur toute la largeur ; la fermeture passe par la croix, Échap ou le fond. */}

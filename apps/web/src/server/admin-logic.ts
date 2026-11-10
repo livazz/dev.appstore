@@ -24,7 +24,8 @@ export type AdminPermission =
   | 'orders.retry_delivery'
   | 'users.read'
   | 'users.disable'
-  | 'audit.read';
+  | 'audit.read'
+  | 'reports.moderate';
 
 /** Matrice des droits : le support agit sur les jeux, commandes et comptes ; la finance lit et contrôle. */
 const PERMISSIONS: Record<AdminPermission, readonly PlatformAdminRole[]> = {
@@ -37,6 +38,8 @@ const PERMISSIONS: Record<AdminPermission, readonly PlatformAdminRole[]> = {
   'users.read': ['superadmin', 'support'],
   'users.disable': ['superadmin', 'support'],
   'audit.read': ['superadmin', 'finance'],
+  /** Signalements de contenus : lecture et décision (classer sans suite ; la suspension passe par games.moderate). */
+  'reports.moderate': ['superadmin', 'support'],
 };
 
 export function rolesFor(permission: AdminPermission): PlatformAdminRole[] {
@@ -187,7 +190,8 @@ export type AdminAuditAction =
   | 'game.reactivate'
   | 'order.retry_delivery'
   | 'user.disable'
-  | 'user.enable';
+  | 'user.enable'
+  | 'reports.dismiss';
 
 export const AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   'game.approve': 'Jeu approuvé',
@@ -196,6 +200,7 @@ export const AUDIT_ACTION_LABELS: Record<AdminAuditAction, string> = {
   'order.retry_delivery': 'Livraison relancée',
   'user.disable': 'Compte désactivé',
   'user.enable': 'Compte réactivé',
+  'reports.dismiss': 'Signalements classés sans suite',
 };
 
 export function auditActionLabel(action: string): string {

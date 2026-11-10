@@ -6,4 +6,5 @@ export * from './templates/player';
 export * from './templates/auth';
 export * from './templates/studio';
 export * from './templates/withdrawal';
+export * from './templates/reports';
 export * from './mailer/index';

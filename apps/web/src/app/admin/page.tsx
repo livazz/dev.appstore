@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { formatMoney } from '@devappstore/core';
 import { getDashboard, requireAdminPermission } from '@/server/admin';
-import { parsePeriod } from '@/server/admin-logic';
+import { can, parsePeriod } from '@/server/admin-logic';
+import { countOpenReports } from '@/server/reports';
 import { Card, PageHeader } from '@/components/admin/ui';
 import { DailyBars } from '@/components/admin/DailyBars';
 
@@ -26,9 +27,10 @@ function Kpi({ label, value, hint, href, tone, wide }: { label: string; value: s
 }
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
-  await requireAdminPermission('dashboard.read');
+  const admin = await requireAdminPermission('dashboard.read');
   const period = parsePeriod((await searchParams).period);
-  const d = await getDashboard(period);
+  const showReports = can(admin.role, 'reports.moderate');
+  const [d, reports] = await Promise.all([getDashboard(period), showReports ? countOpenReports() : null]);
   const main = d.sales[0];
   const others = d.sales.slice(1);
   const nf = new Intl.NumberFormat('fr-FR');
@@ -50,7 +52,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className={`grid grid-cols-2 gap-3 ${reports ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-5'}`}>
         <Kpi
           wide
           label="Volume d’affaires (GMV)"
@@ -77,6 +79,15 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
           href="/admin/games?status=review"
           hint={`${nf.format(d.liveGames)} en ligne · ${nf.format(d.suspendedGames)} suspendu${d.suspendedGames > 1 ? 's' : ''}`}
         />
+        {reports ? (
+          <Kpi
+            label="Signalements ouverts"
+            value={nf.format(reports.reports)}
+            tone={reports.reports ? 'warn' : undefined}
+            href="/admin/reports"
+            hint={reports.games ? `sur ${nf.format(reports.games)} jeu${reports.games > 1 ? 'x' : ''}` : 'Aucun en attente'}
+          />
+        ) : null}
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
