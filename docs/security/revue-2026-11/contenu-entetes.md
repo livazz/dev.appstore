@@ -23,6 +23,23 @@
 | C-11 | Basse | docker-compose de dev : Postgres publié sur toutes les interfaces avec un mot de passe trivial | Vérifié (lecture) |
 | C-12 | Info | `npm audit --omit=dev` : 4 vulnérabilités modérées (esbuild via drizzle-kit), non exploitables en production | Vérifié |
 
+## Statut des corrections (branche `claude/secu-contenu-c817c5`)
+
+| ID | Statut | Correctif | Test de non-régression |
+|---|---|---|---|
+| C-01 | **Corrigé** | `parseServiceAccount` refuse tout `token_uri` ≠ `https://oauth2.googleapis.com/token` (`InvalidTokenUriError`, message explicite à l'enregistrement) ; le jeton est toujours demandé à l'URL officielle et `aud` la vaut ; `requestJson` : `redirect: 'error'`, délai 15 s, réponse ≤ 5 Mio, aucun extrait du corps distant (seul le libellé JSON structuré des stores) ; `links.next` d'App Store Connect limité à l'origine de l'API. | `packages/importers/src/http.test.ts` (serveurs locaux réels : redirection vers un service interne jamais suivie, corps jamais renvoyé, délai, taille, `links.next`), `import-logic.test.ts` (enregistrement refusé). |
+| C-02 | **Partiel** (garde-fou) | `packages/emails` : en production, le transport console ne journalise que destinataire masqué + objet, jamais le corps (liens à jeton), et n'écrit plus sur disque sauf dossier explicite. **Reste** : rendre `RESEND_API_KEY` obligatoire en production dans `env.ts` (confié à une autre session). | `emails.test.ts` (« C-02 » : aucun jeton ni adresse en clair, aucun fichier ; propagation de `NODE_ENV`). |
+| C-03 | **Corrigé** | 30 uploads / 10 min et 200 / 24 h par utilisateur (magasin partagé `getRateLimitStore()`, 429 + `Retry-After` avant lecture du corps) ; 2 décodages sharp simultanés par instance, file de 16 puis 503 ; plafond 40 → 24 Mpx. Non fait : table `uploads` pour quotas par studio et purge des orphelins (évolution de schéma, hors correctif rapide). | `route.test.ts` (429, autre utilisateur non affecté, 5 000 × 5 000 refusé), `uploads.test.ts` (`withDecodeSlot`). |
+| C-04 | **Corrigé** | `data:image/…` refusées en production à l'écriture (`imageUrlSchema`) et au rendu (`safeImageUrl`, `dataImagesAllowed()`) ; inchangé en dev/test (visuels du seed, e2e). | `studio-logic.test.ts`, `style-safety.test.ts` (« C-04 »). |
+| C-05 | **Corrigé** — choix : **refus** (pas de proxy) | L'avatar renvoyé par le serveur du studio n'est affiché que s'il passe `safeImageUrl` (upload Dev AppStore) ; sinon l'initiale. `img-src` : `'self' data: blob:` + la seule origine `NEXT_PUBLIC_S3_PUBLIC_URL` (origine https exacte, validée). Un proxy aurait ajouté une route de téléchargement sortant (nouvelle surface SSRF) pour un bénéfice cosmétique ; le refus est plus simple et ne laisse aucune requête tierce. | `security-headers.test.ts`, `middleware.test.ts` (img-src), `style-safety.test.ts` (`publicS3Origin`, URL tierce → `null`). |
+| C-06 | **Corrigé** (sauf 2 pages) | `safeImageUrl` : chemins relatifs limités à `/api/uploads/<kind>/<uploadeur>/<id>.webp` ; utilisé sur `account`, `account/points`, `games/[slug]/link`, `studio`, `admin/games`. **Reste** : `components/checkout/OrderSummary.tsx` et `account/purchases/page.tsx` (domaine paiement / rétractation, corrigé en parallèle par une autre session) : envelopper `game.iconUrl` / `p.gameIconUrl` dans `safeImageUrl` à la fusion. | `style-safety.test.ts` (« C-06 »). |
+| C-07 | **Corrigé** | `heif` retiré de la liste blanche. | `route.test.ts` (AVIF refusé, même déclaré PNG). |
+| C-08 | **Corrigé** | Matcher du middleware : fichiers de `public/` et de métadonnées nommés explicitement ; `/games/x.png`, `/docs/x.txt` reçoivent la CSP. | `middleware.test.ts` (« C-08 »). |
+| C-09 | **Corrigé** | `bodySizeLimit` 9 Mo → 1 Mo (`SERVER_ACTION_BODY_LIMIT`) ; l'IA de style refuse côté navigateur une capture qui ne tient pas dans 1 Mo après réduction (message clair). | `security-headers.test.ts` (« C-09 »). |
+| C-10 | **Corrigé** | `permissions: contents: read`, `actions/checkout` et `actions/setup-node` épinglées par SHA (v4.4.0), `persist-credentials: false`, `.github/dependabot.yml` (actions + npm). | `apps/web/src/lib/repo-config.test.ts`. |
+| C-11 | **Corrigé** | Ports du docker-compose de dev liés à `127.0.0.1`. | `repo-config.test.ts`. |
+| C-12 | **Non corrigé** | Aucune mise à jour sans risque : `drizzle-kit@0.31.11` est la dernière version stable et dépend toujours de `@esbuild-kit/esm-loader` ; le « correctif » proposé par `npm audit` est une rétrogradation majeure (0.18.1). Non exploitable en production. | — |
+
 Aucun XSS stocké trouvé : SVG refusé à l'upload, ré-encodage WebP systématique, couleurs filtrées à l'écriture (zod) **et** au rendu (`safeColor`), aucun `dangerouslySetInnerHTML`, `href` dynamiques tous internes, e-mails échappés par gabarit. Aucune traversée de chemin : clé générée côté serveur et regex stricte en lecture et en écriture.
 
 ---
@@ -197,6 +214,8 @@ Le `Dockerfile` est sain : multi-étapes, image d'exécution réduite à la sort
 ---
 
 ## Statut de la checklist
+
+> Statuts constatés **avant** corrections. Après les corrections de cette branche : CHK-UPL-07 → OK (C-04, C-05), CHK-DEP-02 → OK (C-10), CHK-LOG-01 → OK sous réserve de l'obligation de `RESEND_API_KEY` en production (C-02, autre session) ; test SSRF des importeurs ajouté (section 11).
 
 ### Section 9 — Uploads et contenu studio
 
