@@ -16,6 +16,14 @@ export const DEMO_KEYS = {
   farm: { apiKey: 'das_secret_demo_pixel_farm', publishableKey: 'das_pub_demo_pixel_farm', webhookSecret: 'whsec_demo_pixel_farm' },
 };
 
+/** Présentations longues des deux jeux de démo (paragraphes séparés par une ligne vide). */
+const STORE_DESCRIPTIONS = {
+  gam_crystal:
+    "Crystal Clash est un jeu de stratégie en temps réel où chaque partie se joue en trois minutes chrono. Composez un deck de huit cartes parmi plus de cent héros, sorts et bâtiments, puis déployez-les au bon moment pour faire tomber les tours de cristal adverses.\n\nAffrontez des joueurs du monde entier en duel classé, grimpez les arènes saison après saison et rejoignez un clan pour échanger des cartes, préparer des tactiques et participer aux guerres de clans hebdomadaires.\n\nDes événements spéciaux renouvelés chaque semaine (tirage aléatoire, double élixir, défis de héros) gardent le jeu frais. Crystal Clash est gratuit : les gemmes, l’or et le Pass Royal accélèrent votre progression sans jamais bloquer la victoire.",
+  gam_farm:
+    "Pixel Farm vous confie une petite parcelle en friche à transformer en ferme florissante. Plantez, arrosez et récoltez des dizaines de cultures en pixel art, des carottes classiques aux citrouilles géantes de l’automne.\n\nÉlevez poules, vaches et moutons, fabriquez confitures et fromages dans vos ateliers, puis vendez vos produits au marché du village ou échangez-les avec vos voisins pour décrocher les ingrédients rares.\n\nAu fil des saisons, la météo change, de nouvelles graines apparaissent et des fêtes de village récompensent les plus beaux potagers. Un jeu tranquille, à jouer cinq minutes ou une heure, sans chronomètre ni pression.",
+};
+
 /** Anciennes clés secrètes de démo (`das_test_…`) : une base déjà initialisée avec elles passe aux clés actuelles. */
 const LEGACY_DEMO_API_KEYS = { crystal: 'das_test_demo_crystal_clash', farm: 'das_test_demo_pixel_farm' } as const;
 const DEMO_API_KEY_PREFIX = 'das_secret_demo';
@@ -71,6 +79,7 @@ async function main() {
     {
       id: 'gam_crystal', studioId: 'std_nova', slug: 'crystal-clash', name: 'Crystal Clash', subtitle: 'Batailles PvP épiques en temps réel',
       publisherName: 'Nova Games', category: 'Stratégie', description: 'Construisez votre deck et affrontez des joueurs du monde entier.',
+      storeDescription: STORE_DESCRIPTIONS.gam_crystal, screenshots: ['/art/games/crystal-clash/hero.webp'],
       iconUrl: '/art/games/crystal-clash/icon.webp', bannerUrl: '/art/games/crystal-clash/banner.webp',
       theme: { skin: 'arcade' as const, gradient: { enabled: false, c1: '#026ab3', c2: '#ffffff', style: 'linear' as const }, grid: { width: 205, height: 300, margin: 25 } },
       status: 'live' as const, linkMethods: ['code', 'id_confirm'] as ('code' | 'id_confirm')[],
@@ -81,6 +90,7 @@ async function main() {
     {
       id: 'gam_farm', studioId: 'std_nova', slug: 'pixel-farm', name: 'Pixel Farm', subtitle: 'Cultivez, récoltez, échangez',
       publisherName: 'Nova Games', category: 'Simulation', description: 'La ferme la plus mignonne du mobile.',
+      storeDescription: STORE_DESCRIPTIONS.gam_farm, screenshots: [] as string[],
       iconUrl: '/art/games/pixel-farm/icon.webp', bannerUrl: '/art/games/pixel-farm/banner.webp',
       theme: { skin: 'casual' as const, gradient: { enabled: false, c1: '#8fd16a', c2: '#ffffff', style: 'radial' as const }, grid: { width: 200, height: 260, margin: 24 } },
       status: 'live' as const, linkMethods: ['code'] as 'code'[],
@@ -90,6 +100,11 @@ async function main() {
   ];
   for (const g of gameRows) {
     await db.insert(games).values(g).onConflictDoNothing();
+    // Base créée avant la migration 0005 : présentation et captures complétées si elles sont encore vides.
+    await db
+      .update(games)
+      .set({ storeDescription: g.storeDescription, screenshots: g.screenshots })
+      .where(and(eq(games.id, g.id), eq(games.storeDescription, '')));
     // Base créée avant l'ajout des clés publiques : on les complète sans toucher au reste.
     await db.update(games).set({ publishableKey: g.publishableKey }).where(and(eq(games.id, g.id), isNull(games.publishableKey)));
   }
@@ -106,15 +121,19 @@ async function main() {
     id: `itm_${gameId.slice(4)}_${v.productId}`, gameId, position, style: lavender, ...v,
   });
   const rows = [
-    it('gam_crystal', 0, { productId: 'gems_1200', title: 'Sac de gemmes', priceCents: 799, oldPriceCents: 1099, quantity: 1200, keywords: ['Gemmes', 'Monnaie'], models: [{ imageUrl: art('gems-2'), label: '1 200 gemmes' }], layout: 4, style: sky }),
-    it('gam_crystal', 1, { productId: 'gems_6500', title: 'Coffre de gemmes', subtitle: '+15 % offerts', priceCents: 3999, oldPriceCents: 4999, quantity: 6500, keywords: ['Gemmes', 'Monnaie', 'Meilleure offre'], models: [{ imageUrl: art('gems-3'), label: '6 500 gemmes' }], layout: 1, style: epic }),
-    it('gam_crystal', 2, { productId: 'gold_10000', title: "Pile d'or", priceCents: 499, oldPriceCents: 599, quantity: 10000, keywords: ['Or', 'Monnaie'], models: [{ imageUrl: art('gold-2'), label: '10 000 or' }], layout: 2, style: goldA }),
-    it('gam_crystal', 3, { productId: 'pass_royal_monthly', type: 'auto_renewable', title: 'Pass Royal', subtitle: 'Récompenses x2 & coffres exclusifs', priceCents: 499, oldPriceCents: 599, keywords: ['Abonnement'], models: [{ imageUrl: art('pass'), label: 'Pass' }], layout: 3, style: ruby }),
-    it('gam_crystal', 4, { productId: 'starter_pack', type: 'non_consumable', title: 'Pack débutant', subtitle: 'Une seule fois', priceCents: 299, oldPriceCents: 999, keywords: ['Packs', 'Offre unique'], models: [{ imageUrl: art('starter-pack'), label: 'Pack' }], layout: 6, style: goldA }),
-    it('gam_farm', 0, { productId: 'seeds_50', title: 'Sachet de graines', subtitle: '50 graines rares', priceCents: 199, quantity: 50, keywords: ['Graines'], models: [{ imageUrl: art('farm-seeds'), label: 'Graines' }], layout: 2, style: mint }),
-    it('gam_farm', 1, { productId: 'coins_10000', title: 'Bourse de pièces', priceCents: 499, oldPriceCents: 699, quantity: 10000, keywords: ['Monnaie'], models: [{ imageUrl: art('farm-coins'), label: 'Pièces' }], layout: 2, style: honey }),
+    it('gam_crystal', 0, { productId: 'gems_1200', description: "1 200 gemmes créditées immédiatement sur votre compte : de quoi ouvrir quelques coffres ou accélérer l’amélioration de vos cartes préférées.", title: 'Sac de gemmes', priceCents: 799, oldPriceCents: 1099, quantity: 1200, keywords: ['Gemmes', 'Monnaie'], models: [{ imageUrl: art('gems-2'), label: '1 200 gemmes' }], layout: 4, style: sky }),
+    it('gam_crystal', 1, { productId: 'gems_6500', description: "Le meilleur rapport gemmes/prix de la boutique : 6 500 gemmes, dont 15 % offerts par rapport au sac de gemmes. Idéal pour débloquer une carte légendaire.", title: 'Coffre de gemmes', subtitle: '+15 % offerts', priceCents: 3999, oldPriceCents: 4999, quantity: 6500, keywords: ['Gemmes', 'Monnaie', 'Meilleure offre'], models: [{ imageUrl: art('gems-3'), label: '6 500 gemmes' }], layout: 1, style: epic }),
+    it('gam_crystal', 2, { productId: 'gold_10000', description: "10 000 pièces d’or pour améliorer vos cartes et acheter les offres du magasin quotidien. L’or ne se périme pas.", title: "Pile d'or", priceCents: 499, oldPriceCents: 599, quantity: 10000, keywords: ['Or', 'Monnaie'], models: [{ imageUrl: art('gold-2'), label: '10 000 or' }], layout: 2, style: goldA }),
+    it('gam_crystal', 3, { productId: 'pass_royal_monthly', description: "Abonnement mensuel : récompenses de saison doublées, accès aux coffres exclusifs du Pass et à un emblème doré. Résiliable à tout moment, sans engagement.", type: 'auto_renewable', title: 'Pass Royal', subtitle: 'Récompenses x2 & coffres exclusifs', priceCents: 499, oldPriceCents: 599, keywords: ['Abonnement'], models: [{ imageUrl: art('pass'), label: 'Pass' }], layout: 3, style: ruby }),
+    it('gam_crystal', 4, { productId: 'starter_pack', description: "Offre de bienvenue achetable une seule fois : 500 gemmes, 5 000 or et une carte épique garantie pour bien démarrer vos premières arènes.", type: 'non_consumable', title: 'Pack débutant', subtitle: 'Une seule fois', priceCents: 299, oldPriceCents: 999, keywords: ['Packs', 'Offre unique'], models: [{ imageUrl: art('starter-pack'), label: 'Pack' }], layout: 6, style: goldA }),
+    it('gam_farm', 0, { productId: 'seeds_50', description: "50 graines rares tirées au hasard parmi les cultures de saison (fraises dorées, citrouilles géantes, tournesols arc-en-ciel), qui rapportent davantage au marché.", title: 'Sachet de graines', subtitle: '50 graines rares', priceCents: 199, quantity: 50, keywords: ['Graines'], models: [{ imageUrl: art('farm-seeds'), label: 'Graines' }], layout: 2, style: mint }),
+    it('gam_farm', 1, { productId: 'coins_10000', description: "10 000 pièces pour agrandir votre ferme, acheter des animaux ou débloquer de nouveaux ateliers sans attendre la prochaine récolte.", title: 'Bourse de pièces', priceCents: 499, oldPriceCents: 699, quantity: 10000, keywords: ['Monnaie'], models: [{ imageUrl: art('farm-coins'), label: 'Pièces' }], layout: 2, style: honey }),
   ];
-  for (const r of rows) await db.insert(items).values(r).onConflictDoNothing();
+  for (const r of rows) {
+    await db.insert(items).values(r).onConflictDoNothing();
+    // Base antérieure à la migration 0005 : description complétée si elle est encore vide.
+    await db.update(items).set({ description: r.description }).where(and(eq(items.id, r.id), eq(items.description, '')));
+  }
   console.log(`Seed OK : 1 studio, ${gameRows.length} jeux, ${rows.length} articles — comptes de démo : ${Object.values(DEMO_USERS).map((u) => u.email).join(', ')} / ${DEMO_PASSWORD}`);
   await seedDemoSales();
   const catalog = await seedCatalog();

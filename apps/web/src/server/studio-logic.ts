@@ -95,6 +95,28 @@ const priceTier = z
   .int()
   .refine((v) => PRICE_TIERS_CENTS.includes(v), 'Le prix doit correspondre à un palier.');
 
+/** Limites des nouveaux champs de présentation (migration 0005). */
+export const STORE_DESCRIPTION_MAX = 4000;
+export const SCREENSHOTS_MAX = 8;
+export const ITEM_DESCRIPTION_MAX = 600;
+
+/**
+ * Date de promotion optionnelle : chaîne ISO (ou Date), vide/null = sans limite.
+ */
+const promoDate = z
+  .union([z.string(), z.date()])
+  .nullable()
+  .default(null)
+  .transform((v, ctx) => {
+    if (v == null || v === '') return null;
+    const d = v instanceof Date ? v : new Date(v);
+    if (Number.isNaN(d.getTime())) {
+      ctx.addIssue({ code: 'custom', message: 'Date de promotion invalide.' });
+      return z.NEVER;
+    }
+    return d;
+  });
+
 export const PRODUCT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 export const itemInputSchema = z
@@ -103,6 +125,11 @@ export const itemInputSchema = z
     period: z.enum(['week', 'month', 'year']).default('month'),
     title: z.string().trim().min(1, "Le titre de l'article est obligatoire.").max(80, 'Titre trop long (80 caractères max).'),
     subtitle: z.string().trim().max(80, 'Sous-titre trop long (80 caractères max).').default(''),
+    description: z
+      .string()
+      .trim()
+      .max(ITEM_DESCRIPTION_MAX, `Description trop longue (${ITEM_DESCRIPTION_MAX} caractères max).`)
+      .default(''),
     keywords: z
       .array(z.string().trim().min(1).max(30, 'Mot-clé trop long (30 caractères max).'))
       .max(10, '10 mots-clés maximum.')
@@ -120,9 +147,19 @@ export const itemInputSchema = z
       .max(3, '3 visuels maximum.'),
     layout: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
     style: itemStyleSchema,
+    promoStartsAt: promoDate,
+    promoEndsAt: promoDate,
   })
   .refine((v) => v.oldPriceCents == null || v.oldPriceCents > v.priceCents, {
     message: "L'ancien prix doit être supérieur au prix.",
+    path: ['oldPriceCents'],
+  })
+  .refine((v) => !v.promoStartsAt || !v.promoEndsAt || v.promoEndsAt.getTime() > v.promoStartsAt.getTime(), {
+    message: 'La fin de la promotion doit être postérieure à son début.',
+    path: ['promoEndsAt'],
+  })
+  .refine((v) => (!v.promoStartsAt && !v.promoEndsAt) || v.oldPriceCents != null, {
+    message: 'Une promotion programmée nécessite un ancien prix (barré).',
     path: ['oldPriceCents'],
   });
 export type ItemInput = z.input<typeof itemInputSchema>;
@@ -135,6 +172,14 @@ export const gameInfoSchema = z
     iconUrl: imageUrlSchema.nullable(),
     bannerUrl: imageUrlSchema.nullable(),
     theme: themeSchema,
+    storeDescription: z
+      .string()
+      .trim()
+      .max(STORE_DESCRIPTION_MAX, `Présentation trop longue (${STORE_DESCRIPTION_MAX} caractères max).`),
+    screenshots: z
+      .array(imageUrlSchema)
+      .max(SCREENSHOTS_MAX, `${SCREENSHOTS_MAX} captures d’écran maximum.`)
+      .refine((l) => new Set(l).size === l.length, 'Cette capture d’écran est déjà présente.'),
   })
   .partial();
 export type GameInfoInput = z.input<typeof gameInfoSchema>;
@@ -252,9 +297,14 @@ export async function assertUploadsBelongToGameStudio(
 export async function updateGameInfo(database: DB, gameId: string, input: GameInfoInput) {
   const data = parseOrThrow(gameInfoSchema, input);
   if (!Object.keys(data).length) return getGame(database, gameId);
-  if (data.iconUrl !== undefined || data.bannerUrl !== undefined) {
+  if (data.iconUrl !== undefined || data.bannerUrl !== undefined || data.screenshots !== undefined) {
     const current = await getGame(database, gameId);
-    await assertUploadsBelongToGameStudio(database, gameId, [data.iconUrl, data.bannerUrl], [current.iconUrl, current.bannerUrl]);
+    await assertUploadsBelongToGameStudio(
+      database,
+      gameId,
+      [data.iconUrl, data.bannerUrl, ...(data.screenshots ?? [])],
+      [current.iconUrl, current.bannerUrl, ...current.screenshots],
+    );
   }
   const [g] = await database.update(games).set({ ...data, updatedAt: new Date() }).where(eq(games.id, gameId)).returning();
   if (!g) throw new StudioError('Jeu introuvable.');

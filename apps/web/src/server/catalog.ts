@@ -39,6 +39,8 @@ export interface PublicItem {
   models: ItemModel[];
   layout: LayoutId;
   style: ItemStyle;
+  /** Description affichée dans le détail avant achat (renseignée par getLiveGameBySlug). */
+  description?: string;
   /** Points Dev AppStore gagnés à l'achat (estimation affichée en boutique) ; null si la fidélité est désactivée. */
   points?: number | null;
 }
@@ -52,6 +54,10 @@ export interface PublicGame {
   publisherName: string;
   category: string;
   description: string;
+  /** Présentation longue (paragraphes séparés par une ligne vide). */
+  storeDescription: string;
+  /** Captures d'écran (URL brutes : à filtrer par safeImageUrl à l'affichage). */
+  screenshots: string[];
   iconUrl: string | null;
   bannerUrl: string | null;
   theme: GameTheme;
@@ -228,6 +234,8 @@ export async function getLiveGameBySlug(slug: string, database: DB = db): Promis
     .select({
       ...gameCols,
       description: games.description,
+      storeDescription: games.storeDescription,
+      screenshots: games.screenshots,
       bannerUrl: games.bannerUrl,
       theme: games.theme,
       currency: games.currency,
@@ -237,7 +245,7 @@ export async function getLiveGameBySlug(slug: string, database: DB = db): Promis
     .limit(1);
   if (!g) return null;
   const list = await database
-    .select(itemCols)
+    .select({ ...itemCols, description: items.description })
     .from(items)
     .where(and(eq(items.gameId, g.id), eq(items.active, true)))
     .orderBy(asc(items.position), asc(items.createdAt));

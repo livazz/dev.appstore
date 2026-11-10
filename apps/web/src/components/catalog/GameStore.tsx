@@ -10,7 +10,8 @@ import { safeImageUrl } from '@/components/store/style-safety';
 import { GameIcon } from './GameCard';
 import { storeUrlWithItem } from './store-query';
 
-type StoreGame = Omit<PublicGame, 'items'>;
+/** La présentation longue et les captures sont rendues par la page, pas par la boutique. */
+type StoreGame = Omit<PublicGame, 'items' | 'storeDescription' | 'screenshots'>;
 
 const toPanelItem = (i: PublicItem): PanelItem => ({
   id: i.id,
@@ -224,6 +225,12 @@ function ItemDetail({ game, item, onClose, focusBuy = false }: { game: StoreGame
               </>
             )}
           </div>
+
+          {item.description?.trim() && (
+            <p className="mt-4 text-sm leading-relaxed whitespace-pre-line text-ink-2">
+              {item.description.trim()}
+            </p>
+          )}
 
           <dl className="mt-5 divide-y divide-line rounded-[var(--radius)] border border-line text-sm">
             <div className="flex justify-between gap-4 px-3 py-2">

@@ -3,6 +3,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { GameStore } from '@/components/catalog/GameStore';
+import { ReadMore } from '@/components/catalog/ReadMore';
+import { ScreenshotGallery } from '@/components/catalog/ScreenshotGallery';
+import { safeImageUrl } from '@/components/store/style-safety';
 import { initialStoreItem, type StoreSearchParams } from '@/components/catalog/store-query';
 import { getLiveGameBySlug, maxDiscountPct } from '@/server/catalog';
 import { openGraph } from '@/lib/seo';
@@ -44,19 +47,33 @@ export default async function GamePage({ params, searchParams }: Props) {
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
   const game = await loadGame(slug);
   if (!game) notFound();
-  const { items, ...rest } = game;
+  const { items, storeDescription, screenshots, ...rest } = game;
   // ?item= (lien partagé) ou ?buy= (retour de /games/[slug]/link) : rouvre le détail de l'article.
   const initial = initialStoreItem(sp);
+  // Seules les URL de notre stockage ou de la bibliothèque /art sont affichées (CHK-UPL-07).
+  const shots = screenshots.flatMap((u) => {
+    const safe = safeImageUrl(u);
+    return safe ? [safe] : [];
+  });
+  const about = storeDescription.trim() || game.description;
 
   return (
     <div className="mx-auto max-w-6xl py-0 sm:px-6 sm:py-6">
       <GameStore game={rest} items={items} initialItemId={initial.itemId} initialBuy={initial.buy} />
-      {game.description && (
+      {shots.length > 0 && (
+        <section className="mx-4 mt-6 rounded-[var(--radius)] bg-surface p-5 sm:mx-0" aria-labelledby="screenshots-title">
+          <h2 id="screenshots-title" className="mb-3 font-bold">
+            Captures d’écran
+          </h2>
+          <ScreenshotGallery urls={shots} gameName={game.name} />
+        </section>
+      )}
+      {about && (
         <section className="mx-4 mt-6 rounded-[var(--radius)] bg-surface p-5 sm:mx-0" aria-labelledby="about-title">
           <h2 id="about-title" className="font-bold">
             À propos de {game.name}
           </h2>
-          <p className="mt-2 text-ink-2 whitespace-pre-line">{game.description}</p>
+          <ReadMore text={about} />
           <p className="mt-3 text-sm text-ink-2">
             Catégorie : {game.category}
             {game.publisherName ? ` · Éditeur : ${game.publisherName}` : ''}

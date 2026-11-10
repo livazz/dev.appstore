@@ -9,12 +9,13 @@ import { safeImageUrl } from '@/components/store/style-safety';
 import { moveItem, updateGame, updateItem } from '@/server/studio';
 import { GAME_STATUS_LABELS, type EditorGame, type EditorItem } from '@/lib/studio-types';
 import { pickAndUploadImage } from '@/lib/upload';
+import { ArtLibraryPicker } from './ArtLibraryPicker';
 import { GradientPicker } from './GradientPicker';
 import { ItemModal } from './ItemModal';
 import { Slider } from './Controls';
 import { IconArrowLeft, IconArrowRight, IconClose, IconEdit, IconGradient, IconPlus } from './icons';
 
-type Patch = Partial<Pick<EditorGame, 'name' | 'subtitle' | 'publisherName' | 'iconUrl' | 'bannerUrl' | 'theme'>>;
+type Patch = Partial<Pick<EditorGame, 'name' | 'subtitle' | 'publisherName' | 'iconUrl' | 'bannerUrl' | 'theme' | 'storeDescription' | 'screenshots'>>;
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 function InlineEdit({
@@ -347,10 +348,167 @@ export function StoreEditor({ initialGame, initialItems }: { initialGame: Editor
         itemTools={itemTools}
         onItemClick={(it) => setEditing(items.find((x) => x.id === it.id) ?? null)}
       />
+      <PresentationPanel
+        storeDescription={game.storeDescription}
+        screenshots={game.screenshots}
+        onChange={set}
+        onError={(error) => setSave({ state: 'error', error })}
+      />
       {editing && (
         <ItemModal skin={game.theme.skin ?? 'classic'} gameId={game.id} currency={game.currency} items={items} item={editing} onClose={() => setEditing(null)} onSaved={onSaved} onDeleted={onDeleted} />
       )}
       {adding && <ItemModal skin={game.theme.skin ?? 'classic'} gameId={game.id} currency={game.currency} items={items} onClose={closeAdd} onSaved={onSaved} onDeleted={onDeleted} />}
     </>
+  );
+}
+
+const STORE_DESCRIPTION_MAX = 4000;
+const SCREENSHOTS_MAX = 8;
+
+const smallBtn =
+  'flex size-9 items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-black/10 hover:bg-primary hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-30';
+
+/** Panneau « Présentation » du jeu : texte long de la page boutique et captures d'écran (0–8, ordonnées). */
+function PresentationPanel({
+  storeDescription,
+  screenshots,
+  onChange,
+  onError,
+}: {
+  storeDescription: string;
+  screenshots: string[];
+  onChange: (patch: Patch) => void;
+  onError: (message: string) => void;
+}) {
+  const [text, setText] = useState(storeDescription);
+  const [uploading, setUploading] = useState(false);
+  const [library, setLibrary] = useState(false);
+  const full = screenshots.length >= SCREENSHOTS_MAX;
+
+  const saveText = () => {
+    const next = text.trim();
+    if (next !== storeDescription) onChange({ storeDescription: next });
+  };
+
+  const add = (url: string) => {
+    if (screenshots.includes(url)) return onError('Cette capture d’écran est déjà présente.');
+    if (full) return onError(`${SCREENSHOTS_MAX} captures d’écran maximum.`);
+    onChange({ screenshots: [...screenshots, url] });
+  };
+
+  const upload = async () => {
+    setUploading(true);
+    try {
+      const url = await pickAndUploadImage('banner');
+      if (url) add(url);
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const move = (i: number, delta: -1 | 1) => {
+    const j = i + delta;
+    if (j < 0 || j >= screenshots.length) return;
+    const next = [...screenshots];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    onChange({ screenshots: next });
+  };
+
+  return (
+    <section aria-labelledby="presentation-title" className="mt-6 rounded-[var(--radius)] border border-line bg-surface p-4 sm:p-5">
+      <h2 id="presentation-title" className="text-base font-bold">
+        Présentation de la boutique
+      </h2>
+      <p className="mt-1 text-sm text-ink-2">Affichée dans la section « À propos » de la page du jeu. Séparez les paragraphes par une ligne vide.</p>
+      <label className="mt-3 flex flex-col gap-1 text-sm">
+        <span className="sr-only">Présentation de la boutique</span>
+        <textarea
+          className="min-h-36 w-full resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+          value={text}
+          maxLength={STORE_DESCRIPTION_MAX}
+          rows={6}
+          placeholder="Racontez votre jeu : univers, modes de jeu, ce qui le rend unique…"
+          onChange={(e) => setText(e.target.value)}
+          onBlur={saveText}
+          aria-describedby="presentation-count"
+        />
+        <span id="presentation-count" className="self-end text-xs text-ink-2">
+          {text.length} / {STORE_DESCRIPTION_MAX}
+        </span>
+      </label>
+
+      <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">Captures d’écran</h3>
+        <span className="text-xs text-ink-2">
+          {screenshots.length} / {SCREENSHOTS_MAX} — format paysage conseillé (1600×900)
+        </span>
+      </div>
+      <ul className="mt-2 flex gap-3 overflow-x-auto pb-2" aria-label="Captures d’écran">
+        {screenshots.map((url, i) => {
+          const src = safeImageUrl(url);
+          return (
+            <li key={url} className="relative flex-none">
+              <div className="flex h-28 w-48 items-center justify-center overflow-hidden rounded-xl bg-bg ring-1 ring-line">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {src ? <img src={src} alt={`Capture ${i + 1}`} className="size-full object-cover" /> : <span className="text-xs text-ink-2">Image indisponible</span>}
+              </div>
+              <div className="absolute inset-x-0 bottom-2 flex justify-center gap-2">
+                <button type="button" className={smallBtn} disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Déplacer la capture ${i + 1} vers la gauche`}>
+                  <IconArrowLeft size={14} />
+                </button>
+                <button
+                  type="button"
+                  className={smallBtn}
+                  disabled={i === screenshots.length - 1}
+                  onClick={() => move(i, 1)}
+                  aria-label={`Déplacer la capture ${i + 1} vers la droite`}
+                >
+                  <IconArrowRight size={14} />
+                </button>
+                <button
+                  type="button"
+                  className={`${smallBtn} text-danger`}
+                  onClick={() => onChange({ screenshots: screenshots.filter((_, j) => j !== i) })}
+                  aria-label={`Supprimer la capture ${i + 1}`}
+                >
+                  <IconClose size={12} />
+                </button>
+              </div>
+            </li>
+          );
+        })}
+        {!full && (
+          <li className="flex-none">
+            <button
+              type="button"
+              onClick={upload}
+              disabled={uploading}
+              className="flex h-28 w-48 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-line text-sm text-ink-2 hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary disabled:opacity-60"
+            >
+              {uploading ? <span className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" /> : <IconPlus size={20} />}
+              Ajouter une capture
+            </button>
+          </li>
+        )}
+      </ul>
+      {!full && (
+        <button type="button" onClick={() => setLibrary((o) => !o)} aria-expanded={library} className="mt-1 text-xs font-medium text-primary hover:underline">
+          Choisir dans la bibliothèque
+        </button>
+      )}
+      {library && !full && (
+        <div className="mt-2">
+          <ArtLibraryPicker
+            onClose={() => setLibrary(false)}
+            onPick={(url) => {
+              add(url);
+              setLibrary(false);
+            }}
+          />
+        </div>
+      )}
+    </section>
   );
 }

@@ -13,6 +13,10 @@ export interface EditorGame {
   publisherName: string;
   iconUrl: string | null;
   bannerUrl: string | null;
+  /** Présentation longue de la page boutique (paragraphes séparés par une ligne vide). */
+  storeDescription: string;
+  /** Captures d'écran (URL d'images, ordre d'affichage). */
+  screenshots: string[];
   theme: GameTheme;
   currency: Currency;
   status: GameStatus;
@@ -33,7 +37,19 @@ export interface EditorItem {
   models: ItemModel[];
   layout: LayoutId;
   style: ItemStyle;
+  /** Description affichée dans le détail de l'article avant achat. */
+  description: string;
+  /** Promotion programmée (ISO 8601) : null = sans limite. */
+  promoStartsAt: string | null;
+  promoEndsAt: string | null;
 }
+
+type ItemLike = Omit<EditorItem, 'promoStartsAt' | 'promoEndsAt'> & {
+  promoStartsAt: Date | string | null;
+  promoEndsAt: Date | string | null;
+};
+
+const iso = (d: Date | string | null) => (d == null ? null : typeof d === 'string' ? d : d.toISOString());
 
 type GameLike = Omit<EditorGame, 'webhookConfigured'> & { webhookUrl: string | null };
 
@@ -46,6 +62,8 @@ export function toEditorGame(g: GameLike): EditorGame {
     publisherName: g.publisherName,
     iconUrl: g.iconUrl,
     bannerUrl: g.bannerUrl,
+    storeDescription: g.storeDescription,
+    screenshots: g.screenshots,
     theme: g.theme,
     currency: g.currency,
     status: g.status,
@@ -53,7 +71,7 @@ export function toEditorGame(g: GameLike): EditorGame {
   };
 }
 
-export function toEditorItem(i: EditorItem): EditorItem {
+export function toEditorItem(i: ItemLike): EditorItem {
   return {
     id: i.id,
     productId: i.productId,
@@ -68,6 +86,9 @@ export function toEditorItem(i: EditorItem): EditorItem {
     models: i.models,
     layout: i.layout,
     style: i.style,
+    description: i.description,
+    promoStartsAt: iso(i.promoStartsAt),
+    promoEndsAt: iso(i.promoEndsAt),
   };
 }
 
