@@ -91,13 +91,13 @@ describe('calculs purs', () => {
     expect(normalizeCategory('')).toBeNull();
   });
   it('groupByCategory suit GAME_CATEGORIES puis les inconnues', () => {
-    const g = (name: string, category: string): CatalogGame => ({ id: name, slug: name, name, subtitle: '', publisherName: '', category, iconUrl: null, maxDiscountPct: 0, itemCount: 1 });
+    const g = (name: string, category: string): CatalogGame => ({ id: name, slug: name, name, subtitle: '', publisherName: '', category, platform: 'mobile', iconUrl: null, maxDiscountPct: 0, itemCount: 1 });
     const rows = groupByCategory([g('a', 'Zzz'), g('b', 'Casual'), g('c', 'Action'), g('d', 'Casual')]);
     expect(rows.map((r) => r.category)).toEqual(['Action', 'Casual', 'Zzz']);
     expect(rows[1].games.map((x) => x.name)).toEqual(['b', 'd']);
   });
   it('pickFeatured trie par réduction et ignore les boutiques vides', () => {
-    const g = (name: string, d: number, n = 1): CatalogGame => ({ id: name, slug: name, name, subtitle: '', publisherName: '', category: 'Casual', iconUrl: null, maxDiscountPct: d, itemCount: n });
+    const g = (name: string, d: number, n = 1): CatalogGame => ({ id: name, slug: name, name, subtitle: '', publisherName: '', category: 'Casual', platform: 'mobile', iconUrl: null, maxDiscountPct: d, itemCount: n });
     expect(pickFeatured([g('a', 10), g('b', 50), g('c', 90, 0), g('d', 50)], 2).map((x) => x.name)).toEqual(['b', 'd']);
   });
 });
