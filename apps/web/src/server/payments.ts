@@ -4,6 +4,7 @@ import { DEFAULT_PLATFORM_FEE_BPS, feeCents, MIN_CHARGE_CENTS, newId, type Curre
 import { and, count, db, eq, games, gt, inArray, isNull, items, lt, orders, sql, stripeEvents, studios, type DB } from '@devappstore/db';
 import { env } from '@/env';
 import * as delivery from '@/server/delivery';
+import { VERIFY_EMAIL_PATH, emailNotVerifiedMessage, isEmailVerified } from '@/server/email-verification';
 import { getGameLink } from '@/server/links';
 import { awardPointsForOrder, revokePointsForOrder } from '@/server/loyalty';
 import { sendPurchaseReceipt, WITHDRAWAL_WAIVER_LABEL } from '@/server/notifications';
@@ -194,6 +195,7 @@ export type CheckoutErrorCode =
   | 'not_linked'
   | 'amount_too_low'
   | 'too_many_pending'
+  | 'email_not_verified'
   | 'seller_not_ready'
   | 'payments_unavailable'
   | 'payment_provider_error';
@@ -413,6 +415,11 @@ export async function createCheckout(params: {
     throw new CheckoutError('payments_unavailable', 'Le paiement est momentanément indisponible (configuration du serveur de paiement).', 503);
   }
   const stripeOn = isStripeEnabled();
+
+  // Revue de sécurité A-04 : achat réservé aux adresses vérifiées (relue en base).
+  if (!(await isEmailVerified(user.id))) {
+    throw new CheckoutError('email_not_verified', emailNotVerifiedMessage('pour acheter'), 403, VERIFY_EMAIL_PATH);
+  }
 
   const row = await loadItemWithGame(itemId);
   if (!row || !row.item.active || row.game.status !== 'live') {

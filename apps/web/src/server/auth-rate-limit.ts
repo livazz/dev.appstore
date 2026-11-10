@@ -30,6 +30,18 @@ export const AUTH_RATE_LIMITS = {
   signInFailuresPerIp: { max: 40, windowMs: 15 * 60_000 },
   /** Inscriptions (réussies ou non) par IP : limite la création de comptes en masse et l'énumération d'e-mails. */
   signUpPerIp: { max: 10, windowMs: 60 * 60_000 },
+  /** Demandes « mot de passe oublié » par IP (A-04). */
+  passwordResetPerIp: { max: 10, windowMs: 60 * 60_000 },
+  /** Demandes « mot de passe oublié » par adresse (compte existant ou non : le compteur ne révèle rien). */
+  passwordResetPerEmail: { max: 3, windowMs: 60 * 60_000 },
+  /** Envois de nouveau mot de passe (jeton) par IP : borne l'essai de jetons au hasard. */
+  passwordResetSubmitPerIp: { max: 20, windowMs: 15 * 60_000 },
+  /** « Renvoyer l'e-mail » de vérification : 1 par minute… */
+  verificationResendInterval: { max: 1, windowMs: 60_000 },
+  /** … et 5 par heure, par compte (ou par adresse sur la route HTTP). */
+  verificationResendPerAccount: { max: 5, windowMs: 60 * 60_000 },
+  /** Renvois de vérification par IP. */
+  verificationResendPerIp: { max: 20, windowMs: 60 * 60_000 },
 } satisfies Record<string, RateRule>;
 
 export class SlidingWindowLimiter {
@@ -92,6 +104,36 @@ export function signInRetryAfter(limiter: SlidingWindowLimiter, email: string, i
 /** Enregistre un échec de connexion pour l'e-mail, le couple e-mail + IP et l'IP. */
 export function recordSignInFailure(limiter: SlidingWindowLimiter, email: string, ip: string, now = Date.now()): void {
   for (const [k, rule] of signInKeys(email, ip)) limiter.record(k, rule, now);
+}
+
+/**
+ * Vérifie puis enregistre d'un coup une série de compteurs (aucun `await` : atomique dans le processus). Renvoie le
+ * délai d'attente en secondes (0 = autorisé, et alors chaque compteur est incrémenté ; sinon rien n'est enregistré).
+ */
+export function consumeRateLimits(limiter: SlidingWindowLimiter, rules: ReadonlyArray<readonly [string, RateRule]>, now = Date.now()): number {
+  const wait = Math.max(0, ...rules.map(([k, rule]) => limiter.retryAfter(k, rule, now)));
+  if (wait) return wait;
+  for (const [k, rule] of rules) limiter.record(k, rule, now);
+  return 0;
+}
+
+/** Compteurs d'une demande « mot de passe oublié » (e-mail normalisé). */
+export function passwordResetRequestKeys(email: string, ip: string) {
+  const e = email.trim().toLowerCase();
+  return [
+    [`pwreset:ip:${ip}`, AUTH_RATE_LIMITS.passwordResetPerIp],
+    [`pwreset:email:${e}`, AUTH_RATE_LIMITS.passwordResetPerEmail],
+  ] as const;
+}
+
+/** Compteurs d'un renvoi de l'e-mail de vérification (`account` : identifiant du compte ou adresse normalisée). */
+export function verificationResendKeys(account: string, ip: string) {
+  const a = account.trim().toLowerCase();
+  return [
+    [`verify:interval:${a}`, AUTH_RATE_LIMITS.verificationResendInterval],
+    [`verify:account:${a}`, AUTH_RATE_LIMITS.verificationResendPerAccount],
+    [`verify:ip:${ip}`, AUTH_RATE_LIMITS.verificationResendPerIp],
+  ] as const;
 }
 
 /** Instance partagée par les Server Actions d'authentification et la route HTTP Better Auth. */

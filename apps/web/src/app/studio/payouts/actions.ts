@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { canManagePayouts, createDashboardLink, createOnboardingLink, ensureConnectAccount, getPayoutStudio } from '@/server/payouts';
 import { PAYOUTS_RECENT_LOGIN_MS, requireRecentLogin } from '@/server/session';
 import { appOrigin, isStripeEnabled } from '@/server/stripe';
+import { isEmailVerified } from '@/server/email-verification';
 
 const page = (studioId: string, extra = '') => `/studio/payouts?studio=${encodeURIComponent(studioId)}${extra}`;
 
@@ -15,6 +16,8 @@ async function authorize(formData: FormData) {
   if (!studio) redirect('/studio/payouts?error=forbidden');
   // Lecture seule pour `finance` : seul le propriétaire crée / modifie le compte de versement.
   if (!canManagePayouts(studio.role)) redirect(page(studioId, '&error=owner_only'));
+  // Revue de sécurité A-04 : versements réservés aux adresses vérifiées.
+  if (!(await isEmailVerified(user.id))) redirect(page(studioId, '&error=email_not_verified'));
   if (!isStripeEnabled()) redirect(page(studioId, '&error=stripe_disabled'));
   return { user, studio };
 }

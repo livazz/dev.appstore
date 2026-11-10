@@ -19,10 +19,10 @@ par lecture du code et notées comme telles.
 | A-01 | **Corrigé** (`8f528dc`) | `enableUser` : seul un superadmin réactive un administrateur ; personne ne réactive son propre compte. | `admin.test.ts` « A-01 : le support ne réactive pas un administrateur… » |
 | A-02 | **Corrigé** (`8f528dc`) | `setGameStatus` écrit seulement si le statut est encore `draft`/`live` (sinon `StudioError`). | `studio-logic.test.ts` « A-02 : une suspension posée pendant une publication… » |
 | A-03 | Non corrigé | Décision produit en attente du fondateur (circuit de revue avant publication). Reste exploitable avec A-04. | — |
-| A-04 | Non corrigé | Décision en attente (vérification d'e-mail, réinitialisation, 2FA). | — |
+| A-04 | **Corrigé en partie** (branche `claude/comptes-email-895bbe`) | Vérification d'adresse (lien signé de 24 h envoyé à l'inscription, page `/verify-email`, « Renvoyer l'e-mail » limité) et mot de passe oublié (`/forgot-password` → `/reset-password`, réponse neutre, jeton aléatoire à usage unique de 1 h, toutes les sessions révoquées, notification par e-mail, limites par IP et par adresse). Politique : connexion sans vérification, mais **achat, liaison d'un compte de jeu, création d'un studio par un compte existant, création et publication d'un jeu, rotations de clés et secrets, versements** exigent une adresse vérifiée (bandeau d'invitation) ; Google / Apple vérifiés d'office. **Reste** : 2FA (non demandée), purge des comptes non vérifiés après 7 jours, limiteur en mémoire par instance (A-05). | `account-recovery.test.ts` ; `payments.test.ts` « A-04 » ; `studio.test.ts` « A-04 » ; `auth.test.ts` ; e2e `mot-de-passe.spec.ts` |
 | A-05 | **Corrigé en partie** (`995fa20`) | La route HTTP `/api/auth/sign-in/email` applique les mêmes plafonds que le formulaire (hooks Better Auth `before`/`after`, limiteur partagé `signInRetryAfter` / `recordSignInFailure`). **Reste** : extraction de l'IP depuis `X-Forwarded-For` (confiée à la session API) et limiteur encore en mémoire par instance. | `auth-hardening.test.ts` « A-05 / A-09 » |
 | A-06 | **Corrigé en partie** (`995fa20`) | Seed refusé sur une base non locale sauf `DEVAPPSTORE_ALLOW_SEED=1` (`packages/db/src/guards.ts`) ; aucune session pour un compte `@devappstore.test` en production (`auth.ts`, hook `session.create.before`). **Reste** : refus des clés `_demo_` dans `authenticateGame` (API v1, autre session). | `guards.test.ts` « A-06 » ; `auth-hardening.test.ts` « A-06 » |
-| A-07 | **Atténué** (`995fa20`) | Message et code neutres (`SIGN_UP_FAILED`), plus d'erreur sur le champ e-mail ni de `USER_ALREADY_EXISTS` sur la route HTTP (le statut 422 de Better Auth est conservé). L'échec reste observable tant qu'A-04 n'existe pas. | `auth-hardening.test.ts` « A-07 » ; `auth.test.ts` mis à jour |
+| A-07 | **Corrigé** (branche `claude/comptes-email-895bbe`) | L'inscription n'ouvre plus de session (`autoSignIn: false`) : formulaire et `POST /api/auth/sign-up/email` répondent pareil (200, « Vérifiez votre boîte mail », utilisateur fictif de même forme) que l'adresse soit libre ou prise ; la titulaire d'une adresse prise reçoit « Vous avez déjà un compte » (`onExistingUserSignUp`), Better Auth hache le mot de passe dans les deux cas (temps voisin). Inscription studio avec une adresse prise : même réponse, aucun studio créé. | `auth-hardening.test.ts` « A-07 » ; `account-recovery.test.ts` « A-07 » ; `auth.test.ts` |
 | A-08 | Non corrigé ici | Confié à la session API. | — |
 | A-09 | **Corrigé** (`995fa20`) | Blocage dur par couple e-mail + IP (8 échecs / 15 min) ; plafond par e-mail seul relevé à 50. | `auth-hardening.test.ts` « formulaire : 8 échecs depuis une IP… » |
 | A-10 | **Corrigé** (`d4c0c26`) | `SKIP_ENV_VALIDATION` ignorée en production et avec un `NODE_ENV` inconnu. Avec : C-11 (`NODE_ENV` inconnu refusé au démarrage et lu comme production) et C-02 (`MAIL_TRANSPORT=console` refusé en production, `RESEND_API_KEY` obligatoire). | `env.test.ts` « revue de sécurité : NODE_ENV, SKIP_ENV_VALIDATION… » |
@@ -151,6 +151,29 @@ contournable, énumération à l'inscription).
 - **Tests de non-régression** : inscription → e-mail de vérification envoyé, `emailVerified=false` ; `requireGameAccess`/création de studio
   refusés tant que l'e-mail n'est pas vérifié ; flux de réinitialisation (jeton à usage unique, expiré refusé, sessions révoquées) ;
   `requirePlatformAdmin` refusé sans 2FA activée.
+- **Statut (correction)** — vérification d'adresse et réinitialisation en place, 2FA non traitée (hors demande) :
+  - **Configuration** (`apps/web/src/server/auth.ts`) : `emailVerification` (`sendOnSignUp`, `expiresIn` 24 h,
+    `autoSignInAfterVerification`) ; `emailAndPassword` (`autoSignIn: false`, `requireEmailVerification: false`,
+    `sendResetPassword`, `resetPasswordTokenExpiresIn` 1 h, `revokeSessionsOnPasswordReset`, `onPasswordReset` → adresse marquée
+    vérifiée + e-mail « mot de passe modifié », `onExistingUserSignUp`) ; `databaseHooks.account.create.after` : un compte
+    Google / Apple marque l'adresse vérifiée. E-mails : `auth-emails.ts` (transport commun, envoi en arrière-plan).
+  - **Jetons** : réinitialisation = valeur aléatoire de 24 caractères dans la table `verification`, **consommée** à l'usage (transaction
+    Better Auth) et refusée après 1 h. Vérification d'adresse = JWT signé (HS256, secret de session) valable 24 h ; rejoué après
+    usage, il ne fait plus rien (l'adresse est déjà vérifiée : aucune nouvelle session).
+  - **Politique de vérification** (`email-verification.ts`, valeur relue en base à chaque contrôle) : connexion et navigation
+    possibles sans vérification, avec un bandeau « Confirmez votre adresse » (sites joueur et studio) ; adresse vérifiée exigée pour
+    l'achat (`createCheckout` → 403 `email_not_verified`, renvoi vers `/verify-email`), la liaison d'un compte de jeu (actions
+    `/games/[slug]/link`), la création d'un studio par un compte existant, la création et la publication d'un jeu, les rotations
+    de clés / secrets et le changement d'URL de webhook (portée `admins` de l'intégration), les versements Stripe Connect.
+    L'inscription studio avec un **nouveau** compte crée le studio tout de suite (rien d'exploitable avant la vérification).
+    Comptes du seed : déjà `emailVerified: true`.
+  - **Limites** (`auth-rate-limit.ts`, formulaires et hooks `before` de la route HTTP) : mot de passe oublié 3/h par adresse et 10/h
+    par IP ; envois de nouveau mot de passe 20/15 min par IP ; renvoi de vérification 1/min et 5/h par compte (par adresse sur la
+    route HTTP), 20/h par IP. Le compteur par adresse ne dépend pas de l'existence du compte.
+  - **Risque résiduel** : un tiers qui inscrit l'adresse d'autrui garde un compte non vérifié (sans achat ni studio actif) jusqu'à
+    ce que la titulaire le récupère par « mot de passe oublié » (sessions révoquées, mot de passe remplacé) ; une purge des comptes
+    non vérifiés après 7 jours reste à faire. Si la titulaire clique le lien de vérification d'une inscription qu'elle n'a pas faite,
+    le compte (mot de passe choisi par le tiers) devient vérifié : l'e-mail lui dit d'ignorer le message dans ce cas.
 
 ### A-05 — Moyenne — Limitation de débit de la connexion contournable
 
@@ -202,6 +225,10 @@ contournable, énumération à l'inscription).
   existante un e-mail « quelqu'un a tenté de créer un compte » (Better Auth : `emailAndPassword.requireEmailVerification` +
   `onExistingUserSignUp`). Sans A-04, c'est un compromis UX accepté à documenter.
 - **Test** : réponses identiques (statut, corps, temps approximatif) pour un e-mail existant et inexistant.
+- **Statut (correction)** : corrigé avec A-04 (`autoSignIn: false` → réponse générique de Better Auth 1.7, `onExistingUserSignUp`
+  → e-mail « Vous avez déjà un compte »). La contrepartie produit : plus de connexion automatique après l'inscription, il faut
+  cliquer le lien reçu (qui connecte) ou se connecter avec le mot de passe. Temps de réponse : hachage du mot de passe dans les
+  deux branches, e-mails en arrière-plan ; l'écart restant (insertion du compte) est de l'ordre de quelques millisecondes.
 
 ### A-08 — Basse — `developer` peut faire tourner le secret webhook et la clé secrète
 

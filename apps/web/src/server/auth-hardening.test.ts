@@ -81,20 +81,23 @@ describe('A-05 / A-09 : échecs de connexion sur la route HTTP /api/auth/sign-in
   });
 });
 
-describe('A-07 : une inscription refusée ne dit pas que le compte existe', () => {
-  it('formulaire : message neutre, sans erreur sur le champ e-mail', async () => {
-    const r = await flows.signUpWithPassword({ name: 'Sonde', email: 'cible@durci.test', password: 'motdepasse9' }, { limiter: new RL.SlidingWindowLimiter() });
-    expect(r).toEqual({ ok: false, error: cfg.SIGN_UP_FAILED_MESSAGE });
-    expect(r.error).not.toMatch(/existe déjà/);
+describe('A-07 : l’inscription ne dit pas si le compte existe (même réponse que pour une adresse libre)', () => {
+  it('formulaire : réponse identique, sans identifiant de compte', async () => {
+    const taken = await flows.signUpWithPassword({ name: 'Sonde', email: 'cible@durci.test', password: 'motdepasse9' }, { limiter: new RL.SlidingWindowLimiter() });
+    const fresh = await flows.signUpWithPassword({ name: 'Sonde', email: 'libre@durci.test', password: 'motdepasse9' }, { limiter: new RL.SlidingWindowLimiter() });
+    expect(taken).toEqual({ ok: true, verificationSent: true });
+    expect({ ...fresh, userId: undefined }).toEqual({ ok: true, verificationSent: true, userId: undefined });
   });
 
-  it('route HTTP : code SIGN_UP_FAILED au lieu de USER_ALREADY_EXISTS', async () => {
+  it('route HTTP : 200 et même forme de réponse, adresse prise ou non, sans session', async () => {
     const auth = authMod.createAuth(database, { limiter: new RL.SlidingWindowLimiter() });
-    const res = await post(auth, '/sign-up/email', { name: 'Sonde', email: 'cible@durci.test', password: 'motdepasse9' }, '203.0.113.2');
-    const body = await res.text();
-    expect(res.ok).toBe(false); // Better Auth garde le statut 422 d'origine ; seul le corps est neutralisé.
-    expect(body).toContain(cfg.SIGN_UP_FAILED_CODE);
-    expect(body).not.toContain('USER_ALREADY_EXISTS');
+    const taken = await post(auth, '/sign-up/email', { name: 'Sonde', email: 'cible@durci.test', password: 'motdepasse9' }, '203.0.113.2');
+    const fresh = await post(auth, '/sign-up/email', { name: 'Sonde', email: 'libre-http@durci.test', password: 'motdepasse9' }, '203.0.113.2');
+    expect([taken.status, fresh.status]).toEqual([200, 200]);
+    const shape = (b: { token: unknown; user: Record<string, unknown> }) => ({ token: b.token, keys: Object.keys(b.user).sort(), emailVerified: b.user.emailVerified });
+    expect(shape(await taken.json())).toEqual(shape(await fresh.json()));
+    expect(taken.headers.get('set-cookie') ?? '').not.toMatch(/session_token/);
+    expect(fresh.headers.get('set-cookie') ?? '').not.toMatch(/session_token/);
   });
 });
 
@@ -107,7 +110,9 @@ describe('A-13 : nom et image bornés sur les routes Better Auth', () => {
     expect(u!.name).toHaveLength(cfg.USER_NAME_MAX_LENGTH);
     expect(u!.image).toBeNull();
 
-    const cookie = (res.headers.get('set-cookie') ?? '').split(';')[0]!;
+    // Inscription sans session (A-07) : on se connecte pour tester /update-user.
+    const login = await post(auth, '/sign-in/email', { email: 'long@durci.test', password: 'motdepasse9' }, '203.0.113.3');
+    const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0]!;
     expect((await post(auth, '/update-user', { name: `  ${'x'.repeat(300)}  ` }, '203.0.113.3', cookie)).status).toBe(200);
     expect((await post(auth, '/update-user', { image: 'http://evil.test/a.png' }, '203.0.113.3', cookie)).status).toBe(200);
     const [after] = await database.select({ name: user.name, image: user.image }).from(user).where(eq(user.id, u!.id));

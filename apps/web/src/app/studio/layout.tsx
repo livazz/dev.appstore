@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
 import { UserMenu } from '@/components/auth/UserMenu';
 
 export const metadata: Metadata = {
@@ -41,6 +42,7 @@ export default async function StudioLayout({ children }: { children: React.React
           </div>
         </div>
       </header>
+      <EmailVerificationBanner />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   );

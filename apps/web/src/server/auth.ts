@@ -14,7 +14,22 @@ import {
   sanitizeUserProfile,
   sessionCookieOptions,
 } from './auth-config';
-import { authLimiter, clientIp, recordSignInFailure, signInRetryAfter, type SlidingWindowLimiter } from './auth-rate-limit';
+import {
+  EMAIL_VERIFICATION_EXPIRES_IN_S,
+  PASSWORD_RESET_EXPIRES_IN_S,
+  createAuthMailer,
+  type AuthMailDeps,
+} from './auth-emails';
+import {
+  authLimiter,
+  clientIp,
+  consumeRateLimits,
+  passwordResetRequestKeys,
+  recordSignInFailure,
+  signInRetryAfter,
+  verificationResendKeys,
+  type SlidingWindowLimiter,
+} from './auth-rate-limit';
 import { isUserDisabled } from './user-suspension';
 
 /*
@@ -83,12 +98,20 @@ function sanitizedOrBadRequest<T extends Record<string, unknown>>(data: T): T {
 export interface CreateAuthOptions {
   /** Limiteur des échecs de connexion de la route HTTP (instance partagée par défaut ; injectable en test). */
   limiter?: SlidingWindowLimiter;
+  /** Transport des e-mails d'authentification (injectable en test). */
+  mail?: AuthMailDeps;
 }
+
+/** Fournisseurs dont l'adresse e-mail est considérée comme vérifiée (A-04). */
+export const VERIFIED_EMAIL_PROVIDERS = ['google', 'apple'] as const;
+
+const TOO_MANY = 'Trop de demandes. Réessayez dans quelques minutes.';
 
 /** Construit une instance Better Auth sur une base donnée (la base partagée en prod, une base en mémoire en test). */
 export function createAuth(database: DB, opts: CreateAuthOptions = {}) {
   const socialProviders = socialProvidersFromEnv();
   const limiter = opts.limiter ?? authLimiter;
+  const mails = createAuthMailer(opts.mail);
   return betterAuth({
     appName: 'Dev AppStore',
     logger: { disabled: process.env.VITEST === 'true' },
@@ -97,11 +120,38 @@ export function createAuth(database: DB, opts: CreateAuthOptions = {}) {
     baseURL: authBaseUrl(),
     trustedOrigins: authTrustedOrigins(socialProviders),
     database: drizzleAdapter(database, { provider: 'pg', schema: { user, session, account, verification } }),
+    /*
+     * Revue de sécurité A-04 / A-07 — politique de vérification (voir docs/security/revue-2026-11/auth-autorisation.md) :
+     * - l'inscription envoie un lien de vérification (24 h) et n'ouvre PAS de session : la réponse est identique que
+     *   l'adresse soit libre ou non (`autoSignIn: false` → réponse générique de Better Auth) et la titulaire d'une
+     *   adresse déjà inscrite reçoit « vous avez déjà un compte » ;
+     * - la connexion reste possible sans vérification, mais l'achat, la liaison d'un compte de jeu et les actions
+     *   studio sensibles exigent un e-mail vérifié (email-verification.ts) ;
+     * - mot de passe oublié : jeton aléatoire à usage unique (table `verification`, consommé à l'usage), valable 1 h ;
+     *   toutes les sessions sont révoquées, l'adresse est marquée vérifiée (la titulaire a prouvé l'accès à sa boîte)
+     *   et une notification est envoyée.
+     */
     emailAndPassword: {
       enabled: true,
       minPasswordLength: PASSWORD_MIN_LENGTH,
       maxPasswordLength: 128,
-      autoSignIn: true,
+      autoSignIn: false,
+      requireEmailVerification: false,
+      resetPasswordTokenExpiresIn: PASSWORD_RESET_EXPIRES_IN_S,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user: u, token }) => mails.passwordReset(u, token),
+      onPasswordReset: async ({ user: u }) => {
+        if (!u.emailVerified) await database.update(user).set({ emailVerified: true, updatedAt: new Date() }).where(eq(user.id, u.id));
+        mails.passwordChanged(u);
+      },
+      onExistingUserSignUp: async ({ user: u }) => mails.existingAccount(u),
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: false,
+      autoSignInAfterVerification: true,
+      expiresIn: EMAIL_VERIFICATION_EXPIRES_IN_S,
+      sendVerificationEmail: async ({ user: u, token }) => mails.verification(u, token),
     },
     socialProviders,
     account: { accountLinking: { enabled: true, trustedProviders: ['google', 'apple'] } },
@@ -125,6 +175,16 @@ export function createAuth(database: DB, opts: CreateAuthOptions = {}) {
           },
         },
       },
+      // A-04 : un compte Google ou Apple est considéré comme vérifié (adresse confirmée par le fournisseur).
+      account: {
+        create: {
+          after: async (a) => {
+            if ((VERIFIED_EMAIL_PROVIDERS as readonly string[]).includes(a.providerId)) {
+              await database.update(user).set({ emailVerified: true, updatedAt: new Date() }).where(eq(user.id, a.userId));
+            }
+          },
+        },
+      },
       // A-13 : nom et image bornés quelle que soit l'entrée (formulaire, route HTTP, fournisseur social, /update-user).
       user: {
         create: { before: async (u) => ({ data: sanitizedOrBadRequest(u) }) },
@@ -135,14 +195,22 @@ export function createAuth(database: DB, opts: CreateAuthOptions = {}) {
      * Route HTTP /api/auth/* (ctx.request défini ; les Server Actions appellent auth.api sans requête et ont leur
      * propre limitation dans auth-flows.ts) :
      * - A-05 : mêmes plafonds d'échecs que le formulaire (e-mail + IP, e-mail, IP) sur /sign-in/email ;
-     * - A-07 : l'inscription refusée ne renvoie plus le code USER_ALREADY_EXISTS.
+     * - A-07 : l'inscription refusée ne renvoie plus le code USER_ALREADY_EXISTS ;
+     * - A-04 : mot de passe oublié et renvoi de vérification limités par IP et par adresse (mêmes compteurs que les
+     *   formulaires) — la limite ne dépend pas de l'existence du compte.
      */
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
-        if (ctx.path !== '/sign-in/email' || !ctx.request) return;
+        if (!ctx.request) return;
         const email = typeof ctx.body?.email === 'string' ? ctx.body.email : '';
-        if (email && signInRetryAfter(limiter, email, clientIp(ctx.headers))) {
-          throw new APIError('TOO_MANY_REQUESTS', { message: 'Trop de tentatives. Réessayez dans quelques minutes.' });
+        if (ctx.path === '/sign-in/email') {
+          if (email && signInRetryAfter(limiter, email, clientIp(ctx.headers))) {
+            throw new APIError('TOO_MANY_REQUESTS', { message: 'Trop de tentatives. Réessayez dans quelques minutes.' });
+          }
+        } else if (ctx.path === '/request-password-reset') {
+          if (consumeRateLimits(limiter, passwordResetRequestKeys(email, clientIp(ctx.headers)))) throw new APIError('TOO_MANY_REQUESTS', { message: TOO_MANY });
+        } else if (ctx.path === '/send-verification-email') {
+          if (consumeRateLimits(limiter, verificationResendKeys(email, clientIp(ctx.headers)))) throw new APIError('TOO_MANY_REQUESTS', { message: TOO_MANY });
         }
       }),
       after: createAuthMiddleware(async (ctx) => {

@@ -27,6 +27,12 @@ export const DEMO_GAME_URL = (process.env.E2E_DEMO_URL || `http://localhost:${DE
 export const DATA_DIR = resolve(REPO_ROOT, process.env.E2E_DATA_DIR || 'e2e/.data');
 
 /**
+ * Copies des e-mails envoyés par le serveur de test (transport console) : les specs y lisent les liens à jeton
+ * (vérification d'adresse, réinitialisation du mot de passe). Fichiers `<horodatage>-<objet>.txt` : « À : … », « Objet : … ».
+ */
+export const MAILS_DIR = resolve(DATA_DIR, 'mails');
+
+/**
  * Réutiliser des serveurs déjà lancés (E2E_REUSE_SERVER=1). Dans ce cas le globalSetup ne touche PAS à la base :
  * le serveur existant la tient ouverte — c'est à vous de l'avoir lancé avec DEVAPPSTORE_DATA_DIR=e2e/.data, migrée et seedée.
  */
@@ -61,5 +67,9 @@ export function webServerEnv(): Record<string, string> {
     AUTH_SECRET: process.env.E2E_AUTH_SECRET || 'e2e-secret-de-test-uniquement-0123456789abcdef',
     CRON_SECRET: process.env.E2E_CRON_SECRET || 'e2e-cron-secret-de-test-0123456789',
     NEXT_TELEMETRY_DISABLED: '1',
+    // E-mails : jamais envoyés, copiés dans e2e/.data/mails (liens lus par les specs).
+    MAIL_TRANSPORT: 'console',
+    RESEND_API_KEY: '',
+    MAIL_CONSOLE_DIR: MAILS_DIR,
   };
 }
