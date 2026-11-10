@@ -2,6 +2,13 @@ import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, index, u
 import type { Currency, GameStatus, GameTheme, ItemModel, ItemStyle, ItemType, LayoutId, LinkMethod, Period, StudioRole } from '@devappstore/core';
 import { user } from './auth';
 
+/**
+ * Présentation éditoriale d'un jeu : pourquoi il compte parmi les meilleurs, et l'article conseillé avec son argument.
+ * `angle` : à qui s'adresse l'article (débuter, compléter sa progression, rester au sommet).
+ */
+export type SpotlightAngle = 'start' | 'complete' | 'top';
+export type GameSpotlight = { headline: string; reasons: string[]; productId: string; angle: SpotlightAngle; pitch: string };
+
 /** Studio (compte vendeur). Le paiement est reversé sur son compte Stripe Connect. */
 export const studios = pgTable('studios', {
   id: text('id').primaryKey(),
@@ -41,6 +48,8 @@ export const games = pgTable(
     platform: text('platform').$type<'mobile' | 'pc'>().notNull().default('mobile'),
     /** Captures d'écran (URL d'images, ordre d'affichage). */
     screenshots: jsonb('screenshots').$type<string[]>().notNull().default([]),
+    /** Mise en avant éditoriale sur l'accueil (« Les meilleurs jeux du moment ») ; null = jeu non mis en avant. */
+    spotlight: jsonb('spotlight').$type<GameSpotlight>(),
     iconUrl: text('icon_url'),
     bannerUrl: text('banner_url'),
     theme: jsonb('theme').$type<GameTheme>().notNull(),

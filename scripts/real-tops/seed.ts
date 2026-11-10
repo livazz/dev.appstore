@@ -11,13 +11,15 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { DEFAULT_ITEM_STYLE, SKIN_PALETTES, hashApiKey, type GameTheme, type ItemStyle } from '@devappstore/core';
 import { and, eq, like, notInArray, sql } from 'drizzle-orm';
-import { db, games, items, studios } from '@devappstore/db';
+import path from 'node:path';
+import { db, games, items, studios, type GameSpotlight } from '@devappstore/db';
 import { seedPromosSales } from '../../packages/db/src/seed-promos-sales';
 import { seedReviews } from '../../packages/db/src/seed-reviews';
 import { CATALOG_FILE, artFile, artUrl, assertLocalOnly, importManualBanner, skinFor, slugify, type RealCatalog, type RealGame } from './common';
 
 assertLocalOnly();
 
+const EDITORIAL_FILE = path.join(path.dirname(CATALOG_FILE), 'editorial.json');
 const REAL_GAME = 'gam_real_';
 const REAL_STUDIO = 'std_real_';
 const under = (s: string) => s.replace(/-/g, '_');
@@ -60,6 +62,8 @@ async function remove() {
 async function seed() {
   if (!existsSync(CATALOG_FILE)) throw new Error(`${CATALOG_FILE} introuvable : lancez d'abord npm run real-tops:fetch.`);
   const catalog = JSON.parse(readFileSync(CATALOG_FILE, 'utf8')) as RealCatalog;
+  // Présentations éditoriales de l'accueil (« Les meilleurs jeux du moment ») : fichier local facultatif, slug → présentation.
+  const editorial: Record<string, GameSpotlight> = existsSync(EDITORIAL_FILE) ? JSON.parse(readFileSync(EDITORIAL_FILE, 'utf8')) : {};
   // Slugs déjà pris par d'autres jeux (catalogue fictif, jeux de studios) : on ne les écrase jamais.
   const taken = new Set(
     (await db.select({ slug: games.slug, id: games.id }).from(games)).filter((r) => !r.id.startsWith(REAL_GAME)).map((r) => r.slug),
@@ -79,7 +83,7 @@ async function seed() {
     const values = {
       studioId, slug, name: g.name.slice(0, 80), subtitle: g.subtitle.slice(0, 80), publisherName: g.publisher, category: g.category,
       description: g.description, storeDescription: g.storeDescription, platform: g.platform, screenshots: g.screenshots,
-      iconUrl: g.icon, bannerUrl: banner, theme: themeFor(g), status: 'live' as const, updatedAt: new Date(),
+      iconUrl: g.icon, bannerUrl: banner, spotlight: editorial[g.slug] ?? null, theme: themeFor(g), status: 'live' as const, updatedAt: new Date(),
     };
     await db
       .insert(games)

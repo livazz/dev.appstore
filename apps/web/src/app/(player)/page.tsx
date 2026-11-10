@@ -6,6 +6,8 @@ import { PromoRail } from '@/components/catalog/PromoRail';
 import { RankedGameRow } from '@/components/catalog/RankingList';
 import { getHomeCatalog, getPromoItems, normalizePlatform, type GamePlatform } from '@/server/catalog';
 import { getGameRanking } from '@/server/rankings';
+import { getSpotlights } from '@/server/spotlight';
+import { SpotlightSection } from '@/components/catalog/SpotlightSection';
 import { openGraph } from '@/lib/seo';
 import { SiteArt, type SiteArtName } from '@/components/SiteArt';
 
@@ -97,11 +99,12 @@ const linkCls =
 
 async function Catalog({ platform }: { platform: GamePlatform | null }) {
   const now = new Date();
-  const [{ featured, categories, total }, promos, topMobile, topPc] = await Promise.all([
+  const [{ featured, categories, total }, promos, topMobile, topPc, spotlights] = await Promise.all([
     getHomeCatalog(undefined, { platform }),
     getPromoItems({ platform, now }),
     platform === 'pc' ? Promise.resolve([]) : getGameRanking({ platform: 'mobile', limit: 10, now }),
     platform === 'mobile' ? Promise.resolve([]) : getGameRanking({ platform: 'pc', limit: 10, now }),
+    getSpotlights({ platform, limit: 8, now }),
   ]);
   const tops = [
     { id: 'top-mobile', title: 'Top 10 mobile', href: '/classements/mobile', list: topMobile },
@@ -116,6 +119,8 @@ async function Catalog({ platform }: { platform: GamePlatform | null }) {
         </div>
       ) : (
         <>
+          <SpotlightSection entries={spotlights} />
+
           <PromoRail
             id="promos-du-jour"
             title="Promos du jour"

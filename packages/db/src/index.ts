@@ -9,7 +9,7 @@ import * as schema from './schema/index';
 export * from './schema/index';
 export * from './notify';
 export { schema };
-export { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or, sql, count, sum, ilike } from 'drizzle-orm';
+export { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql, count, sum, ilike } from 'drizzle-orm';
 
 export type DB = PgliteDatabase<typeof schema>;
 

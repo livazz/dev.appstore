@@ -90,6 +90,15 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
    dev seulement).
 3. Dépôt GitHub **public** : https://github.com/livazz/dev.appstore (Node et gh installés dans `~/.local/bin`).
 
+## Accueil : « Les meilleurs jeux du moment »
+
+Section éditoriale en tête d'accueil (`components/catalog/SpotlightSection.tsx`, `server/spotlight.ts`) : pour chaque jeu
+live doté d'une présentation (`games.spotlight`, jsonb, migration 0006) — accroche, 2 à 4 points forts, article conseillé
+(`productId`) avec son angle (`start` débuter, `complete` compléter, `top` rester au sommet) et son argument. Tri par rang de
+ventes, 8 jeux. Le jeu disparaît de la section si son article est désactivé. Présentations : Crystal Clash et Pixel Farm
+dans `seed.ts` ; vrais jeux dans `.data/real-tops/editorial.json` (local, slug → présentation, lu par `real-tops:seed`).
+Pas encore d'écran studio / admin pour l'éditer.
+
 ## Vrais tops en local
 
 Pour voir de **vrais jeux** (top 100 « les plus rentables » Jeux de l'App Store France + top 100 des ventes Steam avec
