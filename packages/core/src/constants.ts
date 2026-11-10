@@ -1,4 +1,4 @@
-import type { Currency, GameTheme, ItemStyle, ItemType, Period } from './types';
+import type { Currency, GameTheme, ItemStyle, ItemType, Period, StoreSkin } from './types';
 
 /**
  * Commission standard Apple / Google sur les achats in-app (taux « plein » historique).
@@ -50,6 +50,7 @@ export const GRID_LIMITS = {
 };
 
 export const DEFAULT_THEME: GameTheme = {
+  skin: 'arcade',
   gradient: { enabled: false, c1: '#4aa8f0', c2: '#ffffff', style: 'linear' },
   grid: { width: 200, height: 260, margin: 24 },
 };
@@ -71,6 +72,46 @@ export const DEFAULT_ITEM_STYLE: ItemStyle = {
   borderColor: '#1d1d1f',
   rounded: true,
   shadow: true,
+};
+
+/** Thèmes de boutique proposés aux studios (l'ordre est celui du sélecteur de l'éditeur). */
+export const STORE_SKINS: { value: StoreSkin; label: string; description: string }[] = [
+  { value: 'arcade', label: 'Arcade', description: 'Contours épais, relief, boutons 3D — jeux d’action.' },
+  { value: 'premium', label: 'Premium sombre', description: 'Verre fumé, filets dorés, halo — RPG et collection.' },
+  { value: 'casual', label: 'Casual doux', description: 'Pastels, rondeurs, rubans — puzzle et gestion.' },
+  { value: 'clean', label: 'Épuré', description: 'Cartes blanches, aplat de couleur — façon vitrine.' },
+  { value: 'classic', label: 'Classique', description: 'Rendu historique, chaque détail réglable.' },
+];
+
+/**
+ * Palettes conseillées par thème (proposées dans l'éditeur). Dans les thèmes, `bg1`/`bg2` colorent la carte (arcade),
+ * le halo (premium) ou l'aplat derrière l'objet (casual, épuré) ; `priceBg`/`priceColor` le bouton d'achat.
+ */
+export const SKIN_PALETTES: Record<Exclude<StoreSkin, 'classic'>, { label: string; style: Partial<ItemStyle> }[]> = {
+  arcade: [
+    { label: 'Ciel', style: { bg1: '#7bd3ff', bg2: '#2a5be0', titleColor: '#ffffff', priceBg: '#4cc92f', priceColor: '#ffffff' } },
+    { label: 'Épique', style: { bg1: '#e5a8ff', bg2: '#6a1fd6', titleColor: '#ffffff', priceBg: '#4cc92f', priceColor: '#ffffff' } },
+    { label: 'Or', style: { bg1: '#ffeaa0', bg2: '#f08c00', titleColor: '#ffffff', priceBg: '#4cc92f', priceColor: '#ffffff' } },
+    { label: 'Rubis', style: { bg1: '#ff7aa8', bg2: '#7a1145', titleColor: '#ffffff', priceBg: '#4cc92f', priceColor: '#ffffff' } },
+  ],
+  premium: [
+    { label: 'Émeraude', style: { bg1: '#50dca0', bg2: '#15121f', titleColor: '#f3ead7', priceBg: '#d9ad5c', priceColor: '#1a1408' } },
+    { label: 'Améthyste', style: { bg1: '#aa6eff', bg2: '#15121f', titleColor: '#f3ead7', priceBg: '#d9ad5c', priceColor: '#1a1408' } },
+    { label: 'Soleil', style: { bg1: '#ffc85a', bg2: '#15121f', titleColor: '#f3ead7', priceBg: '#d9ad5c', priceColor: '#1a1408' } },
+    { label: 'Braise', style: { bg1: '#ff7896', bg2: '#15121f', titleColor: '#f3ead7', priceBg: '#d9ad5c', priceColor: '#1a1408' } },
+  ],
+  casual: [
+    { label: 'Menthe', style: { bg1: '#c8f7dc', bg2: '#8fe3b3', titleColor: '#4a2c12', priceBg: '#4cc43a', priceColor: '#ffffff' } },
+    { label: 'Lavande', style: { bg1: '#eadcff', bg2: '#c3a6ff', titleColor: '#4a2c12', priceBg: '#4cc43a', priceColor: '#ffffff' } },
+    { label: 'Miel', style: { bg1: '#fff2c2', bg2: '#ffd36b', titleColor: '#4a2c12', priceBg: '#4cc43a', priceColor: '#ffffff' } },
+    { label: 'Fraise', style: { bg1: '#ffe0ea', bg2: '#ffa6c1', titleColor: '#4a2c12', priceBg: '#4cc43a', priceColor: '#ffffff' } },
+  ],
+  clean: [
+    { label: 'Menthe', style: { bg1: '#d9fbe8', bg2: '#9ff0c5', titleColor: '#111111', priceBg: '#111111', priceColor: '#ffffff' } },
+    { label: 'Lavande', style: { bg1: '#efe4ff', bg2: '#c7a9ff', titleColor: '#111111', priceBg: '#111111', priceColor: '#ffffff' } },
+    { label: 'Miel', style: { bg1: '#fff4cf', bg2: '#ffd36b', titleColor: '#111111', priceBg: '#111111', priceColor: '#ffffff' } },
+    { label: 'Nuit', style: { bg1: '#4b3f8f', bg2: '#22243a', titleColor: '#111111', priceBg: '#111111', priceColor: '#ffffff' } },
+  ],
 };
 
 /** Durée de validité d'un code de liaison affiché dans le jeu. */

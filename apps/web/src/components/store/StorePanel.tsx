@@ -3,12 +3,14 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { Currency, GameTheme } from '@devappstore/core/client';
 import { ItemCard, textEffects, type CardItem } from './ItemCard';
+import { SkinStore } from './SkinStore';
 import { activeFilterColors, panelBackground, safeColor, safeImageUrl } from './style-safety';
 import s from './store.module.css';
 
 export { panelBackground } from './style-safety';
 
-export type PanelItem = CardItem & { id: string; keywords: string[] };
+/** `quantity` et `points` (Points Dev AppStore gagnés) ne sont affichés que par les thèmes. */
+export type PanelItem = CardItem & { id: string; keywords: string[]; quantity?: number; points?: number | null };
 
 /**
  * Boutique d'un jeu (maquettes PDF) : bannière, en-tête, filtres par mots-clés, grille d'articles.
@@ -39,6 +41,53 @@ export function StorePanel({
   /** Optionnel (éditeur studio) : outils superposés à chaque carte, ex. monter / descendre. */
   itemTools?: (item: PanelItem, index: number) => ReactNode;
   emptyText?: string;
+}) {
+  if (theme.skin && theme.skin !== 'classic') {
+    return (
+      <SkinStore
+        skin={theme.skin}
+        theme={theme}
+        currency={currency}
+        bannerUrl={bannerUrl}
+        items={items}
+        header={header}
+        bannerTools={bannerTools}
+        side={side}
+        addTile={addTile}
+        onItemClick={onItemClick ? (i) => onItemClick(i as PanelItem) : undefined}
+        itemTools={itemTools ? (i, idx) => itemTools(i as PanelItem, idx) : undefined}
+        emptyText={emptyText}
+      />
+    );
+  }
+  return <ClassicPanel {...{ theme, currency, bannerUrl, items, header, bannerTools, side, addTile, onItemClick, itemTools, emptyText }} />;
+}
+
+/** Rendu historique (thème « classique ») : bannière, filtres latéraux, cartes entièrement paramétrables. */
+function ClassicPanel({
+  theme,
+  currency,
+  bannerUrl,
+  items,
+  header,
+  bannerTools,
+  side,
+  addTile,
+  onItemClick,
+  itemTools,
+  emptyText,
+}: {
+  theme: GameTheme;
+  currency: Currency;
+  bannerUrl?: string | null;
+  items: PanelItem[];
+  header: ReactNode;
+  bannerTools?: ReactNode;
+  side?: ReactNode;
+  addTile?: ReactNode;
+  onItemClick?: (item: PanelItem) => void;
+  itemTools?: (item: PanelItem, index: number) => ReactNode;
+  emptyText: string;
 }) {
   const [tag, setTag] = useState<string | null>(null);
   const tags = useMemo(() => {

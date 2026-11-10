@@ -1,6 +1,8 @@
 import 'server-only';
-import { GAME_CATEGORIES, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@devappstore/core';
+import { feeCents, GAME_CATEGORIES, type Currency, type GameTheme, type ItemModel, type ItemStyle, type ItemType, type LayoutId, type Period } from '@devappstore/core';
 import { and, asc, db, eq, games, ilike, inArray, items, or, sql, type DB } from '@devappstore/db';
+import { env } from '@/env';
+import { isLoyaltyEnabled, loyaltyConfigFromEnv, pointsForFee } from './loyalty-logic';
 
 /*
  * Requêtes du catalogue public (tâche « catalog »).
@@ -37,6 +39,8 @@ export interface PublicItem {
   models: ItemModel[];
   layout: LayoutId;
   style: ItemStyle;
+  /** Points Dev AppStore gagnés à l'achat (estimation affichée en boutique) ; null si la fidélité est désactivée. */
+  points?: number | null;
 }
 
 /** Boutique publique complète d'un jeu live. */
@@ -237,5 +241,7 @@ export async function getLiveGameBySlug(slug: string, database: DB = db): Promis
     .from(items)
     .where(and(eq(items.gameId, g.id), eq(items.active, true)))
     .orderBy(asc(items.position), asc(items.createdAt));
-  return { ...g, items: list };
+  const loyalty = isLoyaltyEnabled() ? loyaltyConfigFromEnv() : null;
+  const bps = env.PLATFORM_FEE_BPS;
+  return { ...g, items: list.map((i) => ({ ...i, points: loyalty ? pointsForFee(feeCents(i.priceCents, bps), loyalty) || null : null })) };
 }

@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { GRID_LIMITS, type GameTheme } from '@devappstore/core';
+import { GRID_LIMITS, SKIN_PALETTES, STORE_SKINS, type GameTheme } from '@devappstore/core';
 import { StorePanel, type PanelItem } from '@/components/store/StorePanel';
 import { safeImageUrl } from '@/components/store/style-safety';
-import { moveItem, updateGame } from '@/server/studio';
+import { moveItem, updateGame, updateItem } from '@/server/studio';
 import { GAME_STATUS_LABELS, type EditorGame, type EditorItem } from '@/lib/studio-types';
 import { pickAndUploadImage } from '@/lib/upload';
 import { GradientPicker } from './GradientPicker';
@@ -243,8 +243,58 @@ export function StoreEditor({ initialGame, initialItems }: { initialGame: Editor
     </>
   );
 
+  const skin = game.theme.skin ?? 'classic';
+  /** Répartit les palettes conseillées du thème sur les articles (un article sur quatre reprend la même). */
+  const applySkinColors = () => {
+    if (skin === 'classic') return;
+    const palettes = SKIN_PALETTES[skin];
+    const before = items;
+    const next = items.map((it, i) => ({ ...it, style: { ...it.style, ...palettes[i % palettes.length]!.style } }));
+    setItems(next);
+    setSave({ state: 'saving' });
+    startTransition(async () => {
+      for (const it of next) {
+        const { id, ...input } = it;
+        const r = await updateItem(game.id, id, input);
+        if (!r.ok) {
+          setItems(before);
+          setSave({ state: 'error', error: r.error });
+          return;
+        }
+      }
+      setSave({ state: 'saved' });
+    });
+  };
   const side = (
-    <div className="rounded-xl bg-white/85 p-3 shadow-sm ring-1 ring-black/5">
+    <div className="rounded-xl bg-white/90 p-3 text-ink shadow-sm ring-1 ring-black/5">
+      <fieldset className="mb-3">
+        <legend className="mb-2 text-sm font-semibold">Thème de la boutique</legend>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {STORE_SKINS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              aria-pressed={skin === t.value}
+              title={t.description}
+              onClick={() => setTheme({ ...game.theme, skin: t.value })}
+              className={`min-h-11 rounded-lg border px-2 py-1.5 text-left text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary ${skin === t.value ? 'border-primary bg-primary/10 text-ink' : 'border-line bg-white hover:border-primary'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-ink-2">{STORE_SKINS.find((t) => t.value === skin)?.description}</p>
+        {skin !== 'classic' && items.length > 0 && (
+          <button
+            type="button"
+            onClick={applySkinColors}
+            disabled={save.state === 'saving'}
+            className="mt-2 min-h-10 w-full rounded-lg border border-line bg-white px-3 py-1.5 text-sm font-medium hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary disabled:opacity-60"
+          >
+            Appliquer les couleurs du thème aux articles
+          </button>
+        )}
+      </fieldset>
       <Slider label="Hauteur" value={game.theme.grid.height} {...GRID_LIMITS.height} onChange={(v) => setTheme({ ...game.theme, grid: { ...game.theme.grid, height: v } })} />
       <Slider label="Largeur" value={game.theme.grid.width} {...GRID_LIMITS.width} onChange={(v) => setTheme({ ...game.theme, grid: { ...game.theme.grid, width: v } })} />
       <Slider label="Marge" value={game.theme.grid.margin} {...GRID_LIMITS.margin} onChange={(v) => setTheme({ ...game.theme, grid: { ...game.theme.grid, margin: v } })} />
@@ -298,9 +348,9 @@ export function StoreEditor({ initialGame, initialItems }: { initialGame: Editor
         onItemClick={(it) => setEditing(items.find((x) => x.id === it.id) ?? null)}
       />
       {editing && (
-        <ItemModal gameId={game.id} currency={game.currency} items={items} item={editing} onClose={() => setEditing(null)} onSaved={onSaved} onDeleted={onDeleted} />
+        <ItemModal skin={game.theme.skin ?? 'classic'} gameId={game.id} currency={game.currency} items={items} item={editing} onClose={() => setEditing(null)} onSaved={onSaved} onDeleted={onDeleted} />
       )}
-      {adding && <ItemModal gameId={game.id} currency={game.currency} items={items} onClose={closeAdd} onSaved={onSaved} onDeleted={onDeleted} />}
+      {adding && <ItemModal skin={game.theme.skin ?? 'classic'} gameId={game.id} currency={game.currency} items={items} onClose={closeAdd} onSaved={onSaved} onDeleted={onDeleted} />}
     </>
   );
 }

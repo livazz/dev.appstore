@@ -24,6 +24,8 @@ const toPanelItem = (i: PublicItem): PanelItem => ({
   layout: i.layout,
   style: i.style,
   keywords: i.keywords,
+  quantity: i.quantity,
+  points: i.points ?? null,
 });
 
 /**

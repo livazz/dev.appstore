@@ -10,10 +10,13 @@ import {
   slugify,
   type Currency,
   type ItemStyle,
+  type StoreSkin,
+  SKIN_PALETTES,
   type LayoutId,
   type Period,
 } from '@devappstore/core';
 import { ItemCard } from '@/components/store/ItemCard';
+import { SkinCard } from '@/components/store/SkinStore';
 import { createItem, deleteItem, updateItem } from '@/server/studio';
 import type { EditorItem } from '@/lib/studio-types';
 import { pickAndUploadImage } from '@/lib/upload';
@@ -61,7 +64,9 @@ export function ItemModal({
   onClose,
   onSaved,
   onDeleted,
+  skin = 'classic',
 }: {
+  skin?: StoreSkin;
   gameId: string;
   currency: Currency;
   items: EditorItem[];
@@ -307,6 +312,8 @@ export function ItemModal({
             </div>
           </div>
         </div>
+      ) : skin !== 'classic' ? (
+        <ThemedLayout skin={skin} draft={draft} currency={currency} setStyle={setStyle} setLayout={(l) => set({ layout: l })} />
       ) : (
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="flex w-full flex-none flex-col divide-y divide-line rounded-xl border border-line px-4 py-2 lg:w-80">
@@ -411,5 +418,80 @@ export function ItemModal({
         )}
       </div>
     </Modal>
+  );
+}
+
+const THEMED_LAYOUTS: { layout: LayoutId; label: string }[] = [
+  { layout: 1, label: 'Carte' },
+  { layout: 3, label: 'Large, visuel à gauche' },
+  { layout: 6, label: 'Large, visuel à droite' },
+];
+
+/** Onglet « Mise en page » des boutiques à thème : palettes conseillées, couleurs essentielles, 3 formats. */
+function ThemedLayout({
+  skin,
+  draft,
+  currency,
+  setStyle,
+  setLayout,
+}: {
+  skin: Exclude<StoreSkin, 'classic'>;
+  draft: Draft;
+  currency: Currency;
+  setStyle: (p: Partial<ItemStyle>) => void;
+  setLayout: (l: LayoutId) => void;
+}) {
+  const palettes = SKIN_PALETTES[skin];
+  return (
+    <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex w-full flex-none flex-col gap-4 rounded-xl border border-line p-4 lg:w-80">
+        <div>
+          <p className="mb-2 text-sm font-semibold">Couleurs conseillées</p>
+          <div className="grid grid-cols-2 gap-2">
+            {palettes.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => setStyle(p.style)}
+                className="flex min-h-11 items-center gap-2 rounded-lg border border-line px-2 py-1.5 text-left text-sm hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+              >
+                <span className="size-6 flex-none rounded-md ring-1 ring-black/10" style={{ background: `linear-gradient(135deg, ${p.style.bg1}, ${p.style.bg2})` }} aria-hidden="true" />
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="divide-y divide-line">
+          <ColorField label={skin === 'premium' ? 'Halo' : 'Couleur 1'} value={draft.style.bg1} onChange={(v) => setStyle({ bg1: v })} />
+          {skin !== 'premium' && <ColorField label="Couleur 2" value={draft.style.bg2} onChange={(v) => setStyle({ bg2: v })} />}
+          <ColorField label="Police du titre" value={draft.style.titleColor} onChange={(v) => setStyle({ titleColor: v })} />
+          <ColorField label="Bouton d’achat" value={draft.style.priceBg} onChange={(v) => setStyle({ priceBg: v })} />
+          <ColorField label="Texte du bouton" value={draft.style.priceColor} onChange={(v) => setStyle({ priceColor: v })} />
+        </div>
+        <p className="text-xs text-ink-2">
+          Le sous-titre s’affiche dans l’onglet au-dessus de la carte ; les mots-clés « Meilleure offre », « Populaire », « Nouveau » ou « Offre unique » ajoutent un ruban.
+        </p>
+      </div>
+      <div className="flex flex-1 flex-wrap content-start items-start justify-center gap-6 rounded-xl bg-bg p-6">
+        {THEMED_LAYOUTS.map(({ layout, label }) => (
+          <div key={layout} className="flex flex-col items-center gap-2">
+            <div
+              className={`rounded-2xl p-3 ${draft.layout === layout ? 'ring-4 ring-primary' : 'ring-1 ring-line'}`}
+              style={{ background: skin === 'premium' ? '#120f1c' : skin === 'arcade' ? '#3527c9' : skin === 'casual' ? '#e2f4ff' : '#f5f5f7' }}
+            >
+              <SkinCard
+                item={{ ...draft, id: `preview-${layout}`, layout, quantity: draft.quantity }}
+                skin={skin}
+                currency={currency}
+                width={layout === 1 ? 200 : 170}
+                onClick={() => setLayout(layout)}
+                label={`Mise en page : ${label}`}
+              />
+            </div>
+            <span className="text-sm text-ink-2">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

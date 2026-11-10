@@ -60,6 +60,7 @@ export const imageUrlSchema = z
 const intIn = (min: number, max: number) => z.number().int().min(min).max(max);
 
 export const themeSchema = z.object({
+  skin: z.enum(['arcade', 'premium', 'casual', 'clean', 'classic']).optional(),
   gradient: z.object({ enabled: z.boolean(), c1: hex, c2: hex, style: z.enum(['linear', 'radial']) }),
   grid: z.object({
     width: intIn(GRID_LIMITS.width.min, GRID_LIMITS.width.max),

@@ -5,6 +5,8 @@ export type ItemType = 'consumable' | 'non_consumable' | 'auto_renewable' | 'non
 export type Period = 'week' | 'month' | 'year';
 export type LayoutId = 1 | 2 | 3 | 4 | 5 | 6;
 export type BgType = 'solid' | 'linear' | 'radial';
+/** Thème visuel de la boutique (cartes, onglets, boutons). `classic` = rendu historique entièrement paramétrable. */
+export type StoreSkin = 'arcade' | 'premium' | 'casual' | 'clean' | 'classic';
 
 /** Méthodes de liaison d'un compte joueur à un compte de jeu. */
 export type LinkMethod = 'code' | 'id_confirm' | 'oauth';
@@ -40,6 +42,8 @@ export interface ItemModel {
 }
 
 export interface GameTheme {
+  /** Absent sur les jeux créés avant les thèmes : rendu `classic`. */
+  skin?: StoreSkin;
   gradient: { enabled: boolean; c1: string; c2: string; style: 'linear' | 'radial' };
   grid: { width: number; height: number; margin: number };
 }
