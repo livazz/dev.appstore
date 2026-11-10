@@ -12,6 +12,42 @@
   handlers). Les constats **F1, F2, F4 et F6** ont été **reproduits** (14 assertions vertes, fichier supprimé ensuite, extrait
   en annexe). Les autres sont vérifiés par lecture du code. Ce qui n'a pas pu être vérifié est marqué « plausible ».
 
+## Corrections apportées (10 novembre 2026, même branche)
+
+Tests de non-régression : `apps/web/src/server/secu-2026-11.test.ts` (30 tests), plus les compléments indiqués.
+Vérifié : `npm run typecheck`, `npm test` (tous verts, sauf `packages/db/src/migrations.test.ts`, rouge **par construction** tant que
+la migration n'est pas générée, cf. « À faire à la fusion » ; avec la migration générée localement puis retirée, il passe),
+`npm run build -w @devappstore/web`. E2E non relancés.
+
+| # | Statut | Correctif | Test |
+|---|---|---|---|
+| F1 | **Corrigé** | Quota par jeu compté **par source** (`codesPerGame` 120/min pour la clé secrète, `codesPerGamePublishable` 600/min pour la clé publique) ; un code public n'invalide **aucun** code ; un code secret n'invalide que les codes secrets du joueur (`linking.ts`, `createLinkCode`, option `source`, renvoie `linkRequestId`). Reste : un attaquant disposant de nombreuses IP réelles peut encore épuiser le quota *public* d'un jeu (le serveur du studio n'est plus affecté). | `secu-2026-11` « F1 » (3 tests) |
+| F2 | **Corrigé** | Place de flux par joueur **et par origine** : `stream:player:<jeu>:secret:<joueur>` ou `…:user:<compte du jeton>:<joueur>` (`api-rate-limit.ts`). | « F2 » |
+| F3 / A-05 | **Corrigé** | Utilitaire unique `server/client-ip.ts` : n-ième valeur de `X-Forwarded-For` en partant de la droite, `TRUSTED_PROXY_HOPS` (défaut 1, 0 = en-têtes ignorés), validation du format IP ; utilisé par l'API v1, les formulaires de connexion / inscription (`auth-rate-limit.ts` réexporte `clientIp`) et la liaison. Non traité : `payments.ts:163` a sa propre extraction (hors périmètre « paiement », métadonnée Stripe et non limiteur) ; l'éviction du magasin mémoire reste possible mais n'est plus pilotable par un en-tête falsifié. | « F3 / A-05 » (4 tests) ; `auth-security.test.ts` et `v1-rate-limit.test.ts` adaptés (valeur de gauche falsifiée ignorée) |
+| F4 | **Corrigé** | `acknowledgeDelivery` : un achat dont la commande n'est plus `paid` ou arrêté pour rétractation répond `ok` sans effet (ni statut `acknowledged`, ni e-mail). | « F4 » |
+| F5 | **Corrigé** | Lookup signé sur `devappstore-lookup-v1:<player_id>` (`signLookup` / `verifyLookupSignature` dans `@devappstore/core` et le SDK `@devappstore/sdk/server`, `signLookupRequest`). **Changement de contrat** pour les studios qui vérifiaient l'ancien format : docs (`/docs/player-lookup`, README du SDK), exemple de vecteur et jeu de démo mis à jour. | « F5 », `sdk-js/src/server.test.ts`, `demo-game/src/app.test.ts`, `lib/docs/examples.test.ts` |
+| F6 | **Corrigé** | `::ffff:0:0/96` (contrôle de l'IPv4 incluse), `64:ff9b:1::/48`, `2001:10::/28`, `2001:20::/28` bloqués. | « F6 » |
+| F7 | **Corrigé** | Chiffrement au repos sans dépendance (`server/webhook-secrets.ts` sur `server/secrets.ts` : AES-256-GCM, HKDF de `AUTH_SECRET`/`BETTER_AUTH_SECRET`, `info` dédié, AAD = id du jeu, format `enc:v1:…`) ; valeurs historiques en clair chiffrées à la première utilisation ; rotation avec **recouvrement de 24 h** (deux `v1=` signés, `signPayloadMulti`) ou immédiate (case « secret compromis ») ; `verifySignature` (core) accepte plusieurs `v1`. Limite documentée : changer `AUTH_SECRET` rend les secrets illisibles (message explicite, régénération par le studio). `createGame` (studio, hors périmètre) écrit encore le secret en clair : chiffré au premier envoi. | « F7 » (3 tests) |
+| F8 / A-08 | **Corrigé** | Rotations (clé secrète, clé publique, secret webhook), révocation de l'ancienne clé, URL du webhook et URL de recherche réservées à **owner / admin** (`INTEGRATION_ADMINS`) ; `developer` garde l'affichage du secret, l'événement de test, les relances, la révocation de jetons ; nouvelle table `integration_audit_log` (acteur, rôle, action, URL sans query string, jamais de secret) affichée dans l'onglet Intégration. Non fait : notification e-mail aux propriétaires, ré-authentification. | « F8 / A-08 » (2 tests) |
+| F9 | **Corrigé** | Ancienne clé secrète acceptée 24 h après rotation (`apiKeyPreviousHash`, `…ExpiresAt`), révocation immédiate possible (« clé compromise » ou bouton « Révoquer maintenant »), `apiKeyLastUsedAt` / `apiKeyPreviousLastUsedAt` (au plus toutes les 5 min) affichés. Pas de table multi-clés (deux clés au plus). | « F9 » (2 tests) |
+| F10 | **Corrigé** | Saisies de code : 30 / 15 min par IP (tous comptes) ; recherches `id_confirm` : 30 / 10 min par IP ; alerte journalisée au-delà de 200 échecs / 15 min pour un jeu (magasin `getRateLimitStore`, partagé si `RATE_LIMIT_STORE=postgres`). | « F10 » (2 tests) |
+| F11 | **Corrigé** | Un code demandé avec la clé publique renvoie `confirmation_required` (rien n'est consommé) ; la page affiche le `player_id` visé, le nom déclaré « non vérifié » et une mise en garde, puis « Oui, c'est mon compte de jeu ». Codes du serveur du studio : inchangé. | « F11 » (2 tests) |
+| F12 | **Corrigé** | Expiration glissante des jetons joueur : 90 jours sans usage (`PLAYER_TOKEN_IDLE_TTL_MS`), sans changement de schéma. Compatible SDK : `401 player_token_required` ⇒ le SDK oublie le jeton et repasse en attente de liaison (comportement existant). | « F12 » |
+| F13 | **Partiel** | Fait : `authenticateGame` supprimée ; le SDK refuse une clé secrète dans un navigateur (`window` + `document`), option `dangerouslyAllowSecretKeyInBrowser` ; rattrapages après reconnexion LISTEN étalés (`resyncJitterMs`, 5 s) ; `verifySignature` multi-`v1`. Non fait : plafonds de flux SSE partagés entre instances (toujours par instance, documenté dans `docs/deploy.md`). | « F13 », `sdk-js/src/client.test.ts`, `delivery.test.ts`, `v1-keys.test.ts` |
+
+### À faire à la fusion
+
+1. **Schéma modifié, migration non générée** (consigne) : `packages/db/src/schema/studio.ts` ajoute à `games` les colonnes
+   `webhook_secret_previous`, `webhook_secret_previous_expires_at`, `api_key_previous_hash`, `api_key_previous_prefix`,
+   `api_key_previous_expires_at`, `api_key_last_used_at`, `api_key_previous_last_used_at`, et la table
+   `integration_audit_log` (+ index `integration_audit_game_idx`). Lancer `npm run db:generate -w @devappstore/db`
+   (vérifié localement : migration `0003` sans invite, puis `migrations.test.ts` vert), puis `npm run db:push`.
+2. **`apps/web/src/env.ts`** (non modifié ici) : ajouter `TRUSTED_PROXY_HOPS` (optionnel, entier 0–10, défaut 1). Déjà
+   dans `.env.example` et `docs/deploy.md` ; `client-ip.ts` le lit directement et lève une erreur si la valeur est invalide.
+3. Studios existants : prévenir du changement de signature du lookup (F5) ; le jeu de démo est à jour.
+4. Relancer les e2e (`cd e2e && npx playwright test --trace off`) : le parcours utilise la clé secrète, donc sans étape
+   de confirmation, mais l'onglet Intégration a changé pour le rôle `developer`.
+
 ## Synthèse
 
 L'architecture est saine sur l'essentiel : clés séparées (secrète / publique + jeton joueur), portée stricte
