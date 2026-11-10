@@ -16,7 +16,7 @@ vi.mock('@devappstore/db', async () => {
 const { db, deliveries, games, items, orders, studios, user, webhookAttempts, eq } = await import('@devappstore/db');
 const delivery = await import('./delivery');
 const events = await import('./events');
-const { authenticateGame } = await import('./api-key');
+const { authenticateApi } = await import('./api-key');
 
 /* ---------------------------------------------------------------- faux serveur de studio */
 
@@ -271,11 +271,11 @@ describe('isolement entre jeux', () => {
     expect(other).toEqual([]);
   });
 
-  it('authenticateGame résout le bon jeu par clé API', async () => {
+  it('authenticateApi résout le bon jeu par clé API', async () => {
     const req = (key: string) => new Request('http://x/api/v1/deliveries', { headers: { authorization: `Bearer ${key}` } });
-    expect((await authenticateGame(req('das_gam_sdk')))?.id).toBe('gam_sdk');
-    expect((await authenticateGame(req('das_gam_other')))?.id).toBe('gam_other');
-    expect(await authenticateGame(req('das_inconnue'))).toBeNull();
+    expect((await authenticateApi(req('das_gam_sdk')))?.game.id).toBe('gam_sdk');
+    expect((await authenticateApi(req('das_gam_other')))?.game.id).toBe('gam_other');
+    expect(await authenticateApi(req('das_inconnue'))).toBeNull();
   });
 });
 

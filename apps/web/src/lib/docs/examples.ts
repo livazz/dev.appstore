@@ -33,9 +33,9 @@ export const EXAMPLE_TIMESTAMP = 1762683300;
 export const EXAMPLE_V1 = '4a4baabe84946ffafe55571b20774128d2762793ba4b27d40522002b350eef5a';
 export const EXAMPLE_SIGNATURE_HEADER = `t=${EXAMPLE_TIMESTAMP},v1=${EXAMPLE_V1}`;
 
-/** Player lookup : le corps signé est l'identifiant joueur brut. */
+/** Player lookup : la chaîne signée est `devappstore-lookup-v1:<identifiant joueur brut>`. */
 export const EXAMPLE_LOOKUP_PLAYER_ID = 'player_42';
-export const EXAMPLE_LOOKUP_V1 = '30911955d6c30fe493069160d476e7a161875e1d46b5b63b19bff632566cd15e';
+export const EXAMPLE_LOOKUP_V1 = '09370d5eec5da21917d1fd9febd5ffe9e975ba04817d5692dd94492aa553ef58';
 export const EXAMPLE_LOOKUP_RESPONSE: PlayerLookupResponse = {
   player_id: 'player_42',
   display_name: 'NovaKnight',

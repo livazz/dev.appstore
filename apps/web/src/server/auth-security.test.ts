@@ -160,7 +160,7 @@ describe('CHK-AUTH-04 / CHK-AUTH-05 : limitation de débit et énumération', ()
 
   it('bloque une IP après trop d’échecs, tous comptes confondus', async () => {
     const limiter = new RL.SlidingWindowLimiter();
-    const headers = new Headers({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' });
+    const headers = new Headers({ 'x-forwarded-for': '10.0.0.1, 203.0.113.7' }); // valeur de gauche falsifiable, ignorée (1 proxy de confiance)
     const { max } = RL.AUTH_RATE_LIMITS.signInFailuresPerIp;
     // max - 1 échecs déjà enregistrés pour cette IP (évite max hachages de mot de passe), puis un vrai échec.
     for (let i = 0; i < max - 1; i++) limiter.record('signin:ip:203.0.113.7', RL.AUTH_RATE_LIMITS.signInFailuresPerIp);

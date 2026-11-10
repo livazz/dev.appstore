@@ -29,8 +29,8 @@ export function signWebhookPayload(body: string | Uint8Array, secret: string, ti
 }
 
 /**
- * Vérifie l'en-tête `DevAppStore-Signature` d'un webhook (ou d'un appel « player lookup », dont le corps signé
- * est l'ID joueur brut). Passez le corps **brut**, tel que reçu, avant tout `JSON.parse`.
+ * Vérifie l'en-tête `DevAppStore-Signature` d'un webhook. Passez le corps **brut**, tel que reçu, avant tout
+ * `JSON.parse`. Pour un appel « player lookup », utilisez `verifyLookupSignature`.
  */
 export function verifyWebhookSignature(body: string | Uint8Array, header: string | null | undefined, secret: string, options: VerifyOptions = {}): boolean {
   if (!header || !secret) return false;
@@ -52,6 +52,22 @@ export function verifyWebhookSignature(body: string | Uint8Array, header: string
     const got = Buffer.from(v);
     return got.length === expected.length && timingSafeEqual(got, expected);
   });
+}
+
+/** Préfixe de la chaîne signée d'un appel « player lookup » (séparation de domaine avec les webhooks). */
+export const LOOKUP_SIGNATURE_PREFIX = 'devappstore-lookup-v1:';
+
+/**
+ * Vérifie l'en-tête `DevAppStore-Signature` d'un appel « player lookup » : la chaîne signée est
+ * `devappstore-lookup-v1:<player_id>` (ID décodé, espaces de bord retirés).
+ */
+export function verifyLookupSignature(playerId: string, header: string | null | undefined, secret: string, options: VerifyOptions = {}): boolean {
+  return verifyWebhookSignature(`${LOOKUP_SIGNATURE_PREFIX}${playerId}`, header, secret, options);
+}
+
+/** Calcule l'en-tête d'un appel « player lookup » (utile pour tester son endpoint). */
+export function signLookupRequest(playerId: string, secret: string, timestamp = Math.floor(Date.now() / 1000)): string {
+  return signWebhookPayload(`${LOOKUP_SIGNATURE_PREFIX}${playerId}`, secret, timestamp);
 }
 
 export class WebhookSignatureError extends Error {

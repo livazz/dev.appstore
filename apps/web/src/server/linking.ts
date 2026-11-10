@@ -10,11 +10,15 @@ import {
   generateLinkCode,
   newId,
   normalizeLinkCode,
-  signPayload,
+  lookupSignedString,
+  signPayloadMulti,
   type LinkMethod,
   type PlayerLookupResponse,
 } from '@devappstore/core';
-import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttempts, linkCodes, lt, playerTokens, sql, studioMembers, type DB } from '@devappstore/db';
+import { UNKNOWN_IP } from './client-ip';
+import { getRateLimitStore } from './rate-limit';
+import { secretsOf, signingSecrets } from './webhook-secrets';
+import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttempts, linkCodes, lt, or, playerTokens, sql, studioMembers, type DB } from '@devappstore/db';
 
 /*
  * Liaison d'un compte Dev AppStore à un compte de jeu (tâche « linking »). Point de sécurité critique :
@@ -34,10 +38,11 @@ import { and, asc, db, desc, eq, gameLinks, games, gt, isNull, items, linkAttemp
  *   User-Agent: DevAppStore-PlayerLookup/1.0
  *   DevAppStore-Signature: t=<unix>,v1=<hex>
  *
- *   où v1 = HMAC-SHA256(secret webhook du jeu, `${t}.${player_id}`) — c.-à-d. signPayload(player_id, secret) de
- *   @devappstore/core, le « corps » signé étant l'ID joueur brut (décodé, tel que saisi, espaces de bord retirés).
- *   Côté studio : verifySignature(decodeURIComponent(param), req.headers['devappstore-signature'], secret).
- *   Signer l'ID (et pas un corps vide) empêche de rejouer une signature pour un autre joueur.
+ *   où v1 = HMAC-SHA256(secret webhook du jeu, `${t}.devappstore-lookup-v1:${player_id}`) — c.-à-d. signLookup(player_id,
+ *   secret) de @devappstore/core, avec l'ID joueur brut (décodé, tel que saisi, espaces de bord retirés).
+ *   Côté studio : verifyLookupSignature(decodeURIComponent(param), req.headers['devappstore-signature'], secret)
+ *   (SDK `@devappstore/sdk/server`). Signer l'ID empêche de rejouer une signature pour un autre joueur ; le préfixe
+ *   (revue 2026-11, F5) empêche de la réutiliser comme signature de webhook.
  *
  *   Réponses : 200 + PlayerLookupResponse JSON `{ player_id, display_name, level?, avatar_url? }`, 404 si inconnu.
  *   Pas de redirection suivie, délai max 5 s, réponse max 16 Ko. Le `player_id` renvoyé fait foi (il peut
@@ -50,12 +55,22 @@ type Tx = Parameters<Parameters<DB['transaction']>[0]>[0];
 type Executor = DB | Tx;
 
 export const LINK_LIMITS = {
-  /** Codes générés par jeu et par fenêtre (API /api/v1/link-codes). */
+  /**
+   * Codes générés par jeu et par fenêtre, comptés PAR SOURCE (revue 2026-11, F1) : la clé publique (non secrète)
+   * ne peut pas épuiser le quota du serveur du studio. `codesPerGame` : clé secrète ; `codesPerGamePublishable` :
+   * clé publique (en plus des limites par IP et par clé de guardApi).
+   */
   codesPerGame: { max: 120, windowMs: 60_000 },
+  codesPerGamePublishable: { max: 600, windowMs: 60_000 },
   /** Saisies de code erronées par utilisateur (tous jeux confondus) avant blocage temporaire. */
   codeFailuresPerUser: { max: 5, windowMs: 15 * 60_000 },
   /** Appels « player lookup » par utilisateur (anti énumération des joueurs, protège le serveur du studio). */
   lookupsPerUser: { max: 10, windowMs: 10 * 60_000 },
+  /** Revue 2026-11 (F10) : saisies de code par IP (tous comptes confondus) et recherches `id_confirm` par IP. */
+  codeAttemptsPerIp: { max: 30, windowMs: 15 * 60_000 },
+  lookupsPerIp: { max: 30, windowMs: 10 * 60_000 },
+  /** Au-delà, alerte (journal) : taux d'échec anormal de saisie de codes pour un jeu. */
+  codeFailuresAlertPerGame: { max: 200, windowMs: 15 * 60_000 },
   /** Délai pour confirmer « Est-ce bien vous ? » après une recherche réussie. */
   lookupConfirmTtlMs: 10 * 60_000,
   lookupTimeoutMs: 5_000,
@@ -81,7 +96,9 @@ export type LinkErrorCode =
   | 'player_not_found'
   | 'lookup_failed'
   | 'invalid_response'
-  | 'expired';
+  | 'expired'
+  /** Code demandé par la clé publique : la liaison attend la confirmation explicite du joueur (F11). */
+  | 'confirmation_required';
 
 export interface LinkFailure {
   ok: false;
@@ -89,10 +106,12 @@ export interface LinkFailure {
   message: string;
   retryAfterS?: number;
   remaining?: number;
+  /** `confirmation_required` : compte de jeu auquel le code lierait le joueur. */
+  candidate?: { playerId: string; playerName: string | null };
 }
 export type LinkResult<T extends object> = ({ ok: true } & T) | LinkFailure;
 
-function fail(error: LinkErrorCode, message: string, extra: Pick<LinkFailure, 'retryAfterS' | 'remaining'> = {}): LinkFailure {
+function fail(error: LinkErrorCode, message: string, extra: Pick<LinkFailure, 'retryAfterS' | 'remaining' | 'candidate'> = {}): LinkFailure {
   return { ok: false, error, message, ...extra };
 }
 
@@ -132,22 +151,32 @@ export const linkCodeRequestSchema = z.object({
     .nullish(),
 });
 
+/** Source d'un code : clé secrète (serveur du studio, atteste le joueur) ou clé publique (client du jeu). */
+export type LinkCodeSource = 'secret' | 'publishable';
+
 /**
- * Émet un code pour un joueur du jeu (appelé par l'API, jeu déjà authentifié par sa clé).
- * Unique par jeu, valable LINK_CODE_TTL_MS ; invalide les codes encore actifs du même joueur.
+ * Émet un code pour un joueur du jeu (appelé par l'API, jeu déjà authentifié par sa clé). Unique par jeu, valable
+ * LINK_CODE_TTL_MS. Revue 2026-11 (F1) — la clé publique étant publique, un tiers peut demander des codes pour
+ * n'importe quel player_id :
+ * - quota par jeu compté séparément pour chaque source ;
+ * - un code SECRET invalide les codes secrets encore actifs du même joueur (le serveur du studio est de confiance) ;
+ * - un code PUBLIC n'invalide aucun code : sinon un tiers ferait expirer en boucle le code affiché à un joueur ciblé.
+ *   Les codes publics expirent seuls (TTL court) et la saisie demande une confirmation (F11).
  */
 export async function createLinkCode(
   game: Pick<Game, 'id' | 'linkMethods'>,
   input: { playerId: string; playerName?: string | null },
-  opts: { now?: Date; generate?: () => string } = {},
-): Promise<LinkResult<{ code: string; expiresAt: Date }>> {
+  opts: { now?: Date; generate?: () => string; source?: LinkCodeSource } = {},
+): Promise<LinkResult<{ code: string; expiresAt: Date; linkRequestId: string }>> {
   if (!game.linkMethods.includes('code')) return fail('method_disabled', 'La liaison par code est désactivée pour ce jeu.');
   const now = opts.now ?? new Date();
-  const { max, windowMs } = LINK_LIMITS.codesPerGame;
+  const source = opts.source ?? 'secret';
+  const { max, windowMs } = source === 'publishable' ? LINK_LIMITS.codesPerGamePublishable : LINK_LIMITS.codesPerGame;
+  const sourceFilter = source === 'publishable' ? eq(linkCodes.source, 'publishable') : or(isNull(linkCodes.source), eq(linkCodes.source, 'secret'));
   const recent = await db
     .select({ createdAt: linkCodes.createdAt })
     .from(linkCodes)
-    .where(and(eq(linkCodes.gameId, game.id), gt(linkCodes.createdAt, ago(now, windowMs))))
+    .where(and(eq(linkCodes.gameId, game.id), sourceFilter, gt(linkCodes.createdAt, ago(now, windowMs))))
     .orderBy(desc(linkCodes.createdAt))
     .limit(max);
   if (recent.length >= max) {
@@ -157,25 +186,35 @@ export async function createLinkCode(
 
   const expiresAt = new Date(now.getTime() + LINK_CODE_TTL_MS);
   const generate = opts.generate ?? generateLinkCode;
-  const code = await db.transaction(async (tx) => {
-    // Un seul code actif par joueur : les précédents non consommés expirent immédiatement.
-    await tx
-      .update(linkCodes)
-      .set({ expiresAt: now })
-      .where(and(eq(linkCodes.gameId, game.id), eq(linkCodes.playerId, input.playerId), isNull(linkCodes.consumedAt), gt(linkCodes.expiresAt, now)));
+  const row = await db.transaction(async (tx) => {
+    if (source === 'secret') {
+      // Un seul code secret actif par joueur : les précédents non consommés expirent immédiatement.
+      await tx
+        .update(linkCodes)
+        .set({ expiresAt: now })
+        .where(
+          and(
+            eq(linkCodes.gameId, game.id),
+            eq(linkCodes.playerId, input.playerId),
+            or(isNull(linkCodes.source), eq(linkCodes.source, 'secret')),
+            isNull(linkCodes.consumedAt),
+            gt(linkCodes.expiresAt, now),
+          ),
+        );
+    }
     // Purge des vieux codes du jeu (garde la table petite et libère l'espace des codes).
     await tx.delete(linkCodes).where(and(eq(linkCodes.gameId, game.id), lt(linkCodes.expiresAt, ago(now, LINK_LIMITS.codeRetentionMs))));
     for (let i = 0; i < 10; i++) {
-      const [row] = await tx
+      const [inserted] = await tx
         .insert(linkCodes)
-        .values({ id: newId('lnc'), gameId: game.id, playerId: input.playerId, playerName: input.playerName || null, code: generate(), expiresAt, createdAt: now })
+        .values({ id: newId('lnc'), gameId: game.id, playerId: input.playerId, playerName: input.playerName || null, code: generate(), expiresAt, createdAt: now, source })
         .onConflictDoNothing()
-        .returning({ code: linkCodes.code });
-      if (row) return row.code;
+        .returning({ code: linkCodes.code, id: linkCodes.id });
+      if (inserted) return inserted;
     }
     throw new Error('Impossible de générer un code de liaison unique');
   });
-  return { ok: true, code, expiresAt };
+  return { ok: true, code: row.code, expiresAt, linkRequestId: row.id };
 }
 
 /**
@@ -215,32 +254,69 @@ async function attemptWindow(
 }
 
 /**
+ * Limite par IP (F10), en plus des limites par utilisateur : freine la force brute répartie sur plusieurs comptes.
+ * Ignorée si l'IP est inconnue (sinon tous ces utilisateurs partageraient la même limite).
+ */
+async function ipLimited(kind: 'code' | 'lookup', ip: string | undefined, now: Date): Promise<LinkFailure | null> {
+  if (!ip || ip === UNKNOWN_IP) return null;
+  const rule = kind === 'code' ? LINK_LIMITS.codeAttemptsPerIp : LINK_LIMITS.lookupsPerIp;
+  const d = await getRateLimitStore().hit(`link:${kind}:ip:${ip}`, rule, now.getTime());
+  if (d.allowed) return null;
+  return fail('rate_limited', `Trop d'essais depuis cette connexion. Réessayez dans ${minutes(d.retryAfterS)} min.`, { retryAfterS: d.retryAfterS, remaining: 0 });
+}
+
+/** Compte les échecs de saisie par jeu et journalise une alerte au-delà du seuil (une fois par fenêtre et par instance). */
+const alertedGames = new Map<string, number>();
+async function trackCodeFailure(gameId: string, now: Date) {
+  const rule = LINK_LIMITS.codeFailuresAlertPerGame;
+  const d = await getRateLimitStore().hit(`link:code-fail:game:${gameId}`, rule, now.getTime());
+  if (d.allowed) return;
+  const last = alertedGames.get(gameId) ?? 0;
+  if (now.getTime() - last < rule.windowMs) return;
+  alertedGames.set(gameId, now.getTime());
+  console.warn(`[linking] ALERTE : plus de ${rule.max} codes de liaison erronés en ${rule.windowMs / 60_000} min pour le jeu ${gameId} (force brute ?)`);
+}
+
+/**
  * Saisie d'un code sur /games/[slug]/link : consommation atomique (une seule fois, non expiré, bon jeu),
- * puis création/remplacement du lien vérifié. Les échecs sont comptés pour l'anti force brute.
+ * puis création/remplacement du lien. Les échecs sont comptés pour l'anti force brute (par utilisateur et par IP).
+ * Un code demandé avec la clé PUBLIQUE n'est consommé qu'après confirmation explicite (`confirmed`, F11) : sinon
+ * l'appel renvoie `confirmation_required` avec le compte de jeu visé, sans rien consommer ni lier.
  */
 export async function redeemLinkCode(
   userId: string,
   game: Pick<Game, 'id' | 'linkMethods'>,
   rawCode: string,
-  opts: { now?: Date } = {},
+  opts: { now?: Date; ip?: string; confirmed?: boolean } = {},
 ): Promise<LinkResult<{ link: GameLink }>> {
   if (!game.linkMethods.includes('code')) return fail('method_disabled', 'La liaison par code est désactivée pour ce jeu.');
   const code = normalizeLinkCode(rawCode);
   if (!code) return fail('invalid_format', 'Le code comporte 8 caractères, par exemple K7QF-M2XA.');
   const now = opts.now ?? new Date();
   const limit = LINK_LIMITS.codeFailuresPerUser;
+  const byIp = await ipLimited('code', opts.ip, now);
+  if (byIp) return byIp;
 
-  return db.transaction(async (tx): Promise<LinkResult<{ link: GameLink }>> => {
+  const result = await db.transaction(async (tx): Promise<LinkResult<{ link: GameLink }>> => {
     // Vérification de la limite et consommation dans la même transaction, sous verrou par utilisateur.
     await lockUserAttempts(tx, userId, 'code');
     const win = await attemptWindow(tx, userId, 'code', now, limit, true);
     if (win.blocked) {
       return fail('rate_limited', `Trop de codes erronés. Réessayez dans ${minutes(win.retryAfterS)} min.`, { retryAfterS: win.retryAfterS, remaining: 0 });
     }
+    const valid = and(eq(linkCodes.gameId, game.id), eq(linkCodes.code, code), isNull(linkCodes.consumedAt), gt(linkCodes.expiresAt, now));
+    if (!opts.confirmed) {
+      const [pending] = await tx.select({ source: linkCodes.source, playerId: linkCodes.playerId, playerName: linkCodes.playerName }).from(linkCodes).where(valid);
+      if (pending?.source === 'publishable') {
+        return fail('confirmation_required', 'Vérifiez le compte de jeu avant de confirmer la liaison.', {
+          candidate: { playerId: pending.playerId, playerName: pending.playerName },
+        });
+      }
+    }
     const [consumed] = await tx
       .update(linkCodes)
       .set({ consumedAt: now, consumedBy: userId }) // consumedBy : rattache le jeton joueur du SDK (sec/delivery-keys)
-      .where(and(eq(linkCodes.gameId, game.id), eq(linkCodes.code, code), isNull(linkCodes.consumedAt), gt(linkCodes.expiresAt, now)))
+      .where(valid)
       .returning();
     if (!consumed) {
       await tx.insert(linkAttempts).values({ id: newId('lat'), userId, gameId: game.id, kind: 'code', ok: 0, createdAt: now });
@@ -265,6 +341,8 @@ export async function redeemLinkCode(
     });
     return { ok: true, link };
   });
+  if (!result.ok && result.error === 'invalid_code') await trackCodeFailure(game.id, now).catch(() => {});
+  return result;
 }
 
 /** Crée ou remplace (« Changer de compte ») le lien unique utilisateur ↔ jeu. */
@@ -293,6 +371,8 @@ for (const [net, prefix] of [
 ] as const) blockList.addSubnet(net, prefix, 'ipv4');
 for (const [net, prefix] of [
   ['100::', 64], ['2001::', 32], ['2001:db8::', 32], ['fc00::', 7], ['fe80::', 10], ['fec0::', 10], ['ff00::', 8],
+  // Revue 2026-11 (F6) : NAT64 à usage local (RFC 8215), ORCHID (RFC 4843) et ORCHIDv2 (RFC 7343).
+  ['64:ff9b:1::', 48], ['2001:10::', 28], ['2001:20::', 28],
 ] as const) blockList.addSubnet(net, prefix, 'ipv6');
 
 /** IPv6 → 8 mots de 16 bits (gère « :: » et un suffixe IPv4 pointé), ou null. */
@@ -324,6 +404,8 @@ export function isBlockedAddress(ip: string): boolean {
   const v4 = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
   // ::a.b.c.d (compatible, inclut :: et ::1) et ::ffff:a.b.c.d (mappée)
   if (w.slice(0, 5).every((x) => x === 0) && (w[5] === 0 || w[5] === 0xffff)) return blockList.check(v4(w[6], w[7]), 'ipv4');
+  // ::ffff:0:a.b.c.d (IPv4 traduite, SIIT — revue 2026-11, F6)
+  if (w.slice(0, 4).every((x) => x === 0) && w[4] === 0xffff && w[5] === 0) return blockList.check(v4(w[6], w[7]), 'ipv4');
   // 64:ff9b::a.b.c.d (NAT64)
   if (w[0] === 0x64 && w[1] === 0xff9b && w.slice(2, 6).every((x) => x === 0)) return blockList.check(v4(w[6], w[7]), 'ipv4');
   // 2002:AABB:CCDD::/48 (6to4)
@@ -476,7 +558,7 @@ export const playerLookupResponseSchema = z.object({
 
 /** Appelle l'endpoint « player lookup » du jeu (format documenté en tête de fichier). */
 export async function fetchPlayerLookup(
-  game: Pick<Game, 'playerLookupUrl' | 'webhookSecret'>,
+  game: Pick<Game, 'id' | 'playerLookupUrl' | 'webhookSecret'> & Partial<Pick<Game, 'webhookSecretPrevious' | 'webhookSecretPreviousExpiresAt'>>,
   playerId: string,
   opts: { allowPrivate?: boolean; requireHttps?: boolean; timeoutMs?: number; now?: Date } = {},
 ): Promise<LinkResult<{ player: PlayerLookupResponse }>> {
@@ -491,11 +573,20 @@ export async function fetchPlayerLookup(
   const shape = checkOutboundUrl(template.replaceAll('{player_id}', encodeURIComponent(playerId)), allowPrivate, requireHttps);
   if (!shape.ok) return fail('unsafe_url', "L'adresse de recherche du jeu est refusée.");
   const ts = Math.floor((opts.now ?? new Date()).getTime() / 1000);
+  let secrets: string[];
+  try {
+    // Secret déchiffré (F7) ; pendant une rotation, l'ancien signe aussi (deux `v1=`).
+    secrets = signingSecrets(
+      secretsOf({ id: game.id, webhookSecret: game.webhookSecret, webhookSecretPrevious: game.webhookSecretPrevious ?? null, webhookSecretPreviousExpiresAt: game.webhookSecretPreviousExpiresAt ?? null }, opts.now),
+    );
+  } catch {
+    return fail('lookup_failed', 'La recherche est momentanément indisponible pour ce jeu.');
+  }
   let res: { status: number; body: string };
   try {
     res = await safeHttpGet(
       shape.url,
-      { accept: 'application/json', 'user-agent': 'DevAppStore-PlayerLookup/1.0', [SIGNATURE_HEADER]: signPayload(playerId, game.webhookSecret, ts) },
+      { accept: 'application/json', 'user-agent': 'DevAppStore-PlayerLookup/1.0', [SIGNATURE_HEADER]: signPayloadMulti(lookupSignedString(playerId), secrets, ts) },
       { allowPrivate, requireHttps, timeoutMs: opts.timeoutMs ?? LINK_LIMITS.lookupTimeoutMs, maxBytes: LINK_LIMITS.lookupMaxBytes },
     );
   } catch (e) {
@@ -526,15 +617,17 @@ export async function fetchPlayerLookup(
  */
 export async function startIdConfirm(
   userId: string,
-  game: Pick<Game, 'id' | 'linkMethods' | 'playerLookupUrl' | 'webhookSecret'>,
+  game: Pick<Game, 'id' | 'linkMethods' | 'playerLookupUrl' | 'webhookSecret'> & Partial<Pick<Game, 'webhookSecretPrevious' | 'webhookSecretPreviousExpiresAt'>>,
   rawPlayerId: string,
-  opts: { now?: Date; allowPrivate?: boolean; requireHttps?: boolean; timeoutMs?: number } = {},
+  opts: { now?: Date; allowPrivate?: boolean; requireHttps?: boolean; timeoutMs?: number; ip?: string } = {},
 ): Promise<LinkResult<{ attemptId: string; player: PlayerLookupResponse }>> {
   if (!game.linkMethods.includes('id_confirm')) return fail('method_disabled', 'La liaison par identifiant est désactivée pour ce jeu.');
   const parsedId = playerIdSchema.safeParse(rawPlayerId);
   if (!parsedId.success) return fail('invalid_input', parsedId.error.issues[0]?.message ?? 'Identifiant invalide.');
   const playerId = parsedId.data;
   const now = opts.now ?? new Date();
+  const byIp = await ipLimited('lookup', opts.ip, now);
+  if (byIp) return fail('rate_limited', byIp.message.replace("d'essais", 'de recherches'), { retryAfterS: byIp.retryAfterS });
   const id = newId('lat');
   // Réservation atomique d'une recherche (verrou par utilisateur) AVANT l'appel sortant : des recherches lancées
   // en parallèle ne peuvent pas dépasser la limite, et un appel qui échoue ou expire reste compté.

@@ -1,12 +1,13 @@
 import 'server-only';
 import { promises as dnsPromises } from 'node:dns';
 import { isIP } from 'node:net';
-import { SIGNATURE_HEADER, newId, nextAttemptAt, signPayload, type PurchaseEvent } from '@devappstore/core';
+import { SIGNATURE_HEADER, newId, nextAttemptAt, signPayloadMulti, type PurchaseEvent } from '@devappstore/core';
 import { and, asc, db, deliveries, desc, eq, games, inArray, isNull, lte, ne, or, orders, refundDeliveries, sql, webhookAttempts } from '@devappstore/db';
 import { env } from '@/env';
 import { publish } from './events';
 import { BlockedAddressError, checkOutboundUrl, isBlockedAddress, safeHttpRequest } from './linking';
 import { runInBackground, sendDeliveryFailed, sendPurchaseDelivered } from './notifications';
+import { loadWebhookSecrets, signingSecrets } from './webhook-secrets';
 
 /*
  * Livraison des achats aux jeux (propriétaire : tâche « delivery », durcie par « sec/delivery-keys »).
@@ -202,6 +203,18 @@ export async function validateWebhookUrl(raw: string, opts: { production?: boole
   return shape;
 }
 
+/** Secrets de signature du jeu ; null si illisibles (BETTER_AUTH_SECRET changé) ou jeu introuvable. */
+async function secretsForSigning(gameId: string): Promise<string[] | null> {
+  try {
+    const s = await loadWebhookSecrets(gameId);
+    return s ? signingSecrets(s) : null;
+  } catch (e) {
+    console.error(`[delivery] secret webhook illisible pour ${gameId}`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+const UNREADABLE_SECRET = 'Secret webhook illisible (clé de chiffrement changée) : régénérez-le dans l’onglet Intégration.';
+
 /** Message d'erreur réseau normalisé (aucun détail interne : le journal ne doit pas servir d'oracle de scan). */
 export function describeNetworkError(e: unknown): string {
   if (e instanceof BlockedAddressError) return 'Adresse refusée (réseau interne ou privé).';
@@ -233,8 +246,9 @@ function redactUrl(raw: string) {
 /**
  * POST JSON signé vers l'URL du studio. Ne lève jamais : renvoie le résultat.
  * La signature porte sur la chaîne exacte envoyée. Aucune redirection n'est suivie (3xx = échec).
+ * Plusieurs secrets (rotation, F7) : un `v1=` par secret, le courant en premier.
  */
-export async function postSignedWebhook(url: string, secret: string, body: string, extraHeaders: Record<string, string> = {}): Promise<WebhookResult> {
+export async function postSignedWebhook(url: string, secret: string | string[], body: string, extraHeaders: Record<string, string> = {}): Promise<WebhookResult> {
   const started = Date.now();
   const production = isProduction();
   const shape = checkWebhookUrl(url, { production });
@@ -247,7 +261,7 @@ export async function postSignedWebhook(url: string, secret: string, body: strin
         headers: {
           'content-type': 'application/json',
           'user-agent': 'DevAppStore-Webhooks/1.0',
-          [SIGNATURE_HEADER]: signPayload(body, secret),
+          [SIGNATURE_HEADER]: signPayloadMulti(body, Array.isArray(secret) ? secret : [secret]),
           ...extraHeaders,
         },
         body,
@@ -304,7 +318,7 @@ async function dispatch(kind: DeliveryKind, id: string, claimed: boolean): Promi
   const row = await loadForDispatch(kind, id);
   if (!row || row.status !== 'pending') return;
   const t = TABLES[kind];
-  const [game] = await db.select({ webhookUrl: games.webhookUrl, webhookSecret: games.webhookSecret }).from(games).where(eq(games.id, row.gameId));
+  const [game] = await db.select({ webhookUrl: games.webhookUrl }).from(games).where(eq(games.id, row.gameId));
   if (!game) return;
   const meta = { userId: row.userId };
 
@@ -335,7 +349,10 @@ async function dispatch(kind: DeliveryKind, id: string, claimed: boolean): Promi
 
   if (attempts === 0) publish(row.gameId, row.playerId, row.payload, meta);
 
-  const result = await postSignedWebhook(game.webhookUrl, game.webhookSecret, JSON.stringify(row.payload), { 'DevAppStore-Delivery': id });
+  const secrets = await secretsForSigning(row.gameId);
+  const result: WebhookResult = secrets
+    ? await postSignedWebhook(game.webhookUrl, secrets, JSON.stringify(row.payload), { 'DevAppStore-Delivery': id })
+    : { ok: false, statusCode: null, error: UNREADABLE_SECRET, durationMs: 0 };
   let purchaseDeliveryId = id;
   if (kind === 'refund') {
     const [r] = await db.select({ p: refundDeliveries.purchaseDeliveryId }).from(refundDeliveries).where(eq(refundDeliveries.id, id));
@@ -548,7 +565,8 @@ export async function markFetchedBySdk(game: GameRef, ids: string[]) {
 /**
  * Le jeu confirme avoir crédité le joueur (ou révoqué, pour un remboursement). Idempotent : un second ack renvoie aussi `ok`.
  * Une livraison d'un autre jeu — ou, avec un jeton joueur, d'un autre joueur / acheteur — est traitée comme inexistante.
- * Un ack est accepté depuis pending, delivered et failed (le jeu peut avoir crédité via le SDK malgré un webhook en échec).
+ * Un ack est accepté depuis pending, delivered et failed (le jeu peut avoir crédité via le SDK malgré un webhook en échec),
+ * sauf pour un achat arrêté (commande non `paid`, rétractation) : réponse `ok` sans effet.
  */
 export async function acknowledgeDelivery(gameId: string, deliveryId: string, scope?: PlayerScope): Promise<'ok' | 'not_found'> {
   for (const kind of KINDS) {
@@ -559,10 +577,19 @@ export async function acknowledgeDelivery(gameId: string, deliveryId: string, sc
       scope ? eq(t.playerId, scope.playerId) : undefined,
       scope ? buyerFilter(t, gameId, scope.userId) : undefined,
     );
+    // Revue 2026-11 (F4) : un achat arrêté (commande plus `paid` : remboursée, rétractée ; ou arrêt pour rétractation)
+    // ne passe jamais à `acknowledged` — l'ack répond `ok` (idempotent) mais reste sans effet.
+    const stillDeliverable =
+      kind === 'purchase'
+        ? and(
+            inArray(t.orderId, db.select({ id: orders.id }).from(orders).where(and(eq(orders.gameId, gameId), eq(orders.status, 'paid')))),
+            or(isNull(t.lastError), ne(t.lastError, WITHDRAWAL_STOP_REASON)),
+          )
+        : undefined;
     const updated = await db
       .update(t)
       .set({ status: 'acknowledged', acknowledgedAt: new Date(), deliveredAt: sql`coalesce(${t.deliveredAt}, now())`, nextAttemptAt: null })
-      .where(and(where, ne(t.status, 'acknowledged')))
+      .where(and(where, ne(t.status, 'acknowledged'), stillDeliverable))
       .returning({ id: t.id });
     if (updated.length) {
       notifyDelivered(kind, deliveryId); // idempotent : sans effet si l'e-mail « livré » est déjà parti
@@ -635,7 +662,7 @@ export async function retryDelivery(gameId: string, deliveryId: string): Promise
 /** Envoie un événement de test signé au webhook du jeu (rien n'est enregistré en base). Mêmes protections que les livraisons. */
 export async function sendTestWebhook(gameId: string): Promise<WebhookResult & { payload: PurchaseEvent | null }> {
   const [game] = await db
-    .select({ id: games.id, currency: games.currency, webhookUrl: games.webhookUrl, webhookSecret: games.webhookSecret })
+    .select({ id: games.id, currency: games.currency, webhookUrl: games.webhookUrl })
     .from(games)
     .where(eq(games.id, gameId));
   if (!game?.webhookUrl) return { ok: false, statusCode: null, error: 'Aucune URL de webhook configurée.', durationMs: 0, payload: null };
@@ -652,7 +679,9 @@ export async function sendTestWebhook(gameId: string): Promise<WebhookResult & {
     currency: game.currency,
     created_at: new Date().toISOString(),
   };
-  const result = await postSignedWebhook(game.webhookUrl, game.webhookSecret, JSON.stringify(payload), { 'DevAppStore-Test': '1' });
+  const secrets = await secretsForSigning(game.id);
+  if (!secrets) return { ok: false, statusCode: null, error: UNREADABLE_SECRET, durationMs: 0, payload: null };
+  const result = await postSignedWebhook(game.webhookUrl, secrets, JSON.stringify(payload), { 'DevAppStore-Test': '1' });
   return { ...result, payload };
 }
 

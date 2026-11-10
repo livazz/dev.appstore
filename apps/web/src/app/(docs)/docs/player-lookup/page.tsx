@@ -21,14 +21,14 @@ User-Agent: DevAppStore-PlayerLookup/1.0
 ${DOCS_FACTS.signatureHeader}: t=${EXAMPLE_TIMESTAMP},v1=${EXAMPLE_LOOKUP_V1}`;
 
 const NODE_IMPL = `import express from 'express';
-import { verifyWebhookSignature } from '@devappstore/sdk/server';
+import { verifyLookupSignature } from '@devappstore/sdk/server';
 
 const app = express();
 
 app.get('/players/:playerId', async (req, res) => {
   const playerId = req.params.playerId; // déjà décodé par Express
-  // Le corps signé est l'identifiant joueur brut (pas d'URL, pas de JSON).
-  if (!verifyWebhookSignature(playerId, req.get('DevAppStore-Signature'), process.env.WEBHOOK_SECRET)) {
+  // Chaîne signée : « devappstore-lookup-v1: » + identifiant joueur brut (jamais valable comme signature de webhook).
+  if (!verifyLookupSignature(playerId, req.get('DevAppStore-Signature'), process.env.WEBHOOK_SECRET)) {
     return res.sendStatus(401);
   }
   const player = await db.players.findById(playerId);
@@ -100,8 +100,10 @@ export default function PlayerLookupPage() {
       <P>
         L’appel est signé avec le <strong>secret webhook du jeu</strong> et le même algorithme que les{' '}
         <A href="/docs/webhooks#signature">webhooks</A> : <C>{'DevAppStore-Signature: t=<t>,v1=<hmac>'}</C>, où <C>v1</C> est le HMAC-SHA256
-        hexadécimal de <C>{'`${t}.${player_id}`'}</C>. Ici, le « corps » signé est l’<strong>identifiant joueur brut</strong> (non encodé),
-        tel que vous le lisez après décodage de l’URL. Même tolérance de {DOCS_FACTS.toleranceS} secondes.
+        hexadécimal de <C>{'`${t}.devappstore-lookup-v1:${player_id}`'}</C> : le préfixe suivi de l’<strong>identifiant joueur brut</strong>{' '}
+        (non encodé), tel que vous le lisez après décodage de l’URL. Le préfixe garantit qu’une signature de lookup ne peut jamais servir de
+        signature de webhook. SDK : <C>verifyLookupSignature(playerId, header, secret)</C>. Même tolérance de {DOCS_FACTS.toleranceS} secondes ;
+        pendant une rotation du secret, l’en-tête porte deux <C>v1</C> (24 h).
       </P>
       <Table
         caption="Vecteur de test (player lookup)"
@@ -109,7 +111,7 @@ export default function PlayerLookupPage() {
         rows={[
           ['Secret', <C key="v">{EXAMPLE_SECRET}</C>],
           ['t', <C key="v">{EXAMPLE_TIMESTAMP}</C>],
-          ['Corps signé', <C key="v">{EXAMPLE_LOOKUP_PLAYER_ID}</C>],
+          ['Chaîne signée', <C key="v">{`devappstore-lookup-v1:${EXAMPLE_LOOKUP_PLAYER_ID}`}</C>],
           ['v1 attendu', <C key="v">{EXAMPLE_LOOKUP_V1}</C>],
         ]}
       />

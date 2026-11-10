@@ -88,6 +88,11 @@ export class DevAppStore {
     if (!key) throw new Error('Dev AppStore : publishableKey (client du jeu) ou apiKey (serveur) est obligatoire.');
     this.key = key;
     this.keyType = key.startsWith(PUBLISHABLE_PREFIX) ? 'publishable' : 'secret';
+    if (this.keyType === 'secret' && isBrowser() && !options.dangerouslyAllowSecretKeyInBrowser) {
+      throw new Error(
+        'Dev AppStore : clé secrète utilisée dans un navigateur — tout visiteur pourrait la lire. Utilisez la clé publique (publishableKey: \'das_pub_…\') ; la clé secrète reste sur votre serveur.',
+      );
+    }
     this.opts = {
       autoAck: true,
       reconnectDelayMs: 1000,
@@ -324,6 +329,9 @@ export class DevAppStore {
     }
   }
 }
+
+/** Page web (navigateur, WebView) : `window` et `document` existent. */
+const isBrowser = () => typeof (globalThis as { window?: unknown }).window !== 'undefined' && typeof (globalThis as { document?: unknown }).document !== 'undefined';
 
 const storageKey = (playerId: string) => `devappstore:processed:${playerId}`;
 const tokenKey = (playerId: string) => `devappstore:player-token:${playerId}`;

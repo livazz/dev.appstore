@@ -38,6 +38,31 @@ export function CodeForm({ slug, item }: { slug: string; item?: string }) {
           {pending ? 'Vérification…' : 'Lier mon compte'}
         </button>
       </div>
+      {state.confirm && (
+        <div role="alertdialog" aria-labelledby="link-confirm-title" className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm">
+          <p id="link-confirm-title" className="font-semibold text-ink">
+            Vos achats seront livrés au compte de jeu <span className="font-mono">{state.confirm.playerId}</span>
+          </p>
+          {state.confirm.playerName && (
+            <p className="mt-1 text-ink-2">
+              Nom déclaré par le jeu (non vérifié) : <strong>{state.confirm.playerName}</strong>
+            </p>
+          )}
+          <p className="mt-2 text-ink-3">
+            Ce code a été demandé depuis le jeu, sans vérification par le serveur du studio. Ne confirmez que s’il
+            s’affiche dans <strong>votre</strong> jeu : n’entrez jamais un code transmis par quelqu’un d’autre.
+          </p>
+          <button
+            type="submit"
+            name="confirm"
+            value="1"
+            disabled={pending}
+            className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+          >
+            Oui, c’est mon compte de jeu
+          </button>
+        </div>
+      )}
       {state.error && (
         <p id="link-code-error" role="alert" className="mt-2 text-sm text-danger">
           {state.error}

@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import { signPayload, type PurchaseEvent } from '@devappstore/core';
+import { signLookup, signPayload, type PurchaseEvent } from '@devappstore/core';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDemoApp, type DemoApp } from './app';
 import { loadConfig } from './config';
@@ -117,12 +117,15 @@ describe('GET /devappstore/players/{id}', () => {
     expect(await res.json()).toEqual({ player_id: '#2PP8QL9', display_name: 'Ali', level: 42 });
   });
 
-  it('vérifie la signature si elle est présente (corps signé = ID brut)', async () => {
-    const ok = await fetch(`${base}/devappstore/players/2pp8ql9`, { headers: { 'DevAppStore-Signature': signPayload('2pp8ql9', CRYSTAL_SECRET) } });
+  it('vérifie la signature si elle est présente (chaîne signée = devappstore-lookup-v1:<ID brut>)', async () => {
+    const ok = await fetch(`${base}/devappstore/players/2pp8ql9`, { headers: { 'DevAppStore-Signature': signLookup('2pp8ql9', CRYSTAL_SECRET) } });
     expect(ok.status).toBe(200);
     expect((await ok.json()).player_id).toBe('#2PP8QL9');
-    const replay = await fetch(`${base}/devappstore/players/2pp8ql9`, { headers: { 'DevAppStore-Signature': signPayload('#9LQ2YVR', CRYSTAL_SECRET) } });
+    const replay = await fetch(`${base}/devappstore/players/2pp8ql9`, { headers: { 'DevAppStore-Signature': signLookup('#9LQ2YVR', CRYSTAL_SECRET) } });
     expect(replay.status).toBe(401);
+    // Une signature au format webhook (sans le préfixe de lookup) est refusée : séparation de domaine (F5).
+    const asWebhook = await fetch(`${base}/devappstore/players/2pp8ql9`, { headers: { 'DevAppStore-Signature': signPayload('2pp8ql9', CRYSTAL_SECRET) } });
+    expect(asWebhook.status).toBe(401);
     const bad = await fetch(`${base}/devappstore/players/%232PP8QL9`, { headers: { 'DevAppStore-Signature': 't=1,v1=abc' } });
     expect(bad.status).toBe(401);
   });

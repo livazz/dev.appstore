@@ -95,7 +95,10 @@ export default function ApiReferencePage() {
           [
             <C key="s">429</C>,
             <C key="c">rate_limited</C>,
-            <>Plus de {DOCS_FACTS.linkCodesPerMinute} codes par minute pour ce jeu. Respectez l’en-tête <C>Retry-After</C> (secondes).</>,
+            <>
+              Plus de {DOCS_FACTS.linkCodesPerMinute} codes par minute pour ce jeu avec la clé secrète ({DOCS_FACTS.linkCodesPerMinutePublishable} avec la
+              clé publique, comptés à part), ou trop de demandes depuis la même IP. Respectez l’en-tête <C>Retry-After</C> (secondes).
+            </>,
           ],
         ]}
       />

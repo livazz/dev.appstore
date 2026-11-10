@@ -86,7 +86,7 @@ async function linkDevice(pub: string, gameId: string, playerId: string, userId:
   expect(res.status).toBe(200);
   const body = await json(res);
   const [game] = await db.select().from(D.games).where(D.eq(D.games.id, gameId));
-  const redeemed = await redeemLinkCode(userId, game!, String(body.code));
+  const redeemed = await redeemLinkCode(userId, game!, String(body.code), { confirmed: true });
   expect(redeemed.ok).toBe(true);
   const poll = await json(await linkRequestsRoute.GET(req(`/api/v1/link-requests/${body.link_request_id}`, { key: pub }), params(String(body.link_request_id))));
   expect(poll.status).toBe('linked');
@@ -127,9 +127,8 @@ describe('authentification de l’API v1 (CHK-API-01/03/04, D-04)', () => {
     expect(Object.keys(auth!.game).sort()).toEqual(['currency', 'id', 'linkMethods', 'status', 'studioId', 'webhookUrl']);
     expect((await apiKey.authenticateApi(req('/', { key: PUB_A })))?.kind).toBe('publishable');
     expect((await apiKey.authenticateApi(req('/', { key: LEGACY_A2 })))?.game.id).toBe('gam_legacy'); // anciennes clés das_live_ acceptées
-    expect(await apiKey.authenticateGame(req('/', { key: PUB_A }))).toBeNull();
-    expect(await apiKey.authenticateGame(req('/', { key: 'das_secret_test_susp' }))).toBeNull();
-    expect((await apiKey.authenticateGame(req('/', { key: SECRET_A })))?.id).toBe('gam_a');
+    expect(await apiKey.authenticateApi(req('/', { key: 'das_secret_test_susp' }))).toBeNull();
+    expect('authenticateGame' in apiKey).toBe(false); // ancienne fonction (ligne complète avec secrets) supprimée
   });
 
   it('un jeu créé sans clé publique en reçoit une (stable) à l’ouverture de l’onglet Intégration', async () => {
@@ -172,7 +171,7 @@ describe('clé publique : liaison → jeton joueur (D-05)', () => {
 
     expect(await poll()).toMatchObject({ status: 'pending', player_id: 'P_flow' });
     const [game] = await db.select().from(D.games).where(D.eq(D.games.id, 'gam_a'));
-    expect((await redeemLinkCode('usr_u', game!, String(body.code))).ok).toBe(true);
+    expect((await redeemLinkCode('usr_u', game!, String(body.code), { confirmed: true })).ok).toBe(true);
 
     const [first, second] = await Promise.all([poll(), poll()]);
     const issued = [first, second].filter((p) => typeof p.player_token === 'string');
@@ -205,7 +204,7 @@ describe('clé publique : liaison → jeton joueur (D-05)', () => {
     // Code saisi mais jeton réclamé trop tard (> 1 h).
     const old = await mk(PUB_A);
     const [game] = await db.select().from(D.games).where(D.eq(D.games.id, 'gam_a'));
-    await redeemLinkCode('usr_u', game!, String(old.code));
+    await redeemLinkCode('usr_u', game!, String(old.code), { confirmed: true });
     await db.update(D.linkCodes).set({ consumedAt: new Date(Date.now() - 2 * 3600_000) }).where(D.eq(D.linkCodes.id, String(old.link_request_id)));
     expect(await json(await linkRequestsRoute.GET(req('/', { key: PUB_A }), params(String(old.link_request_id))))).toEqual({ status: 'expired' });
   });

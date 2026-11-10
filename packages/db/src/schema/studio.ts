@@ -57,6 +57,20 @@ export const games = pgTable(
      * Unicité par index (et non contrainte) : `drizzle-kit push` l'ajoute sans invite sur une table déjà remplie.
      */
     publishableKey: text('publishable_key'),
+    /*
+     * Ajouts « revue de sécurité 2026-11 » :
+     * - webhookSecret est désormais chiffré au repos (`enc:v1:…`, cf. apps/web/src/server/webhook-secrets.ts) ;
+     *   webhookSecretPrevious (chiffré) signe encore jusqu'à webhookSecretPreviousExpiresAt (rotation sans coupure, F7) ;
+     * - apiKeyPreviousHash : ancienne clé secrète encore acceptée jusqu'à apiKeyPreviousExpiresAt (rotation sans
+     *   coupure, F9) ; apiKeyLastUsedAt / apiKeyPreviousLastUsedAt : dernière utilisation (au plus toutes les 5 min).
+     */
+    webhookSecretPrevious: text('webhook_secret_previous'),
+    webhookSecretPreviousExpiresAt: timestamp('webhook_secret_previous_expires_at'),
+    apiKeyPreviousHash: text('api_key_previous_hash'),
+    apiKeyPreviousPrefix: text('api_key_previous_prefix'),
+    apiKeyPreviousExpiresAt: timestamp('api_key_previous_expires_at'),
+    apiKeyLastUsedAt: timestamp('api_key_last_used_at'),
+    apiKeyPreviousLastUsedAt: timestamp('api_key_previous_last_used_at'),
   },
   (t) => [
     index('games_status_idx').on(t.status),
@@ -88,4 +102,24 @@ export const items = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('items_game_product_uq').on(t.gameId, t.productId), index('items_game_idx').on(t.gameId)],
+);
+
+/**
+ * Ajout « revue de sécurité 2026-11 » (F8, T-DLV-10) — journal d'audit des changements d'intégration d'un jeu
+ * (URL de webhook ou de recherche, rotations de clés et de secret). Uniquement des INSERT. `actorUserId` sans clé
+ * étrangère : le journal survit à la suppression du compte. `details` ne contient jamais de secret en clair.
+ */
+export const integrationAuditLog = pgTable(
+  'integration_audit_log',
+  {
+    id: text('id').primaryKey(),
+    gameId: text('game_id').notNull().references(() => games.id, { onDelete: 'cascade' }),
+    studioId: text('studio_id').notNull(),
+    actorUserId: text('actor_user_id').notNull(),
+    actorRole: text('actor_role').$type<StudioRole>().notNull(),
+    action: text('action').notNull(),
+    details: jsonb('details').$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('integration_audit_game_idx').on(t.gameId, t.createdAt)],
 );
