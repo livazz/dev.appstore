@@ -11,3 +11,6 @@ playwright-report
 .DS_Store
 .claude/worktrees
 dev-appstore.bundle
+# Vrais tops (scripts/real-tops) : données et images réelles, STRICTEMENT locales — jamais commitées ni publiées
+.data/real-tops/
+apps/web/public/art/local/

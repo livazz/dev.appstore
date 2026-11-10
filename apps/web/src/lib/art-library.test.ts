@@ -19,6 +19,12 @@ describe('bibliothèque d’illustrations', () => {
 
   it('n’accepte que des fichiers statiques /art/… en .webp, sans remontée de dossier ni paramètre', () => {
     expect(isLibraryArt('/art/games/crystal-clash/icon.webp')).toBe(true);
+    // Visuels des vrais tops chargés en local (scripts/real-tops) : même motif strict.
+    expect(isLibraryArt('/art/local/clash-royale/icon.webp')).toBe(true);
+    expect(isLibraryArt('/art/local/rust/shot-1.webp')).toBe(true);
+    for (const bad of ['/art/local/icon.webp', '/art/local/../site/x.webp', '/art/local/a/b/c.webp', '/art/local/Rust/icon.webp', '/art/local/rust/icon.jpg']) {
+      expect(isLibraryArt(bad)).toBe(false);
+    }
     for (const bad of ['/art/items/../../api/x.webp', '/art/items/gems-1.webp?x=1', '/api/admin/x.webp', 'https://evil.test/art/items/a.webp', '/art/items/gems-1.png', '/art/items/Gems.webp', 42]) {
       expect(isLibraryArt(bad)).toBe(false);
     }

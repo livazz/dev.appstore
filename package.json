@@ -16,7 +16,9 @@
     "db:push": "npm run push -w @devappstore/db",
     "db:seed": "npm run seed -w @devappstore/db",
     "db:migrate": "npm run db:migrate -w @devappstore/db",
-    "demo": "npm run dev -w @devappstore/demo-game"
+    "demo": "npm run dev -w @devappstore/demo-game",
+    "real-tops:fetch": "tsx scripts/real-tops/fetch.ts",
+    "real-tops:seed": "tsx scripts/real-tops/seed.ts"
   },
   "engines": {
     "node": ">=20"

@@ -90,6 +90,31 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
    dev seulement).
 3. Dépôt GitHub **public** : https://github.com/livazz/dev.appstore (Node et gh installés dans `~/.local/bin`).
 
+## Vrais tops en local
+
+Pour voir de **vrais jeux** (top 100 « les plus rentables » Jeux de l'App Store France + top 100 des ventes Steam avec
+« Achats en jeu ») dans la base de développement, **sur sa machine uniquement** — le dépôt et l'aperçu GitHub Pages
+étant publics, le catalogue public reste fictif :
+
+```bash
+npm run real-tops:fetch            # -- --limit 5 pour un essai, --only mobile|pc, --refresh pour ignorer le cache
+npm run real-tops:seed             # idempotent ; -- --remove pour tout retirer de la base
+```
+
+- Code : `scripts/real-tops/` (API publiques sans clé : flux RSS Apple, iTunes Lookup, page publique App Store pour les
+  « Achats intégrés », recherche Steam + `appdetails` + `IStoreBrowseService/GetItems`). Google Play : aucune source
+  publique fiable, non couvert. User-Agent `DevAppStore-dev`, délai entre requêtes, cache `.data/real-tops/cache/`.
+- **Rien n'est commité** : métadonnées dans `.data/real-tops/` (`catalog.json`), images WebP dans
+  `apps/web/public/art/local/<slug>/` (icône, bannière, captures, visuels de DLC), deux dossiers ignorés par git
+  (les scripts vérifient le `.gitignore`). Refus en production (`assertSeedAllowed`). Ne jamais régénérer l'aperçu
+  `gh-pages` depuis une base qui contient ces jeux.
+- Base : jeux `gam_real_…` publiés (plateforme, captures, description du store, thème selon le genre), studios
+  `std_real_…` = éditeurs réels, clés factices ; articles = vrais achats intégrés App Store (noms et prix), DLC Steam,
+  sinon articles génériques par genre. `/art/local/…` est accepté par `lib/art-library.ts`.
+- Bannières (logo-titre détouré) : absentes des stores mobiles et des jeux Steam récents. `.data/real-tops/manquants.md`
+  liste les visuels manquants avec un prompt prêt à coller (2400 × 1000, fond transparent) ; déposer le PNG dans
+  `.data/real-tops/bannieres/<slug>.png` puis relancer `real-tops:seed`.
+
 ## Décisions en attente (fondateur)
 
 - ~~A-03~~ **Décidé** : publication directe sans revue ; modération a posteriori par **signalements** (fait : formulaire
