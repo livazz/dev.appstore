@@ -4,7 +4,8 @@
  * Charge .data/real-tops/catalog.json (produit par real-tops:fetch) dans la base de DÉVELOPPEMENT : studios réels
  * (`std_real_…`), jeux publiés (`gam_real_…`, plateforme, captures, description du store, thème selon le genre) et
  * articles. Idempotent : relancer met à jour les jeux et articles ; les articles disparus du catalogue sont désactivés.
- * `--remove` retire tout (jeux, articles, studios réels et leurs éventuelles commandes de test). Refusé en production.
+ * Masque aussi les jeux fictifs publiés (brouillon ; `--keep-fake` pour les garder). `--remove` retire tout (jeux, articles,
+ * studios réels et leurs éventuelles commandes de test) et republie les jeux fictifs masqués. Refusé en production.
  * STRICTEMENT LOCAL (voir common.ts) : rien de ceci ne doit être commité ni publié.
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -105,6 +106,27 @@ async function seed() {
   }
   const n = (p: 'mobile' | 'pc') => catalog.games.filter((g) => g.platform === p).length;
   console.log(`Vrais tops chargés : ${n('mobile')} jeux mobiles, ${n('pc')} jeux Steam, ${itemCount} articles, ${banners} bannières.`);
+  // Vitrine 100 % vrais jeux : les jeux fictifs publiés (seed, catalogue de démo) passent en brouillon (`--keep-fake` pour les garder).
+  if (!process.argv.includes('--keep-fake')) {
+    const hidden = await db
+      .update(games)
+      .set({ status: 'draft' })
+      .where(and(eq(games.status, 'live'), sql`${games.id} not like ${`${REAL_GAME}%`}`))
+      .returning({ id: games.id });
+    if (hidden.length) await db.execute(sql`insert into ${HIDDEN_TABLE} (id) values ${sql.join(hidden.map((h) => sql`(${h.id})`), sql`, `)} on conflict do nothing`);
+    console.log(`Jeux fictifs masqués (brouillon) : ${hidden.length}. Pour les rétablir : npm run real-tops:seed -- --remove`);
+  }
 }
 
-(process.argv.includes('--remove') ? remove() : seed()).then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
+/** Jeux fictifs masqués par ce script : mémorisés pour que `--remove` ne republie que ceux-là. */
+const HIDDEN_TABLE = sql.raw('real_tops_hidden_games');
+const ensureHiddenTable = () => db.execute(sql`create table if not exists ${HIDDEN_TABLE} (id text primary key)`);
+
+async function restoreFake() {
+  await ensureHiddenTable();
+  const rows = await db.execute(sql`update games set status = 'live' where status = 'draft' and id in (select id from ${HIDDEN_TABLE}) returning id`);
+  await db.execute(sql`delete from ${HIDDEN_TABLE}`);
+  console.log(`Jeux fictifs republiés : ${(rows as { rows?: unknown[] }).rows?.length ?? 0}.`);
+}
+
+(process.argv.includes('--remove') ? remove().then(restoreFake) : ensureHiddenTable().then(seed)).then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
