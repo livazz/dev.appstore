@@ -6,6 +6,7 @@ import { GameStore } from '@/components/catalog/GameStore';
 import { initialStoreItem, type StoreSearchParams } from '@/components/catalog/store-query';
 import { getLiveGameBySlug, maxDiscountPct } from '@/server/catalog';
 import { openGraph } from '@/lib/seo';
+import { GameReviews } from '@/components/reviews/GameReviews';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,7 @@ export default async function GamePage({ params, searchParams }: Props) {
           </p>
         </section>
       )}
+      <GameReviews gameId={game.id} slug={game.slug} gameName={game.name} />
       <p className="mx-4 mt-4 mb-6 text-right text-xs sm:mx-0">
         <Link href={`/games/${encodeURIComponent(game.slug)}/report`} className="text-ink-2 underline-offset-2 hover:text-ink hover:underline">
           Signaler ce contenu

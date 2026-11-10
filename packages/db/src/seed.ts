@@ -6,6 +6,7 @@ import { account, and, db, eq, games, isNull, items, platformAdmins, studios, st
 const art = (name: string) => `/art/items/${name}.webp`;
 import { seedLoyalty } from './seed-loyalty';
 import { seedCatalog } from './seed-catalog';
+import { seedReviews } from './seed-reviews';
 import { assertSeedAllowed } from './guards';
 
 /** Clés de développement connues — utilisées par apps/demo-game. Jamais en production. */
@@ -119,6 +120,8 @@ async function main() {
   await seedDemoSales();
   const catalog = await seedCatalog();
   console.log(`Seed catalogue : ${catalog.studios} studios, ${catalog.games} jeux, ${catalog.items} articles (packages/db/src/catalog-data.ts)`);
+  const reviews = await seedReviews();
+  console.log(`Seed avis : ${reviews.reviews} avis ajoutés sur ${reviews.games} jeux en ligne (packages/db/src/seed-reviews.ts)`);
   // Points Dev AppStore : récompenses de démo + points des commandes payées du joueur de démo (idempotent).
   const loyalty = await seedLoyalty(DEMO_USERS.player.id);
   console.log(`Seed Points Dev AppStore : ${loyalty.rewards} récompenses, ${loyalty.awards} attributions ajoutées (${loyalty.points} points au total)`);
