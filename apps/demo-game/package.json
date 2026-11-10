@@ -21,7 +21,7 @@
     "@types/node": "^20",
     "@devappstore/core": "*",
     "tsx": "^4.20.5",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.12"
   }
 }
