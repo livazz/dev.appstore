@@ -71,7 +71,8 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
 2. **Revue de sécurité complète : faite et corrigée (10 novembre 2026)** — 4 rapports dans `docs/security/revue-2026-11/`
    (auth/autorisation, API/liaison/livraison, paiement, contenu/en-têtes) : 49 constats, aucun critique, 5 hauts, tous
    corrigés avec tests, ainsi que les moyens et la plupart des bas (statut constat par constat dans chaque rapport).
-   Migration 0003. 963 tests vitest, 24 e2e.
+   Migration 0003. Puis signalements + vérification d'e-mail / mot de passe oublié (migration 0004) :
+   1008 tests vitest, 26 e2e.
    Restes : A-03 et A-04 (décisions ci-dessous), quotas d'upload par studio et purge des fichiers orphelins
    (table `uploads` à créer), plafonds SSE et limiteurs mémoire par instance, pas d'e-mail aux propriétaires lors des
    changements d'intégration, `createGame` écrit le secret webhook en clair jusqu'au premier envoi, rétractation
@@ -81,9 +82,12 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
 
 ## Décisions en attente (fondateur)
 
-- **Revue avant publication (A-03)** : aujourd'hui un studio publie directement ; le statut `review` et l'approbation
-  admin existent mais ne sont pas utilisés. Imposer une validation admin ?
-- **Comptes (A-04)** : ni vérification d'e-mail, ni réinitialisation de mot de passe, ni 2FA. À ajouter maintenant ?
+- ~~A-03~~ **Décidé** : publication directe sans revue ; modération a posteriori par **signalements** (fait : formulaire
+  `/games/[slug]/report` ouvert aux visiteurs, file `/admin/reports`, e-mails au signalant, section « Contenus interdits
+  et signalement » des CGU studios avec un délai d'examen `[à compléter]`).
+- ~~A-04~~ **Décidé et fait** : vérification d'e-mail (exigée pour acheter, lier un compte, actions studio sensibles ;
+  l'inscription ne connecte plus automatiquement) et mot de passe oublié. Restent : 2FA (non demandée), purge des
+  comptes non vérifiés.
 - **Avant la production (revue de sécurité)** : `RESEND_API_KEY` obligatoire (sinon refus de démarrer) ; changer
   `AUTH_SECRET` rend illisibles les secrets webhook chiffrés (chaque studio doit régénérer le sien) ; nouveau format de
   signature du « player lookup » (`devappstore-lookup-v1:<player_id>`) à annoncer aux studios ; `TRUSTED_PROXY_HOPS`
