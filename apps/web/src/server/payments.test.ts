@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type Stripe from 'stripe';
 import { DEFAULT_PLATFORM_FEE_BPS } from '@devappstore/core';
-import { db, eq, items, orders, studios } from '@devappstore/db';
+import { db, eq, items, orders, studios, user } from '@devappstore/db';
 import { clearPendingOrders, FX, getOrder, insertPendingOrder, seedPaymentsFixtures } from '@/test/payments-fixtures';
 import {
   applyCheckoutSession,
@@ -142,6 +142,20 @@ describe('createCheckout — mode simulation', () => {
       expect(await getOrder(r.orderId)).toMatchObject({ amountCents: 799, itemTitle: 'Sac de gemmes' });
     } finally {
       await db.update(items).set({ priceCents: 799, title: 'Sac de gemmes' }).where(eq(items.id, FX.item));
+    }
+  });
+
+  it('A-04 : refuse l’achat sans adresse e-mail vérifiée (→ /verify-email), sans créer de commande', async () => {
+    await clearPendingOrders();
+    await db.update(user).set({ emailVerified: false }).where(eq(user.id, FX.buyer.id));
+    try {
+      const err = await expectCheckoutError(createCheckout({ user: FX.buyer, itemId: FX.item, origin: ORIGIN, consent: CONSENT }), 'email_not_verified');
+      expect(err.status).toBe(403);
+      expect(err.redirect).toBe('/verify-email');
+      expect(err.message).toMatch(/Confirmez votre adresse e-mail pour acheter/);
+      expect((await ordersOf(FX.buyer.id)).filter((o) => o.status === 'pending')).toHaveLength(0);
+    } finally {
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, FX.buyer.id));
     }
   });
 

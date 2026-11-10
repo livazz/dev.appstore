@@ -27,7 +27,7 @@ export const FX = {
 } as const;
 
 export async function seedPaymentsFixtures() {
-  await db.insert(user).values([FX.buyer, FX.stranger]);
+  await db.insert(user).values([FX.buyer, FX.stranger].map((u) => ({ ...u, emailVerified: true })));
   await db.insert(studios).values({ id: FX.studio, name: 'Studio Paiement', slug: 'studio-paiement' });
   const game = {
     studioId: FX.studio,

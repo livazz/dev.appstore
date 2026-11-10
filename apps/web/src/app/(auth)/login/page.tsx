@@ -10,7 +10,7 @@ import { getCurrentUser } from '@/server/session';
 
 export const metadata: Metadata = { title: 'Connexion', alternates: { canonical: '/login' } };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reauth?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reauth?: string; reset?: string }> }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
   // Ré-authentification (A-11, session trop ancienne pour une action sensible) : on redemande le mot de passe
@@ -35,6 +35,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </>
       }
     >
+      {sp.reset === '1' ? (
+        <p role="status" className="mb-4 rounded-[var(--radius)] border border-line bg-surface px-3 py-2 text-sm text-ink-2">
+          Mot de passe modifié. Vous avez été déconnecté de tous vos appareils : connectez-vous avec le nouveau mot de passe.
+        </p>
+      ) : null}
       {reauth ? (
         <p role="status" className="mb-4 rounded-[var(--radius)] border border-line bg-surface px-3 py-2 text-sm text-ink-2">
           Par sécurité, confirmez votre identité pour continuer : reconnectez-vous.

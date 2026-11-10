@@ -61,7 +61,7 @@ async function gameA() {
 
 beforeAll(async () => {
   h.db = await createTestDb();
-  await h.db.insert(user).values(Object.values(U));
+  await h.db.insert(user).values(Object.values(U).map((u) => ({ ...u, emailVerified: true })));
   await h.db.insert(studios).values([
     { id: 'std_a', name: 'Studio A', slug: 'studio-a' },
     { id: 'std_b', name: 'Studio B', slug: 'studio-b' },
@@ -195,6 +195,6 @@ describe('A-11 : isRecentLogin / requireRecentLogin', () => {
     login(U.ownerA, 120_000);
     await expect(session.requireRecentLogin(60_000, '/admin')).rejects.toMatchObject({ url: '/login?reauth=1&next=%2Fadmin' });
     login(U.ownerA, 1000);
-    await expect(session.requireRecentLogin(60_000, '/admin')).resolves.toEqual(U.ownerA);
+    await expect(session.requireRecentLogin(60_000, '/admin')).resolves.toMatchObject(U.ownerA);
   });
 });

@@ -16,6 +16,11 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  /**
+   * Adresse vérifiée (revue A-04) — pour l'affichage (bandeau). Les contrôles d'accès relisent la base :
+   * email-verification.ts.
+   */
+  emailVerified?: boolean;
 }
 
 /**
@@ -31,7 +36,7 @@ const readSession = cache(async (): Promise<SessionUser | null> => {
   const s = await readRawSession();
   if (!s) return null;
   if (await isUserDisabled(s.user.id)) return null;
-  return { id: s.user.id, email: s.user.email, name: s.user.name };
+  return { id: s.user.id, email: s.user.email, name: s.user.name, emailVerified: s.user.emailVerified === true };
 });
 
 export async function getCurrentUser(): Promise<SessionUser | null> {

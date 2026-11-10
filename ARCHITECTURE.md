@@ -54,6 +54,7 @@ Commandes : `npm install`, `npm run db:push`, `npm run db:seed`, `npm run dev` (
 | `/account` (mes jeux liés, « vérifié / non vérifié »), `/account/purchases` (historique, statut de livraison, bouton « Me rétracter ») | linking / analytics / security |
 | `/account/points` (Points Dev AppStore : solde, historique, récompenses) | loyalty |
 | `/login`, `/signup`, `/studio/signup` | auth |
+| `/forgot-password`, `/reset-password`, `/verify-email` | auth (mot de passe oublié, confirmation d'adresse — revue A-04) |
 | `/checkout/success`, `/checkout/mock` | payments |
 | `/pour-les-studios` (page marketing) | marketing |
 
@@ -222,12 +223,18 @@ Composants partagés : `src/components/store/ItemCard.tsx`, `StorePanel.tsx` (bo
 | `sendWithdrawalAcknowledgement` | rétractation réussie (`withdrawOrder`) | joueur — accusé de réception (marque Dev AppStore) |
 | `sendPlayerWelcome`, `sendStudioWelcome` | inscription joueur / création du studio | joueur / owner |
 | `sendWeeklyStudioReport` | cron `/api/cron/weekly-reports` | owner, admin, finance |
-| Better Auth (`verifyEmailEmail`, `passwordResetEmail`) | vérification d'adresse, mot de passe oublié | utilisateur |
+| Better Auth → `auth-emails.ts` (`verifyEmailEmail`, `passwordResetEmail`, `passwordChangedEmail`, `existingAccountEmail`) | inscription, « Renvoyer l'e-mail », mot de passe oublié, mot de passe modifié, inscription avec une adresse déjà prise | utilisateur |
 | `admin-emails.ts` | modération d'un jeu | responsables du studio |
 
 - Idempotence : table `notifications_sent`, clé unique (kind, ref_id) ; un envoi en échec peut être retenté.
 - Jamais bloquant : les fonctions ne lèvent pas ; depuis une requête, `runInBackground` (`after()` de Next.js).
 - Transport : console + `.data/mails` en dev, Resend si `RESEND_API_KEY` ; aucun e-mail réel sous vitest.
+  **Liens à jeton en local** (vérification d'adresse, mot de passe oublié) : affichés dans le terminal de `npm run dev` et copiés
+  dans `apps/web/.data/mails/*.txt` (dossier relatif au cwd du serveur ; `MAIL_CONSOLE_DIR` pour le changer — e2e :
+  `e2e/.data/mails`). Exemple : `grep -h "token=" apps/web/.data/mails/*.txt | tail -1`.
+- Vérification d'adresse (revue A-04) : connexion possible sans, mais achat, liaison, création de studio / de jeu, publication,
+  rotations de clés et versements exigent `user.emailVerified` (`email-verification.ts`) ; voir
+  `docs/security/revue-2026-11/auth-autorisation.md` (A-04, A-07).
   Aperçu de tous les modèles : `npm run preview -w @devappstore/emails`.
 
 ## Stockage des téléversements (`storage.ts`, `docs/deploy-storage.md`)

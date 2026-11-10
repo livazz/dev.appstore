@@ -9,7 +9,7 @@ import { escapeHtml } from './escape';
 import type { EmailContent } from './layout';
 import * as f from './fixtures';
 import { deliveryFailedEmail, playerWelcomeEmail, purchaseDeliveredEmail, purchaseReceiptEmail } from './templates/player';
-import { passwordResetEmail, verifyEmailEmail } from './templates/auth';
+import { existingAccountEmail, passwordChangedEmail, passwordResetEmail, verifyEmailEmail } from './templates/auth';
 import { withdrawalAcknowledgementEmail } from './templates/withdrawal';
 import { studioDeliveryAlertEmail, studioWeeklyReportEmail, studioWelcomeEmail } from './templates/studio';
 
@@ -22,6 +22,8 @@ export function renderAllSamples(): Record<string, EmailContent> {
     'bienvenue-joueur': playerWelcomeEmail(f.samplePlayerWelcome, ctx),
     'verification-email': verifyEmailEmail(f.sampleVerify, ctx),
     'reinitialisation-mot-de-passe': passwordResetEmail(f.sampleReset, ctx),
+    'mot-de-passe-modifie': passwordChangedEmail({ name: 'Léa', resetUrl: `${ctx.appUrl}/forgot-password` }, ctx),
+    'compte-existant': existingAccountEmail({ name: 'Léa', loginUrl: `${ctx.appUrl}/login`, resetUrl: `${ctx.appUrl}/forgot-password` }, ctx),
     'bienvenue-studio': studioWelcomeEmail(f.sampleStudioWelcome, ctx),
     'alerte-livraisons-studio': studioDeliveryAlertEmail(f.sampleDeliveryAlert, ctx),
     'rapport-hebdo-studio': studioWeeklyReportEmail(f.sampleWeeklyReport, ctx),

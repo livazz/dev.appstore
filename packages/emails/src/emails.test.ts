@@ -14,6 +14,8 @@ import {
   html,
   maskEmail,
   passwordResetEmail,
+  passwordChangedEmail,
+  existingAccountEmail,
   purchaseReceiptEmail,
   safeUrl,
   sendEmail,
@@ -82,6 +84,18 @@ describe('échappement', () => {
   it('un lien javascript: dans un modèle fait échouer le rendu', () => {
     expect(() => verifyEmailEmail({ url: 'javascript:alert(1)' })).toThrow();
     expect(() => passwordResetEmail({ url: 'javascript:alert(1)' })).toThrow();
+    expect(() => passwordChangedEmail({ resetUrl: 'javascript:alert(1)' })).toThrow();
+    expect(() => existingAccountEmail({ loginUrl: 'https://ok.test/login', resetUrl: 'javascript:alert(1)' })).toThrow();
+  });
+
+  it('A-04 / A-07 : « mot de passe modifié » et « vous avez déjà un compte »', () => {
+    const changed = passwordChangedEmail({ name: 'Léa', resetUrl: 'https://devappstore.test/forgot-password' });
+    expect(changed.subject).toBe('Votre mot de passe Dev AppStore a été modifié');
+    expect(changed.text).toContain('déconnecté de tous vos appareils');
+    const existing = existingAccountEmail({ loginUrl: 'https://devappstore.test/login', resetUrl: 'https://devappstore.test/forgot-password' });
+    expect(existing.subject).toBe('Vous avez déjà un compte Dev AppStore');
+    expect(existing.text).toContain('https://devappstore.test/forgot-password');
+    expect(existing.html).toContain('href="https://devappstore.test/login"');
   });
 
   it('les retours à la ligne sont retirés de l’objet (injection d’en-tête)', () => {
@@ -189,7 +203,7 @@ describe('accusé de réception de rétractation (directive 2023/2673)', () => {
 describe('modèles', () => {
   it('tous les modèles se rendent avec sujet, html et texte', () => {
     const all = renderAllSamples();
-    expect(Object.keys(all)).toHaveLength(10);
+    expect(Object.keys(all)).toHaveLength(12);
     for (const [name, m] of Object.entries(all)) {
       expect(m.subject, name).toBeTruthy();
       expect(m.html, name).toContain('</html>');

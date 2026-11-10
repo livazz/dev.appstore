@@ -70,9 +70,9 @@ function ok<T>(r: { ok: true; data: T } | { ok: false; error: string }): T {
 beforeAll(async () => {
   h.db = await createTestDb();
   await h.db.insert(user).values([
-    { id: 'usr_dev', name: 'Dev', email: 'dev@t.test' },
-    { id: 'usr_owner', name: 'Owner', email: 'owner@t.test' },
-    { id: 'usr_other', name: 'Autre studio', email: 'other@t.test' },
+    { id: 'usr_dev', name: 'Dev', email: 'dev@t.test', emailVerified: true },
+    { id: 'usr_owner', name: 'Owner', email: 'owner@t.test', emailVerified: true },
+    { id: 'usr_other', name: 'Autre studio', email: 'other@t.test', emailVerified: true },
   ]);
   await h.db.insert(studios).values([
     { id: 'std_a', name: 'Studio A', slug: 'studio-a' },
@@ -161,5 +161,21 @@ describe('Server Actions du studio', () => {
     await h.db.update(items).set({ active: true }).where(eq(items.gameId, id));
     expect(ok(await actions.publishGame(id)).status).toBe('live');
     expect(ok(await actions.unpublishGame(id)).status).toBe('draft');
+  });
+
+  it('A-04 : sans adresse e-mail vérifiée, ni création de jeu (clés) ni publication', async () => {
+    h.currentUser = 'usr_owner';
+    const { id } = ok(await actions.createGame({ name: 'Vérification', category: 'RPG', currency: 'EUR' }));
+    ok(await actions.createItem(id, itemInput));
+    await h.db.update(user).set({ emailVerified: false }).where(eq(user.id, 'usr_owner'));
+    try {
+      const created = await actions.createGame({ name: 'Refusé', category: 'RPG', currency: 'EUR' });
+      expect(created).toEqual({ ok: false, error: expect.stringMatching(/Confirmez votre adresse e-mail pour créer un jeu/) });
+      expect(await actions.publishGame(id)).toEqual({ ok: false, error: expect.stringMatching(/pour publier un jeu/) });
+      // L'édition d'un brouillon reste possible.
+      expect((await actions.updateGame(id, { name: 'Vérification 2' })).ok).toBe(true);
+    } finally {
+      await h.db.update(user).set({ emailVerified: true }).where(eq(user.id, 'usr_owner'));
+    }
   });
 });

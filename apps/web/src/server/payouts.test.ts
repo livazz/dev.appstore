@@ -12,9 +12,9 @@ vi.mock('@devappstore/db', async (importOriginal) => {
 beforeAll(async () => {
   await seedPaymentsFixtures();
   await db.insert(user).values([
-    { id: 'usr_owner', name: 'Owner', email: 'owner@devappstore.test' },
-    { id: 'usr_finance', name: 'Finance', email: 'finance@devappstore.test' },
-    { id: 'usr_dev', name: 'Dev', email: 'dev@devappstore.test' },
+    { id: 'usr_owner', name: 'Owner', email: 'owner@devappstore.test', emailVerified: true },
+    { id: 'usr_finance', name: 'Finance', email: 'finance@devappstore.test', emailVerified: true },
+    { id: 'usr_dev', name: 'Dev', email: 'dev@devappstore.test', emailVerified: true },
   ]);
   await db.insert(studioMembers).values([
     { studioId: FX.studio, userId: 'usr_owner', role: 'owner' },

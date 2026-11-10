@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@devappstore/db';
 import type { StudioRole } from '@devappstore/core';
+import { EmailNotVerifiedError, assertEmailVerified } from './email-verification';
 import { requireGameAccess, requireUser } from './session';
 import {
   StudioError,
@@ -45,17 +46,17 @@ async function run<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
   try {
     return { ok: true, data: await fn() };
   } catch (e) {
-    if (e instanceof StudioError) return { ok: false, error: e.message };
+    if (e instanceof StudioError || e instanceof EmailNotVerifiedError) return { ok: false, error: e.message };
     if (e instanceof Error && e.message === 'FORBIDDEN') return { ok: false, error: FORBIDDEN_MSG };
     throw e; // redirect() de requireUser, erreurs inattendues
   }
 }
 
-async function guarded<T>(gameId: string, fn: () => Promise<T>, roles: readonly StudioRole[]) {
+async function guarded<T>(gameId: string, fn: (access: { userId: string }) => Promise<T>, roles: readonly StudioRole[]) {
   return run(async () => {
     if (typeof gameId !== 'string' || !gameId) throw new StudioError('Jeu introuvable.');
-    await requireGameAccess(gameId, [...roles]);
-    return fn();
+    const access = await requireGameAccess(gameId, [...roles]);
+    return fn({ userId: access.user.id });
   });
 }
 
@@ -71,6 +72,8 @@ function revalidateGame(game: Pick<GameRow, 'id' | 'slug'>) {
 export async function createGame(input: NewGameInput): Promise<ActionResult<{ id: string; slug: string; apiKey: string; webhookSecret: string }>> {
   return run(async () => {
     const user = await requireUser('/studio/games/new');
+    // Revue de sécurité A-04 : un jeu (et ses clés) n'est créé que par une adresse vérifiée.
+    await assertEmailVerified(user.id, 'pour créer un jeu');
     const { game, apiKey } = await createGameFor(db, user.id, input);
     revalidatePath('/studio');
     return { id: game.id, slug: game.slug, apiKey, webhookSecret: game.webhookSecret };
@@ -88,7 +91,8 @@ export async function updateGame(gameId: string, patch: GameInfoInput): Promise<
 
 /** Phase 1 : « Soumettre / publier » passe directement le jeu en ligne. */
 export async function publishGame(gameId: string): Promise<ActionResult<EditorGame>> {
-  return guarded(gameId, async () => {
+  return guarded(gameId, async ({ userId }) => {
+    await assertEmailVerified(userId, 'pour publier un jeu');
     const game = await setGameStatus(db, gameId, 'live');
     revalidateGame(game);
     return toEditorGame(game);

@@ -20,6 +20,7 @@ const ERRORS: Record<string, string> = {
   owner_only: 'Seul le propriétaire du studio peut configurer les versements.',
   stripe_disabled: 'Stripe n’est pas configuré sur ce serveur.',
   stripe: 'Stripe est momentanément indisponible. Réessayez dans un instant.',
+  email_not_verified: 'Confirmez votre adresse e-mail pour configurer les versements (lien reçu par e-mail, ou « Renvoyer l’e-mail » sur /verify-email).',
 };
 
 const btnPrimary =

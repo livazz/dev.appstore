@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { SearchBar, SearchForm } from '@/components/catalog/SearchBar';
+import { EmailVerificationBanner } from '@/components/auth/EmailVerificationBanner';
 import { UserMenu } from '@/components/auth/UserMenu';
 import { LEGAL_DOCUMENTS } from '@/lib/legal-versions';
 
@@ -29,6 +30,7 @@ export default function PlayerLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
       </header>
+      <EmailVerificationBanner />
       <main className="flex-1">{children}</main>
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-ink-3 sm:px-6">

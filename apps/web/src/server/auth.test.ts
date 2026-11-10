@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestDb } from '@devappstore/db/testing';
 import { games, studioMembers, studios, user } from '@devappstore/db/schema';
-import type { DB } from '@devappstore/db';
+import { eq, type DB } from '@devappstore/db';
 
 /*
  * Tests de l'authentification : Better Auth branché sur une base PGlite en mémoire.
@@ -96,12 +96,25 @@ describe('connexion e-mail + mot de passe', () => {
 });
 
 describe('inscription', () => {
-  it('refuse un e-mail déjà utilisé', async () => {
+  it('e-mail déjà utilisé : même réponse qu’une inscription réussie, aucun compte créé ni session ouverte', async () => {
     const res = await flows.signUpWithPassword({ name: 'Autre', email: 'dev@test.fr', password: 'motdepasse9' });
-    expect(res.ok).toBe(false);
-    // Revue de sécurité A-07 : message neutre, aucune erreur rattachée au champ e-mail.
-    expect(res.error).toMatch(/Impossible de créer un compte/);
-    expect(res.fieldErrors).toBeUndefined();
+    // Revue de sécurité A-07 : réponse identique (la titulaire reçoit « vous avez déjà un compte »).
+    expect(res).toEqual({ ok: true, verificationSent: true });
+    expect(jar.size).toBe(0);
+    expect(await tdb.$count(user)).toBeGreaterThan(0);
+    const devs = await tdb.select().from(user).where(eq(user.email, 'dev@test.fr'));
+    expect(devs).toHaveLength(1);
+    expect(devs[0]!.name).toBe('Dev');
+  });
+
+  it('inscription : compte non vérifié, aucune session (connexion après confirmation ou par mot de passe)', async () => {
+    const res = await flows.signUpWithPassword({ name: 'Nouveau', email: 'nouveau@test.fr', password: 'motdepasse5' });
+    expect(res).toMatchObject({ ok: true, verificationSent: true, userId: expect.stringMatching(/^usr_/) });
+    expect(await session.getCurrentUser()).toBeNull();
+    const [row] = await tdb.select({ v: user.emailVerified }).from(user).where(eq(user.id, res.userId!));
+    expect(row!.v).toBe(false);
+    expect((await flows.signInWithPassword({ email: 'nouveau@test.fr', password: 'motdepasse5' })).ok).toBe(true);
+    expect(await session.getCurrentUser()).toMatchObject({ email: 'nouveau@test.fr', emailVerified: false });
   });
 
   it('refuse un mot de passe trop court', async () => {
@@ -115,12 +128,24 @@ describe('inscription', () => {
     expect(res.studioSlug).toBe('studio-t-2');
     const members = await session.getUserStudios(res.userId!, tdb);
     expect(members).toEqual([expect.objectContaining({ studioId: res.studioId, role: 'owner' })]);
-    // Connecté automatiquement après l'inscription.
-    expect((await session.getCurrentUser())?.email).toBe('alice@test.fr');
+    // Pas de session : confirmation de l'adresse par e-mail d'abord (A-04 / A-07).
+    expect(res.verificationSent).toBe(true);
+    expect(await session.getCurrentUser()).toBeNull();
+  });
+
+  it('inscription studio avec une adresse déjà inscrite : même réponse, aucun studio créé', async () => {
+    const before = await tdb.$count(studios);
+    const res = await flows.signUpStudio({ studioName: 'Studio Pirate', name: 'X', email: 'dev@test.fr', password: 'motdepasse3' }, { database: tdb });
+    expect(res).toEqual({ ok: true, verificationSent: true });
+    expect(await tdb.$count(studios)).toBe(before);
   });
 
   it('inscription studio d’un utilisateur déjà connecté : seul le nom du studio est requis', async () => {
     const bob = await flows.signUpWithPassword({ name: 'Bob', email: 'bob@test.fr', password: 'motdepasse4' });
+    // A-04 : adresse non vérifiée → refus.
+    const refused = await flows.signUpStudio({ studioName: 'Ça Marche Studio' }, { database: tdb, currentUserId: bob.userId });
+    expect(refused).toMatchObject({ ok: false, error: expect.stringMatching(/Confirmez votre adresse e-mail pour créer un studio/) });
+    await tdb.update(user).set({ emailVerified: true }).where(eq(user.id, bob.userId!));
     const res = await flows.signUpStudio({ studioName: 'Ça Marche Studio' }, { database: tdb, currentUserId: bob.userId });
     expect(res).toMatchObject({ ok: true, userId: bob.userId, studioSlug: 'ca-marche-studio' });
   });

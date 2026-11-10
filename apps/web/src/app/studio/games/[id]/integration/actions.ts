@@ -8,6 +8,7 @@ import { generatePublishableKey, revokePreviousSecretApiKey, rotateSecretApiKey 
 import { resumeParkedDeliveries, retryDelivery, retryDueDeliveries, sendTestWebhook, validateWebhookUrl } from '@/server/delivery';
 import { INTEGRATION_ADMINS, auditUrl, recordIntegrationAudit, type AuditActor } from '@/server/integration-audit';
 import { revokePlayerTokens } from '@/server/player-tokens';
+import { emailNotVerifiedMessage, isEmailVerified } from '@/server/email-verification';
 import { requireGameAccess } from '@/server/session';
 import { loadWebhookSecrets, rotateWebhookSecret } from '@/server/webhook-secrets';
 
@@ -25,6 +26,8 @@ export type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: 
 async function guard(gameId: string, scope: 'editors' | 'admins' = 'editors'): Promise<{ actor: AuditActor } | { error: string }> {
   try {
     const actor = await requireGameAccess(gameId, scope === 'admins' ? INTEGRATION_ADMINS : [...EDITORS]);
+    // Revue de sécurité A-04 : rotations de clés et changement d'URL réservés aux adresses vérifiées.
+    if (scope === 'admins' && !(await isEmailVerified(actor.user.id))) return { error: emailNotVerifiedMessage('pour modifier les clés et secrets') };
     return { actor };
   } catch (e) {
     if (e instanceof Error && e.message === 'FORBIDDEN') {
