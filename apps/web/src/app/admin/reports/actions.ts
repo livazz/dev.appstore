@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { AdminError } from '@/server/admin';
 import { dismissReports } from '@/server/reports';
 import type { AdminActionState } from '@/components/admin/action-state';
@@ -20,8 +19,8 @@ export async function dismissReportsAction(_prev: AdminActionState, form: FormDa
   const reportIds = field(form, 'reportIds').split(',').map((s) => s.trim()).filter(Boolean);
   try {
     const r = await dismissReports(gameId, { reason: field(form, 'reason'), reportIds });
-    revalidatePath('/admin/reports');
-    revalidatePath('/admin');
+    // Aucune revalidation (pages admin dynamiques) : toute revalidation rafraîchirait la page et retirerait la carte du
+    // jeu avec le message de résultat. La carte reste affichée, formulaire masqué, jusqu'au prochain chargement.
     const plural = r.closed > 1 ? 's' : '';
     return {
       ok: true,

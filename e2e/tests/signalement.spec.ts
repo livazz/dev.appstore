@@ -13,6 +13,16 @@ test.describe('Signalement de contenu', () => {
     const unique = `${Date.now()}`;
     const email = `signalant-${unique}@exemple.test`;
     const explication = `Le prix barré du pack est fictif, aucune vente à ce prix n’a existé (réf. e2e ${unique}).`;
+    // Le formulaire du signalement (l'en-tête a aussi un sélecteur « Catégorie » pour la recherche).
+    const remplir = async () => {
+      const form = page.locator('form').filter({ has: page.getByRole('button', { name: 'Envoyer le signalement' }) });
+      await form.getByLabel(/Catégorie/).selectOption('fraud');
+      await form.getByLabel(/Article visé/).selectOption({ label: 'Sac de gemmes' });
+      await form.getByLabel(/Explication/).fill(explication);
+      await form.getByLabel(/Votre adresse e-mail/).fill(email);
+      await form.getByLabel(/Je déclare de bonne foi/).check();
+      await form.getByRole('button', { name: 'Envoyer le signalement' }).click();
+    };
 
     // 1. Visiteur : lien discret en bas de la boutique → formulaire.
     await page.goto(`/games/${JEUX.crystal.slug}`);
@@ -20,12 +30,7 @@ test.describe('Signalement de contenu', () => {
     await expect(page).toHaveURL(new RegExp(`/games/${JEUX.crystal.slug}/report`));
     await expect(page.getByRole('heading', { name: 'Signaler ce contenu' })).toBeVisible();
 
-    await page.getByLabel(/Catégorie/).selectOption('fraud');
-    await page.getByLabel(/Article visé/).selectOption({ label: 'Sac de gemmes' });
-    await page.getByLabel(/Explication/).fill(explication);
-    await page.getByLabel(/Votre adresse e-mail/).fill(email);
-    await page.getByLabel(/Je déclare de bonne foi/).check();
-    await page.getByRole('button', { name: 'Envoyer le signalement' }).click();
+    await remplir();
 
     const recu = page.getByRole('status').filter({ hasText: 'Signalement reçu' });
     await expect(recu).toBeVisible();
@@ -34,13 +39,8 @@ test.describe('Signalement de contenu', () => {
 
     // Même signalement une deuxième fois : refusé (anti-doublon).
     await page.goto(`/games/${JEUX.crystal.slug}/report`);
-    await page.getByLabel(/Catégorie/).selectOption('fraud');
-    await page.getByLabel(/Article visé/).selectOption({ label: 'Sac de gemmes' });
-    await page.getByLabel(/Explication/).fill(explication);
-    await page.getByLabel(/Votre adresse e-mail/).fill(email);
-    await page.getByLabel(/Je déclare de bonne foi/).check();
-    await page.getByRole('button', { name: 'Envoyer le signalement' }).click();
-    await expect(page.getByRole('alert')).toContainText('déjà signalé');
+    await remplir();
+    await expect(page.getByRole('alert').filter({ hasText: 'déjà signalé' })).toBeVisible();
 
     // 2. Admin : le signalement apparaît, regroupé sous le jeu.
     await connexion.seConnecter(COMPTES.dev, '/admin/reports');
