@@ -37,4 +37,19 @@ describe('middleware CSP', () => {
       expect(re.test(p), p).toBe(false);
     }
   });
+
+  it('C-08 (revue 2026-11) : une page dont le chemin finit par une extension garde sa CSP', () => {
+    const re = new RegExp(`^${config.matcher[0]}$`);
+    for (const p of ['/games/crystal-clash.png', '/docs/x.txt', '/games/a.xml', '/search.webmanifest', '/studio/x.svg', '/games/icon.png']) {
+      expect(re.test(p), p).toBe(true);
+    }
+    for (const p of ['/icon-192.png', '/icon-maskable-512.png', '/apple-icon.png', '/opengraph-image.png', '/twitter-image']) {
+      expect(re.test(p), p).toBe(false);
+    }
+  });
+
+  it('C-05 (revue 2026-11) : img-src sans https: générique', () => {
+    const csp = run('/').headers.get('content-security-policy') ?? '';
+    expect(csp.split('; ').find((d) => d.startsWith('img-src '))).toBe("img-src 'self' data: blob:");
+  });
 });

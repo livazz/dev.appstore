@@ -39,11 +39,31 @@ describe('Content-Security-Policy', () => {
     expect(img).not.toMatch(/http:|\*/);
   });
 
+  it('C-05 (revue 2026-11) : img-src sans https: générique, seule l’origine S3 exacte est ajoutée', () => {
+    expect(directive(contentSecurityPolicy(false), 'img-src')).toBe("img-src 'self' data: blob:");
+    expect(directive(contentSecurityPolicy(false, 'n', ['https://cdn.devappstore.test']), 'img-src')).toBe(
+      "img-src 'self' data: blob: https://cdn.devappstore.test",
+    );
+    // Valeurs hors origine https exacte ignorées (pas de joker, de schéma, de chemin ni d'injection de directive).
+    for (const o of ['https:', '*', 'http://cdn.test', 'https://cdn.test/x', "https://cdn.test; script-src 'unsafe-inline'"]) {
+      expect(directive(contentSecurityPolicy(false, 'n', [o]), 'img-src'), o).toBe("img-src 'self' data: blob:");
+    }
+  });
+
   it('développement : eval et websocket HMR autorisés, pas d’upgrade-insecure-requests', () => {
     const csp = contentSecurityPolicy(true);
     expect(directive(csp, 'script-src')).toContain("'unsafe-eval'");
     expect(directive(csp, 'connect-src')).toContain('ws:');
     expect(csp).not.toContain('upgrade-insecure-requests');
+  });
+});
+
+describe('next.config.ts — Server Actions (revue 2026-11, C-09)', () => {
+  it('corps des Server Actions limité à 1 Mo (et non 9 Mo pour toutes les actions)', async () => {
+    const { fitsServerActionBody } = await import('./ai-style-types');
+    expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe('1mb');
+    expect(fitsServerActionBody(900 * 1024)).toBe(true);
+    expect(fitsServerActionBody(1024 * 1024)).toBe(false);
   });
 });
 

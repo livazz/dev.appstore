@@ -17,6 +17,7 @@ import {
 import {
   DEFAULT_WEB_DISCOUNT_BPS,
   importCatalog,
+  InvalidTokenUriError,
   normalizePem,
   parseServiceAccount,
   suggestWebPrice,
@@ -86,7 +87,8 @@ export const googlePlayCredentialsSchema = z.object({
       try {
         const sa = parseServiceAccount(raw);
         if (!isPrivateKey(sa.private_key)) ctx.addIssue({ code: 'custom', message: 'Clé privée du compte de service illisible.' });
-      } catch {
+      } catch (e) {
+        if (e instanceof InvalidTokenUriError) return void ctx.addIssue({ code: 'custom', message: e.message });
         ctx.addIssue({ code: 'custom', message: 'JSON du compte de service invalide : collez le fichier de clé téléchargé depuis Google Cloud.' });
       }
     }),

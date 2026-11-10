@@ -5,6 +5,7 @@ import { getUserStudios, requireUser } from '@/server/session';
 import { listStudioGames } from '@/server/studio-logic';
 import { GAME_STATUS_LABELS } from '@/lib/studio-types';
 import { IconPlus } from '@/components/studio/icons';
+import { safeImageUrl } from '@/components/store/style-safety';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export default async function StudioHome() {
             >
               <div className="mb-2 flex size-24 items-center justify-center overflow-hidden rounded-[22px] bg-bg shadow-sm ring-1 ring-black/10">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {g.iconUrl ? <img src={g.iconUrl} alt="" className="size-full object-cover" /> : <span className="text-3xl font-bold text-ink-3">{g.name[0]}</span>}
+                {safeImageUrl(g.iconUrl) ? <img src={safeImageUrl(g.iconUrl)!} alt="" className="size-full object-cover" /> : <span className="text-3xl font-bold text-ink-3">{g.name[0]}</span>}
               </div>
               <strong className="line-clamp-1 text-base">{g.name}</strong>
               <span className="line-clamp-1 text-sm text-ink-2">{g.publisherName || g.category}</span>

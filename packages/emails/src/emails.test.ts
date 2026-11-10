@@ -12,6 +12,7 @@ import {
   deliveryFailedEmail,
   escapeHtml,
   html,
+  maskEmail,
   passwordResetEmail,
   purchaseReceiptEmail,
   safeUrl,
@@ -228,6 +229,41 @@ describe('mailer', () => {
       expect(log.mock.calls[0]![0]).toContain('joueur@devappstore.test');
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('C-02 (revue 2026-11) : console en production → ni lien à jeton ni corps dans les journaux, aucune copie sur disque', async () => {
+    const cwd = process.cwd();
+    const tmp = await mkdtemp(join(tmpdir(), 'devappstore-mails-prod-'));
+    const log = vi.fn();
+    try {
+      process.chdir(tmp);
+      const mailer = createConsoleMailer({ log, production: true });
+      const token = 'jeton-secret-reinit-0123456789';
+      await sendEmail(mailer, 'owner@studio.test', passwordResetEmail({ url: `https://devappstore.test/reset-password/${token}` }));
+      const out = log.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(out).not.toContain(token);
+      expect(out).not.toContain('owner@studio.test');
+      expect(out).toContain('o***@studio.test');
+      expect(out).toContain('NON ENVOYÉ');
+      expect(await readdir(tmp)).toEqual([]); // pas de .data/mails
+    } finally {
+      process.chdir(cwd);
+      await rm(tmp, { recursive: true, force: true });
+    }
+    expect(maskEmail('jean.dupont@exemple.fr')).toBe('j***@exemple.fr');
+  });
+
+  it('C-02 : createMailerFromEnv propage NODE_ENV=production au transport console', async () => {
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const mailer = createMailerFromEnv({ NODE_ENV: 'production', MAIL_TRANSPORT: 'console', MAIL_CONSOLE_DIR: undefined });
+      await sendEmail(mailer, 'a@b.fr', passwordResetEmail({ url: 'https://devappstore.test/reset-password/tok_abc123' }));
+      expect(log.mock.calls.map((c) => String(c[0])).join('')).not.toContain('tok_abc123');
+    } finally {
+      log.mockRestore();
+      warn.mockRestore();
     }
   });
 

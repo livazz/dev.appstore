@@ -14,10 +14,22 @@ export interface GoogleServiceAccountKey {
   project_id?: string;
 }
 
+/** `token_uri` différent de l'URL officielle de Google (liste blanche stricte). */
+export class InvalidTokenUriError extends Error {
+  constructor() {
+    super(`Clé de compte de service invalide : token_uri doit être ${GOOGLE_TOKEN_URI}.`);
+    this.name = 'InvalidTokenUriError';
+  }
+}
+
 export function parseServiceAccount(input: string | GoogleServiceAccountKey): GoogleServiceAccountKey {
   const sa = typeof input === 'string' ? (JSON.parse(input) as GoogleServiceAccountKey) : input;
-  if (!sa.client_email || !sa.private_key) {
+  if (!sa || typeof sa !== 'object' || typeof sa.client_email !== 'string' || typeof sa.private_key !== 'string' || !sa.client_email || !sa.private_key) {
     throw new Error('Clé de compte de service invalide : client_email et private_key sont requis.');
+  }
+  // Anti-SSRF (revue 2026-11, C-01) : le jeton n'est demandé qu'au point de terminaison officiel de Google.
+  if (sa.token_uri !== undefined && sa.token_uri !== GOOGLE_TOKEN_URI) {
+    throw new InvalidTokenUriError();
   }
   return sa;
 }
@@ -39,7 +51,7 @@ export function createServiceAccountAssertion(
     {
       iss: sa.client_email,
       scope: opts.scope ?? ANDROID_PUBLISHER_SCOPE,
-      aud: sa.token_uri ?? GOOGLE_TOKEN_URI,
+      aud: GOOGLE_TOKEN_URI,
       iat,
       exp: iat + Math.min(opts.ttlSeconds ?? 3600, 3600),
     },
@@ -63,7 +75,7 @@ export async function fetchGoogleAccessToken(
   const body = new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion });
   const res = await requestJson<{ access_token: string; expires_in?: number; token_type?: string }>(
     'google_oauth',
-    sa.token_uri ?? GOOGLE_TOKEN_URI,
+    GOOGLE_TOKEN_URI,
     { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() },
     opts,
   );

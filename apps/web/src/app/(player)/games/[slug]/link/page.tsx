@@ -7,6 +7,7 @@ import { LINK_METHOD_LABELS, availableLinkMethods, getLinkableGame, linkReturnPa
 import { requireUser } from '@/server/session';
 import { CodeForm } from './CodeForm';
 import { IdConfirmForm } from './IdConfirmForm';
+import { safeImageUrl } from '@/components/store/style-safety';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Lier mon compte de jeu', robots: { index: false } };
@@ -45,9 +46,9 @@ export default async function LinkPage({
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-10">
       <header className="flex items-center gap-4">
-        {game.iconUrl ? (
+        {safeImageUrl(game.iconUrl) ? (
           // eslint-disable-next-line @next/next/no-img-element -- icônes en data: URL ou /api/uploads
-          <img src={game.iconUrl} alt="" className="h-16 w-16 shrink-0 rounded-[14px] border border-line object-cover" />
+          <img src={safeImageUrl(game.iconUrl)!} alt="" className="h-16 w-16 shrink-0 rounded-[14px] border border-line object-cover" />
         ) : (
           <div aria-hidden className="h-16 w-16 shrink-0 rounded-[14px] bg-brand" />
         )}

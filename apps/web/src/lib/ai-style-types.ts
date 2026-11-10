@@ -44,4 +44,14 @@ export const AI_STYLE_MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 export const AI_STYLE_MAX_SIDE_PX = 1568;
 /** Taille visée pour l'envoi depuis le navigateur (limite par défaut des Server Actions : 1 Mo). */
 export const AI_STYLE_CLIENT_TARGET_BYTES = 900 * 1024;
+/**
+ * Limite des corps de Server Actions (`experimental.serverActions.bodySizeLimit` de next.config.ts) : 1 Mo, valeur
+ * par défaut de Next.js (revue 2026-11, C-09 : 9 Mo auparavant pour TOUTES les actions, à cause de cette seule capture).
+ */
+export const SERVER_ACTION_BODY_LIMIT = '1mb';
+export const SERVER_ACTION_BODY_LIMIT_BYTES = 1024 * 1024;
+/** Le fichier (après réduction côté navigateur) tient-il dans le corps d'une Server Action, enveloppe multipart comprise ? */
+export function fitsServerActionBody(bytes: number): boolean {
+  return bytes <= SERVER_ACTION_BODY_LIMIT_BYTES - 16 * 1024;
+}
 export const AI_STYLE_ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;

@@ -3,6 +3,7 @@ import type { GameStatus } from '@devappstore/core';
 import { listGamesForAdmin, requireAdminPermission } from '@/server/admin';
 import { normalizeQuery } from '@/server/admin-logic';
 import { Empty, GAME_STATUS, GameStatusBadge, PageHeader, SearchForm, Time } from '@/components/admin/ui';
+import { safeImageUrl } from '@/components/store/style-safety';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Jeux' };
@@ -57,7 +58,7 @@ export default async function AdminGames({ searchParams }: { searchParams: Promi
               <Link href={`/admin/games/${g.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-bg focus-visible:bg-bg">
                 <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-bg ring-1 ring-black/10">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {g.iconUrl ? <img src={g.iconUrl} alt="" className="size-full object-cover" /> : <span className="font-bold text-ink-3">{g.name[0]}</span>}
+                  {safeImageUrl(g.iconUrl) ? <img src={safeImageUrl(g.iconUrl)!} alt="" className="size-full object-cover" /> : <span className="font-bold text-ink-3">{g.name[0]}</span>}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{g.name}</span>

@@ -66,3 +66,28 @@ describe('stockage et traversée', () => {
     expect((await s.get(url.replace('/api/uploads/', '')))?.contentType).toBe('image/webp');
   });
 });
+
+describe('withDecodeSlot (revue 2026-11, C-03)', () => {
+  it('au plus MAX_CONCURRENT_DECODES décodages simultanés, file bornée puis 503', async () => {
+    const { withDecodeSlot, MAX_CONCURRENT_DECODES, MAX_QUEUED_DECODES } = await import('./image-upload');
+    let active = 0;
+    let peak = 0;
+    const releases: (() => void)[] = [];
+    const job = () =>
+      withDecodeSlot(async () => {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise<void>((r) => releases.push(r));
+        active--;
+      });
+    const jobs = Array.from({ length: MAX_CONCURRENT_DECODES + MAX_QUEUED_DECODES }, job);
+    await expect(job()).rejects.toMatchObject({ status: 503 });
+    while (releases.length || active) {
+      await new Promise((r) => setTimeout(r, 0));
+      releases.shift()?.();
+    }
+    await Promise.all(jobs);
+    expect(peak).toBe(MAX_CONCURRENT_DECODES);
+  });
+});
+

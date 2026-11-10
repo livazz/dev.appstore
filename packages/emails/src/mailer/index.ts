@@ -4,7 +4,7 @@ import type { Mailer, SendResult } from './types';
 import type { EmailContent } from '../layout';
 
 export * from './types';
-export { createConsoleMailer, type ConsoleMailerOptions } from './console';
+export { createConsoleMailer, maskEmail, type ConsoleMailerOptions } from './console';
 export { createResendMailer, MailerError, type ResendMailerOptions } from './resend';
 
 export const DEFAULT_MAIL_FROM = 'Dev AppStore <no-reply@devappstore.com>';
@@ -29,7 +29,7 @@ export function createMailerFromEnv(env: Record<string, string | undefined> = pr
     if (env.NODE_ENV === 'production' && !env.MAIL_TRANSPORT) {
       console.warn('[mail] RESEND_API_KEY absente en production : les e-mails ne sont PAS envoyés (transport console).');
     }
-    return createConsoleMailer({ dir: env.MAIL_CONSOLE_DIR || undefined });
+    return createConsoleMailer({ dir: env.MAIL_CONSOLE_DIR || undefined, production: env.NODE_ENV === 'production' });
   }
   throw new Error(`MAIL_TRANSPORT inconnu : ${transport} (attendu : console ou resend)`);
 }

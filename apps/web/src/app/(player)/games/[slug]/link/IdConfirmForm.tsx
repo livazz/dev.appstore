@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { safeImageUrl } from '@/components/store/style-safety';
 import { confirmPlayerAction, lookupPlayerAction, type ConfirmFormState, type LookupFormState } from './actions';
 
 const initialLookup: LookupFormState = {};
@@ -14,13 +15,16 @@ export function IdConfirmForm({ slug, item }: { slug: string; item?: string }) {
 
   if (candidate) {
     const { player } = candidate;
+    // Revue 2026-11, C-05 : l'avatar renvoyé par le serveur du studio n'est affiché que s'il est hébergé par
+    // Dev AppStore (upload) ; une URL tierce (pistage de l'IP du joueur) est ignorée → initiale à la place.
+    const avatar = safeImageUrl(player.avatar_url);
     const confirmError = confirm.attemptId === candidate.attemptId ? confirm.error : undefined;
     return (
       <div className="mt-4 rounded-lg border border-line bg-bg p-4">
         <div className="flex items-center gap-3">
-          {player.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element -- URL fournie par le studio, non optimisable
-            <img src={player.avatar_url} alt="" referrerPolicy="no-referrer" className="h-12 w-12 shrink-0 rounded-full border border-line object-cover" />
+          {avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element -- upload Dev AppStore, non optimisable
+            <img src={avatar} alt="" referrerPolicy="no-referrer" className="h-12 w-12 shrink-0 rounded-full border border-line object-cover" />
           ) : (
             <div aria-hidden className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-bold text-ink">
               {player.display_name.slice(0, 1).toUpperCase()}
