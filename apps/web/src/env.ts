@@ -136,6 +136,11 @@ const baseSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined),
     z.enum(['memory', 'postgres']).default('memory'),
   ),
+  /** Proxys de confiance devant l'application, pour lire l'IP client dans X-Forwarded-For (server/client-ip.ts). */
+  TRUSTED_PROXY_HOPS: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? Number(v.trim()) : undefined),
+    z.number().int('doit être un entier').min(0, 'doit être ≥ 0').max(10, 'doit être ≤ 10').optional(),
+  ),
 });
 
 /** Variables lues par ce module (sert aussi d'empreinte pour relire process.env quand il change). */
