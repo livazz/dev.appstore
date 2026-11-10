@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import { env } from "@/env";
 import { BRAND_YELLOW, SITE_DESCRIPTION, SITE_NAME, openGraph, siteUrl } from "@/lib/seo";
+import { RoleSwitcher } from "@/components/dev/RoleSwitcher";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -43,6 +44,7 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <RoleSwitcher />
       </body>
     </html>
   );

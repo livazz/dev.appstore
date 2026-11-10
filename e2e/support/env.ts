@@ -54,6 +54,8 @@ export function demoGameAvailable(root = REPO_ROOT): boolean {
 export function webServerEnv(): Record<string, string> {
   return {
     DEVAPPSTORE_DATA_DIR: DATA_DIR,
+    // Pas de pastille « Rôle » flottante (outil de développement) : elle n'a pas à interférer avec les parcours.
+    DEVAPPSTORE_ROLE_SWITCHER: '0',
     // Force PGlite même si le développeur a un DATABASE_URL dans son shell.
     DATABASE_URL: '',
     // Mode simulation des paiements (/checkout/mock).

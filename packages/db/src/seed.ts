@@ -31,6 +31,8 @@ const mint = skinStyle('casual', 0), honey = skinStyle('casual', 2);
 export const DEMO_USERS = {
   dev: { id: 'usr_demo_dev', name: 'Développeur Démo', email: 'dev@devappstore.test' },
   player: { id: 'usr_demo_player', name: 'Joueur Démo', email: 'joueur@devappstore.test' },
+  /** Administrateur de la plateforme seul (sans studio), pour tester le back-office comme l'équipe Dev AppStore. */
+  admin: { id: 'usr_demo_admin', name: 'Admin Démo', email: 'admin@devappstore.test' },
 };
 
 /** Mot de passe des comptes de démo. Jamais en production. */
@@ -118,6 +120,7 @@ async function main() {
   console.log(`Seed Points Dev AppStore : ${loyalty.rewards} récompenses, ${loyalty.awards} attributions ajoutées (${loyalty.points} points au total)`);
   // Back-office /admin : dev@devappstore.test superadmin de la plateforme (idempotent ; un rôle modifié depuis est conservé).
   await db.insert(platformAdmins).values({ userId: DEMO_USERS.dev.id, role: DEMO_PLATFORM_ADMIN.role }).onConflictDoNothing();
+  await db.insert(platformAdmins).values({ userId: DEMO_USERS.admin.id, role: 'superadmin' }).onConflictDoNothing();
   console.log(`Seed administration : ${DEMO_PLATFORM_ADMIN.email} est ${DEMO_PLATFORM_ADMIN.role} de Dev AppStore — back-office sur /admin`);
 }
 

@@ -25,6 +25,10 @@ npm run demo                 # jeu de démo http://localhost:4100 (reçoit les a
 Comptes de démo (mot de passe `demo1234`) :
 - `joueur@devappstore.test` — joueur (déjà lié à Crystal Clash, ID `#2PP8QL9`)
 - `dev@devappstore.test` — studio Nova Games **et** superadmin (back-office `/admin`)
+- `admin@devappstore.test` — superadmin seul (back-office, sans studio)
+
+En développement, la pastille **« Rôle »** en bas à droite bascule d'un compte de démo à l'autre en un clic
+(`apps/web/src/components/dev/RoleSwitcher.tsx` ; jamais active en production, `DEVAPPSTORE_ROLE_SWITCHER=0` pour la masquer).
 
 Clés de démo : secrète `das_secret_demo_crystal_clash`, publique `das_pub_demo_crystal_clash`,
 secret webhook `whsec_demo_crystal_clash` (voir `packages/db/src/seed.ts`).
@@ -78,7 +82,7 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
    changements d'intégration, `createGame` écrit le secret webhook en clair jusqu'au premier envoi, rétractation
    pendant une récupération par SDK (`delivery.ts`, filet : `purchase.refunded`), `npm audit` : 4 modérées (drizzle-kit,
    dev seulement).
-3. Dépôt GitHub privé : https://github.com/livazz/dev.appstore (Node et gh installés dans `~/.local/bin`).
+3. Dépôt GitHub **public** : https://github.com/livazz/dev.appstore (Node et gh installés dans `~/.local/bin`).
 
 ## Décisions en attente (fondateur)
 
