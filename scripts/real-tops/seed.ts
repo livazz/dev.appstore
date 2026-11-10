@@ -12,6 +12,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { DEFAULT_ITEM_STYLE, SKIN_PALETTES, hashApiKey, type GameTheme, type ItemStyle } from '@devappstore/core';
 import { and, eq, like, notInArray, sql } from 'drizzle-orm';
 import { db, games, items, studios } from '@devappstore/db';
+import { seedPromosSales } from '../../packages/db/src/seed-promos-sales';
+import { seedReviews } from '../../packages/db/src/seed-reviews';
 import { CATALOG_FILE, artFile, artUrl, assertLocalOnly, importManualBanner, skinFor, slugify, type RealCatalog, type RealGame } from './common';
 
 assertLocalOnly();
@@ -116,6 +118,10 @@ async function seed() {
     if (hidden.length) await db.execute(sql`insert into ${HIDDEN_TABLE} (id) values ${sql.join(hidden.map((h) => sql`(${h.id})`), sql`, `)} on conflict do nothing`);
     console.log(`Jeux fictifs masqués (brouillon) : ${hidden.length}. Pour les rétablir : npm run real-tops:seed -- --remove`);
   }
+  // Avis, ventes des classements et promos du jour / à venir : générés pour les jeux publiés, donc aussi les vrais.
+  const reviews = await seedReviews();
+  const ranks = await seedPromosSales();
+  console.log(`Avis : ${reviews.reviews} ajoutés ; classements : ${ranks.orders} ventes sur 30 jours ; promos : ${ranks.livePromos} en cours, ${ranks.upcomingPromos} à venir.`);
 }
 
 /** Jeux fictifs masqués par ce script : mémorisés pour que `--remove` ne republie que ceux-là. */
