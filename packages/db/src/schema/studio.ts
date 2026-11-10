@@ -35,6 +35,12 @@ export const games = pgTable(
     publisherName: text('publisher_name').notNull().default(''),
     category: text('category').notNull().default('Casual'),
     description: text('description').notNull().default(''),
+    /** Présentation longue affichée sur la page boutique du jeu (paragraphes séparés par une ligne vide). */
+    storeDescription: text('store_description').notNull().default(''),
+    /** Plateforme du jeu : mobile (iOS/Android) ou PC. */
+    platform: text('platform').$type<'mobile' | 'pc'>().notNull().default('mobile'),
+    /** Captures d'écran (URL d'images, ordre d'affichage). */
+    screenshots: jsonb('screenshots').$type<string[]>().notNull().default([]),
     iconUrl: text('icon_url'),
     bannerUrl: text('banner_url'),
     theme: jsonb('theme').$type<GameTheme>().notNull(),
@@ -89,6 +95,8 @@ export const items = pgTable(
     period: text('period').$type<Period>().notNull().default('month'),
     title: text('title').notNull(),
     subtitle: text('subtitle').notNull().default(''),
+    /** Description de l'article (contenu, avantages), affichée dans le détail avant achat. */
+    description: text('description').notNull().default(''),
     keywords: jsonb('keywords').$type<string[]>().notNull().default([]),
     priceCents: integer('price_cents').notNull(),
     oldPriceCents: integer('old_price_cents'),
@@ -97,6 +105,9 @@ export const items = pgTable(
     layout: integer('layout').$type<LayoutId>().notNull().default(4),
     style: jsonb('style').$type<ItemStyle>().notNull(),
     position: integer('position').notNull().default(0),
+    /** Promotion programmée : le prix barré (old_price_cents) ne s'applique qu'entre ces dates (null = sans limite). */
+    promoStartsAt: timestamp('promo_starts_at'),
+    promoEndsAt: timestamp('promo_ends_at'),
     active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
