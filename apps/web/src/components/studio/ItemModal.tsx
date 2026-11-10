@@ -20,6 +20,7 @@ import { SkinCard } from '@/components/store/SkinStore';
 import { createItem, deleteItem, updateItem } from '@/server/studio';
 import type { EditorItem } from '@/lib/studio-types';
 import { pickAndUploadImage } from '@/lib/upload';
+import { isoToLocalInput, localInputToIso } from '@/lib/datetime-local';
 import { Modal } from './Modal';
 import { ArtLibraryPicker } from './ArtLibraryPicker';
 import { ColorField, Slider, Toggle } from './Controls';
@@ -44,8 +45,13 @@ function blankItem(last: EditorItem | undefined): Draft {
     models: [{ label: '' }],
     layout: last?.layout ?? 4,
     style: last ? { ...last.style } : { ...DEFAULT_ITEM_STYLE },
+    description: '',
+    promoStartsAt: null,
+    promoEndsAt: null,
   };
 }
+
+const ITEM_DESCRIPTION_MAX = 600;
 
 /** Identifiant produit suggéré à partir du titre (ex. « Sac de gemmes » → sac_de_gemmes). */
 export function suggestProductId(title: string) {
@@ -96,6 +102,10 @@ export function ItemModal({
     if (!effectiveProductId) return "L'identifiant produit est obligatoire.";
     if (productIdTaken) return 'Cet identifiant produit est déjà utilisé dans ce jeu.';
     if (draft.oldPriceCents != null && draft.oldPriceCents <= draft.priceCents) return "L'ancien prix doit être supérieur au prix.";
+    if (draft.description.trim().length > ITEM_DESCRIPTION_MAX) return `Description trop longue (${ITEM_DESCRIPTION_MAX} caractères max).`;
+    if (draft.promoStartsAt && draft.promoEndsAt && new Date(draft.promoEndsAt) <= new Date(draft.promoStartsAt))
+      return 'La fin de la promotion doit être postérieure à son début.';
+    if ((draft.promoStartsAt || draft.promoEndsAt) && draft.oldPriceCents == null) return 'Une promotion programmée nécessite un ancien prix (barré).';
     return '';
   };
 
@@ -116,6 +126,7 @@ export function ItemModal({
     const input = {
       ...rest,
       title: draft.title.trim(),
+      description: draft.description.trim(),
       productId: effectiveProductId,
       keywords: kw.split(',').map((k) => k.trim()).filter(Boolean),
     };
@@ -200,6 +211,21 @@ export function ItemModal({
               <input className={inputCls} value={draft.subtitle} onChange={(e) => set({ subtitle: e.target.value })} placeholder="+15 % offerts" maxLength={80} />
             </label>
             <label className={`${labelCls} sm:col-span-2`}>
+              <span className={labelText}>Description (optionnel) — affichée dans le détail de l&apos;article avant achat</span>
+              <textarea
+                className={`${inputCls} min-h-20 resize-y`}
+                value={draft.description}
+                onChange={(e) => set({ description: e.target.value })}
+                placeholder="1 200 gemmes pour accélérer vos constructions, +15 % offerts."
+                maxLength={ITEM_DESCRIPTION_MAX}
+                rows={3}
+                aria-describedby="item-description-count"
+              />
+              <span id="item-description-count" className="self-end text-xs text-ink-2">
+                {draft.description.length} / {ITEM_DESCRIPTION_MAX}
+              </span>
+            </label>
+            <label className={`${labelCls} sm:col-span-2`}>
               <span className={labelText}>Mots-clés (optionnel) — séparés par une virgule, ils créent les filtres de la boutique</span>
               <input className={inputCls} value={kw} onChange={(e) => setKw(e.target.value)} placeholder="Gemmes, Monnaie, Meilleure offre" />
             </label>
@@ -231,6 +257,29 @@ export function ItemModal({
                 ))}
               </select>
             </label>
+            <fieldset className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
+              <legend className={`${labelText} mb-1 text-sm`}>Promotion programmée (optionnel) — le prix barré ne s&apos;affiche qu&apos;entre ces dates</legend>
+              <label className={labelCls}>
+                <span className={labelText}>Promotion : début</span>
+                <input
+                  type="datetime-local"
+                  className={inputCls}
+                  value={isoToLocalInput(draft.promoStartsAt)}
+                  onChange={(e) => set({ promoStartsAt: localInputToIso(e.target.value) })}
+                />
+              </label>
+              <label className={labelCls}>
+                <span className={labelText}>Promotion : fin</span>
+                <input
+                  type="datetime-local"
+                  className={inputCls}
+                  value={isoToLocalInput(draft.promoEndsAt)}
+                  min={isoToLocalInput(draft.promoStartsAt) || undefined}
+                  onChange={(e) => set({ promoEndsAt: localInputToIso(e.target.value) })}
+                  aria-invalid={!!(draft.promoStartsAt && draft.promoEndsAt && new Date(draft.promoEndsAt) <= new Date(draft.promoStartsAt))}
+                />
+              </label>
+            </fieldset>
             {isSub && (
               <label className={labelCls}>
                 <span className={labelText}>Durée</span>
