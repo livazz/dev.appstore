@@ -57,8 +57,8 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
   (brouillons, bandeau « Projet », non indexées), documentation développeur `/docs`.
 - Sécurité : isolement des studios, clés secrète/publique + jetons joueur, garde SSRF, limiteurs de débit (API + auth),
   plafond SSE, en-têtes de sécurité, configuration validée au démarrage (`apps/web/src/env.ts`).
-- SDK : JS (`packages/sdk-js`), Unity (compilé et essayé dans Unity 6, voir « Intégration glisser-déposer »), Godot et
-  Unreal (`sdks/`, jamais ouverts dans leur moteur), jeu de démo.
+- SDK : JS (`packages/sdk-js`), Unity (compilé et essayé dans Unity 6, voir « Intégration glisser-déposer »), Godot (essayé dans Godot 4.7, idem) et
+  Unreal (`sdks/unreal`, jamais ouvert dans son moteur), jeu de démo.
 - Illustrations (2026-11-10) : 74 visuels générés (source PNG hors dépôt, `~/Downloads/illustrations-74`), convertis en
   WebP (3,8 Mo) par `node scripts/optimize-art.mjs <dossier>` dans `apps/web/public/art/` (items, icons, games, site).
   Bibliothèque proposée aux studios dans la fenêtre d'article (« Choisir dans la bibliothèque », `lib/art-library.ts`) ;
@@ -67,6 +67,13 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
   (https://livazz.github.io/dev.appstore/), régénéré à la main.
 - Migration Drizzle initiale : `packages/db/drizzle/0000_initial.sql`. Dépendances à jour (audit sans haute/critique).
 
+- **Godot essayé dans le moteur (4.7.2)** : `e2e/tests/sdk-godot.spec.ts` (ignoré sans `GODOT_BIN`) active le plugin dans
+  l'éditeur sans interface (`sdks/godot/tests/das_enabler`), relance l'éditeur, colle la clé dans `project.godot`, lance
+  `sdks/godot/tests/smoke.tscn` et joue l'achat côté web. Trois défauts trouvés et corrigés : réglages du projet qui
+  disparaissaient après un redémarrage de l'éditeur (enregistrés désormais dans `_enter_tree`, et « basiques ») ; fenêtre
+  du code sur toute la hauteur de l'écran (`_fit`) ; fichiers `.gd.uid` absents du paquet (l'autoload est référencé par
+  UID : remplacer le dossier lors d'une mise à jour le cassait). Intervalle par défaut passé à 30 s comme Unity.
+  Godot n'est pas installé dans /Applications : binaire téléchargé dans le scratchpad de la session, à retélécharger.
 - **Rappel du −30 %** (argument commercial à répéter aux studios et aux joueurs) : `POST /api/v1/link-codes` renvoie
   `web_discount_percent` (plus forte réduction affichée de la boutique, `getGameWebDiscountPct`, 0 si aucune) ; le prefab
   Unity et le bouton Godot l'affichent dans l'écran du code (« Jusqu'à −N % par rapport aux achats en jeu », libellé
@@ -118,7 +125,7 @@ Tutoriel `/docs/integration` (lié depuis l'onglet Intégration du studio) et pa
   code en IMGUI (aucune dépendance), événements d'inspecteur **On Item Granted / Revoked (string, int)**. Sans écouteur ou
   si la méthode lève une exception : pas d'accusé de réception, l'achat est reproposé.
 - **Godot 0.3** : signaux `item_granted` / `item_revoked` avec accusé automatique, identifiant d'appareil, scène
-  `link_button.tscn`. **Jamais ouvert dans Godot** (non installé) : à essayer avant de s'y fier.
+  `link_button.tscn`. Essayé dans Godot 4.7.2 (voir « Godot essayé dans le moteur »).
 - **API** : `POST /api/v1/link-codes` renvoie aussi `link_url` et `store_url` (spec OpenAPI et test de contrat à jour).
 - **Paquets** : `npm run sdk:pack` (`scripts/pack-sdks.ts`, tar/gzip et zip sans dépendance) écrit
   `apps/web/public/sdk/devappstore-unity-<v>.unitypackage` et `devappstore-godot-<v>.zip` ; à relancer après toute

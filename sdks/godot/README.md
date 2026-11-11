@@ -27,7 +27,7 @@ Rien d'autre : un identifiant de joueur est créé pour l'appareil (`devappstore
 récupérés au lancement, au retour dans le jeu et à intervalle régulier, puis acquittés tout seuls
 (`devappstore/delivery/auto_ack`). Si votre jeu a des comptes, appelez `DevAppStore.set_player_id(id)` à la connexion.
 
-> Cette partie glisser-déposer (0.3) n'a pas encore été essayée dans l'éditeur Godot : relisez-la avant de livrer.
+> Cette partie glisser-déposer (0.3) est essayée de bout en bout dans Godot 4.7 (`e2e/tests/sdk-godot.spec.ts`).
 
 ## Quelle clé ?
 
@@ -44,13 +44,13 @@ demander les codes de liaison par votre serveur, avec la clé secrète.
 
 1. Copiez `addons/devappstore/` dans le dossier `addons/` de votre projet.
 2. *Projet > Paramètres du projet > Plugins* : activez **Dev AppStore**. Le plugin enregistre l'autoload `Dev AppStore`
-   et ajoute les réglages suivants (*Paramètres du projet*, cochez « Paramètres avancés ») :
+   et ajoute les réglages suivants (*Paramètres du projet*, rubrique *Devappstore*) :
 
 | Réglage | Défaut | Rôle |
 |---|---|---|
 | `devappstore/api/base_url` | `https://devappstore.example` | URL de Dev AppStore (en dev : `http://localhost:3000`) |
 | `devappstore/api/publishable_key` | — | Clé **publique** du jeu (`das_pub_…`, page *Intégration*). L'ancien réglage `devappstore/api/api_key` est lu s'il est vide. |
-| `devappstore/delivery/poll_interval_sec` | `60` | Intervalle de polling (0 = désactivé) |
+| `devappstore/delivery/poll_interval_sec` | `30` | Intervalle de polling (0 = désactivé) |
 | `devappstore/delivery/poll_on_focus` | `true` | Interroger au retour au premier plan |
 
 Vous pouvez aussi tout régler à l'exécution : `DevAppStore.configure(publishable_key, base_url, poll_interval_sec)`.

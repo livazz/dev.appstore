@@ -1,5 +1,5 @@
 import { CodeBlock } from '@/components/docs/CodeBlock';
-import { DownloadCard, FlowDiagram, GameScreens, InspectorMock, PriceCompare, QuickSteps, WEB_DISCOUNT_PCT } from '@/components/docs/IntegrationVisuals';
+import { DownloadCard, FlowDiagram, GameScreens, GodotScreen, InspectorMock, PriceCompare, QuickSteps, WEB_DISCOUNT_PCT } from '@/components/docs/IntegrationVisuals';
 import { A, C, Callout, DocPage, H2, H3, P, Step, Steps, UL } from '@/components/docs/prose';
 import { DOCS_FACTS } from '@/lib/docs/facts';
 import { SDK_PACKAGES } from '@/lib/docs/sdk-packages';
@@ -150,8 +150,8 @@ export default function IntegrationPage() {
         <Step>
           <H3 id="godot-cle">Collez votre clé publique</H3>
           <P>
-            Dans <em>Paramètres du projet</em> (avec « Paramètres avancés »), renseignez <C>devappstore/api/publishable_key</C> avec la
-            clé publique du jeu et <C>devappstore/api/base_url</C> avec l’adresse de Dev AppStore.
+            Dans <em>Paramètres du projet</em>, rubrique <strong>Devappstore</strong>, renseignez <C>Publishable Key</C> avec la clé
+            publique du jeu et <C>Base Url</C> avec l’adresse de Dev AppStore.
           </P>
         </Step>
         <Step>
@@ -170,10 +170,11 @@ export default function IntegrationPage() {
         </Step>
       </Steps>
       <CodeBlock lang="gdscript" title="inventory.gd — votre code" code={GODOT_GRANT} />
-      <Callout kind="warn" title="Pas encore essayé dans Godot">
+      <GodotScreen />
+      <Callout kind="tip" title="Essayé dans le moteur">
         <p>
-          Contrairement au prefab Unity, cette partie glisser-déposer n’a pas encore été vérifiée dans l’éditeur Godot. Faites un
-          essai complet avant de publier votre jeu.
+          Ce parcours a été essayé de bout en bout dans Godot 4.7 : activation du plugin, clé dans les réglages, code de liaison,
+          achat sur le site, objet reçu dans le jeu, confirmation de réception. La fenêtre reprend le thème de votre jeu.
         </p>
       </Callout>
 

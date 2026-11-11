@@ -52,7 +52,7 @@ var base_url: String = ""
 ## Clé PUBLIQUE du jeu (das_pub_…). Réglage : devappstore/api/publishable_key.
 var publishable_key: String = ""
 ## Intervalle de polling en secondes (0 = désactivé). Réglage : devappstore/delivery/poll_interval_sec.
-var poll_interval_sec: float = 60.0
+var poll_interval_sec: float = 30.0
 ## Interroger au retour au premier plan. Réglage : devappstore/delivery/poll_on_focus.
 var poll_on_focus: bool = true
 ## Identifiant du joueur dans VOTRE jeu (celui qui est lié sur Dev AppStore).
@@ -89,7 +89,7 @@ func _ready() -> void:
 	publishable_key = str(ProjectSettings.get_setting("devappstore/api/publishable_key", ""))
 	if publishable_key.is_empty():
 		publishable_key = str(ProjectSettings.get_setting("devappstore/api/api_key", ""))  # réglage de la 0.1 (déprécié)
-	poll_interval_sec = float(ProjectSettings.get_setting("devappstore/delivery/poll_interval_sec", 60.0))
+	poll_interval_sec = float(ProjectSettings.get_setting("devappstore/delivery/poll_interval_sec", 30.0))
 	poll_on_focus = bool(ProjectSettings.get_setting("devappstore/delivery/poll_on_focus", true))
 	auto_ack = bool(ProjectSettings.get_setting("devappstore/delivery/auto_ack", true))
 	_check_key()

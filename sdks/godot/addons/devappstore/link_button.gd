@@ -17,6 +17,10 @@ extends Button
 @export var loading_text: String = "Un instant…"
 @export var error_text: String = "Connexion impossible. Réessayez dans un instant."
 
+## Largeur du contenu de la fenêtre. Les textes qui passent à la ligne ont besoin d'une largeur fixée, sinon la
+## fenêtre prend toute la hauteur de l'écran.
+const PANEL_WIDTH := 320.0
+
 var _popup: PopupPanel
 var _message: Label
 var _deal: Label
@@ -46,6 +50,7 @@ func open_panel() -> void:
 		return
 	_refresh()
 	_popup.popup_centered()
+	_fit()
 	if not _is_linked() and _code.text.is_empty():
 		_request_code()
 
@@ -67,7 +72,7 @@ func _build() -> void:
 		margin.add_theme_constant_override(side, 16)
 	_popup.add_child(margin)
 	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(320, 0)
+	box.custom_minimum_size = Vector2(PANEL_WIDTH, 0)
 	box.add_theme_constant_override("separation", 12)
 	margin.add_child(box)
 
@@ -78,11 +83,13 @@ func _build() -> void:
 
 	_deal = Label.new()
 	_deal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_deal.custom_minimum_size = Vector2(PANEL_WIDTH, 0)
 	_deal.add_theme_color_override("font_color", Color("ffd43b"))
 	box.add_child(_deal)
 
 	_message = Label.new()
 	_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_message.custom_minimum_size = Vector2(PANEL_WIDTH, 0)
 	box.add_child(_message)
 
 	_code = Label.new()
@@ -120,6 +127,16 @@ func _refresh() -> void:
 	else:
 		_message.text = steps_text
 		_action.text = new_code_text if _code.text.is_empty() else open_store_text
+	_fit()
+
+
+## Ajuste la fenêtre à son contenu et la recentre (le contenu change : code reçu, compte lié…).
+func _fit() -> void:
+	if _popup == null or not _popup.visible:
+		return
+	await get_tree().process_frame
+	_popup.reset_size()
+	_popup.move_to_center()
 
 
 func _request_code() -> void:
@@ -141,6 +158,7 @@ func _request_code() -> void:
 
 func _on_code(code: String, _expires_at: String) -> void:
 	_code.text = code
+	_fit()
 
 
 func _on_linked(_player_id: String) -> void:

@@ -190,6 +190,25 @@ export function GameScreens() {
   );
 }
 
+/** Capture du bouton link_button.tscn dans un jeu Godot (sdks/godot/tests/smoke_probe.gd, mode « shots »). */
+export function GodotScreen() {
+  return (
+    <figure className="my-6">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/docs/godot-code-de-liaison.webp"
+        alt="Dans un jeu Godot, le bouton « Boutique web » en haut à droite et la fenêtre du code : rappel de la réduction, trois étapes, le code KNN7-LD9G, boutons « Ouvrir la boutique » et « Fermer »."
+        width={960}
+        height={600}
+        loading="lazy"
+        decoding="async"
+        className="mx-auto h-auto w-full max-w-xl rounded-[14px] border border-line shadow-sm"
+      />
+      <figcaption className="mt-2 text-center text-xs text-ink-3">Capture du bouton et de sa fenêtre dans un jeu Godot, avec le thème par défaut du moteur.</figcaption>
+    </figure>
+  );
+}
+
 /** Carte de téléchargement d'un paquet glisser-déposer. */
 export function DownloadCard({ engine, version, href, hint }: { engine: string; version: string; href: string; hint: string }) {
   return (
