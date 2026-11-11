@@ -283,7 +283,7 @@ describe('import de la sélection', () => {
 
     const rows = await t.select().from(items).where(eq(items.gameId, game.id));
     const gems = rows.find((r) => r.productId === 'gems_1200')!;
-    expect(gems).toMatchObject({ layout: 4, style: DEFAULT_ITEM_STYLE, priceCents: 799, oldPriceCents: 999, quantity: 1200, active: true, title: 'Sac de 1 200 gemmes' });
+    expect(gems).toMatchObject({ layout: 4, style: DEFAULT_ITEM_STYLE, priceCents: 699, oldPriceCents: 999, quantity: 1200, active: true, title: 'Sac de 1 200 gemmes' });
     expect(rows.find((r) => r.productId === 'pass_royal_yearly')).toMatchObject({ type: 'auto_renewable', period: 'year' });
 
     const [run] = await t.select().from(importRuns).where(eq(importRuns.id, preview.runId));

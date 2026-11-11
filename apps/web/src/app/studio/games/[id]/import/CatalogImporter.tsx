@@ -22,7 +22,7 @@ interface RowState extends PreviewRow {
 /** Récupération du catalogue (stores ou exemple), aperçu éditable, import de la sélection. */
 export function CatalogImporter({ gameId, hasCredentials }: { gameId: string; hasCredentials: boolean }) {
   const router = useRouter();
-  const [discountPct, setDiscountPct] = useState(20);
+  const [discountPct, setDiscountPct] = useState(30); // même valeur que DEFAULT_WEB_DISCOUNT_BPS (@devappstore/importers)
   const [preview, setPreview] = useState<Omit<CatalogPreview, 'rows'> | null>(null);
   const [rows, setRows] = useState<RowState[]>([]);
   const [showStorePrice, setShowStorePrice] = useState(true);

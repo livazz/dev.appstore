@@ -12,8 +12,8 @@ describe('suggestWebPrice', () => {
     expect(suggestWebPrice(9999, 0)).toBe(9999);
   });
 
-  it('utilise 20 % de remise par défaut', () => {
-    expect(suggestWebPrice(999)).toBe(799);
+  it('utilise 30 % de remise par défaut', () => {
+    expect(suggestWebPrice(999)).toBe(699);
   });
 
   it("ne descend jamais à 99,99 pour un article plus cher que le dernier palier", () => {

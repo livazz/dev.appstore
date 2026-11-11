@@ -71,8 +71,8 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
   `web_discount_percent` (plus forte réduction affichée de la boutique, `getGameWebDiscountPct`, 0 si aucune) ; le prefab
   Unity et le bouton Godot l'affichent dans l'écran du code (« Jusqu'à −N % par rapport aux achats en jeu », libellé
   modifiable, jamais un chiffre en dur). Le tutoriel a une section « Pourquoi le faire » avec le comparatif en jeu / web
-  (`PriceCompare`, `WEB_DISCOUNT_PCT = 30`). À trancher : l'import de catalogue propose encore −20 % par défaut
-  (`DEFAULT_WEB_DISCOUNT_BPS = 2000` dans `packages/importers/src/pricing.ts`).
+  (`PriceCompare`, `WEB_DISCOUNT_PCT = 30`). L'import de catalogue propose lui aussi −30 % par défaut
+  (`DEFAULT_WEB_DISCOUNT_BPS = 3000` dans `packages/importers/src/pricing.ts`, décision de l'utilisateur).
 
 ## Ce qui reste à faire
 

@@ -10,10 +10,10 @@ export function toCurrency(code: string | undefined | null): Currency | null {
 }
 
 /**
- * Remise web suggérée par défaut (20 %) : le studio paie ~5 % au lieu de 30 %,
- * il peut donc rétrocéder une partie de l'économie au joueur et gagner quand même plus.
+ * Remise web suggérée par défaut (30 %, décision de l'utilisateur) : le studio paie ~5 % au lieu de 30 %, il rétrocède
+ * l'économie au joueur et touche presque autant par vente, auprès de joueurs qui n'auraient pas payé le prix en jeu.
  */
-export const DEFAULT_WEB_DISCOUNT_BPS = 2000;
+export const DEFAULT_WEB_DISCOUNT_BPS = 3000;
 
 /**
  * Propose un prix web à partir du prix store : applique la remise `discountBps` (points de base)
