@@ -122,6 +122,9 @@ npm run real-tops:seed             # idempotent ; -- --remove pour tout retirer 
 - Base : jeux `gam_real_…` publiés (plateforme, captures, description du store, thème selon le genre), studios
   `std_real_…` = éditeurs réels, clés factices ; articles = vrais achats intégrés App Store (noms et prix), DLC Steam,
   sinon articles génériques par genre. `/art/local/…` est accepté par `lib/art-library.ts`.
+- Prix : le prix du store devient le prix barré permanent (`oldPriceCents`, affiché « en jeu ») et le prix web vaut
+  −30 % (`WEB_DISCOUNT` dans `scripts/real-tops/seed.ts`) ; les promos du jour descendent à −40 / −50 %. Les articles
+  « génériques » (jeux Steam sans DLC) n'ont pas de vrai prix en jeu : leur comparaison est inventée.
 - Bannières (logo-titre détouré) : absentes des stores mobiles et des jeux Steam récents. `.data/real-tops/manquants.md`
   liste les visuels manquants avec un prompt prêt à coller (2400 × 1000, fond transparent) ; déposer le PNG dans
   `.data/real-tops/bannieres/<slug>.png` puis relancer `real-tops:seed`.

@@ -9,7 +9,7 @@
  * STRICTEMENT LOCAL (voir common.ts) : rien de ceci ne doit être commité ni publié.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { DEFAULT_ITEM_STYLE, SKIN_PALETTES, hashApiKey, type GameTheme, type ItemStyle } from '@devappstore/core';
+import { DEFAULT_ITEM_STYLE, SKIN_PALETTES, formatMoney, hashApiKey, type GameTheme, type ItemStyle } from '@devappstore/core';
 import { and, eq, like, notInArray, sql } from 'drizzle-orm';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -22,6 +22,9 @@ assertLocalOnly();
 
 const sharp: typeof import('sharp').default = createRequire(path.join(ROOT, 'apps/web/package.json'))('sharp');
 const EDITORIAL_FILE = path.join(path.dirname(CATALOG_FILE), 'editorial.json');
+/** Remise du prix web par rapport au prix en jeu (les stores prennent 30 % ; Dev AppStore la rend au joueur). */
+const WEB_DISCOUNT = 0.3;
+const webPrice = (storeCents: number) => Math.max(1, Math.round(storeCents * (1 - WEB_DISCOUNT)));
 const REAL_GAME = 'gam_real_';
 const REAL_STUDIO = 'std_real_';
 const under = (s: string) => s.replace(/-/g, '_');
@@ -115,8 +118,9 @@ async function seed() {
       const itemId = `itm_real_${under(g.slug)}_${it.productId}`.slice(0, 120);
       itemIds.push(itemId);
       const v = {
-        position: i, type: it.type, period: it.period ?? 'month', title: it.title, subtitle: '', description: it.description,
-        priceCents: it.priceCents, quantity: it.quantity, keywords: [g.category.toLowerCase(), it.source === 'steam-dlc' ? 'dlc' : 'in-app'],
+        position: i, type: it.type, period: it.period ?? 'month', title: it.title, subtitle: '', description: `${it.description.replace(", au prix de l'App Store France", '').replace(' (prix France)', '')} ${it.source === 'generique' ? '' : `Prix ${it.source === 'steam-dlc' ? 'sur Steam' : 'en jeu'} : ${formatMoney(it.priceCents, 'EUR')}.`}`.trim(),
+        // Prix web = prix en jeu − 30 % ; le prix en jeu (store) devient le prix barré permanent.
+        priceCents: webPrice(it.priceCents), oldPriceCents: it.priceCents, promoStartsAt: null, promoEndsAt: null, quantity: it.quantity, keywords: [g.category.toLowerCase(), it.source === 'steam-dlc' ? 'dlc' : 'in-app'],
         models: [{ imageUrl: it.imageUrl, label: it.title }], layout: 1 as const, style: styleFor(g, i), active: true, updatedAt: new Date(),
       };
       await db.insert(items).values({ id: itemId, gameId: id, productId: it.productId, ...v }).onConflictDoUpdate({ target: items.id, set: v });
@@ -140,6 +144,10 @@ async function seed() {
   // Avis, ventes des classements et promos du jour / à venir : générés pour les jeux publiés, donc aussi les vrais.
   const reviews = await seedReviews();
   const ranks = await seedPromosSales();
+  // Promos du jour des vrais jeux : pendant la fenêtre, le prix descend à −40 % ou −50 % du prix en jeu (au lieu de −30 %).
+  await db.execute(sql`
+    update items set price_cents = greatest(1, floor(old_price_cents * (case when length(id) % 2 = 0 then 0.5 else 0.6 end)))
+    where id like 'itm_real_%' and old_price_cents is not null and promo_ends_at is not null and promo_starts_at <= now()`);
   console.log(`Avis : ${reviews.reviews} ajoutés ; classements : ${ranks.orders} ventes sur 30 jours ; promos : ${ranks.livePromos} en cours, ${ranks.upcomingPromos} à venir.`);
 }
 

@@ -70,6 +70,8 @@ export function GameStore({
     setUrlItem(null);
   }, [setUrlItem]);
 
+  // Plus forte remise affichée (prix barré = prix en jeu), pour la pastille de l'en-tête.
+  const bestPct = items.reduce((m, i) => (i.oldPriceCents != null && i.oldPriceCents > i.priceCents ? Math.max(m, Math.floor(((i.oldPriceCents - i.priceCents) * 100) / i.oldPriceCents)) : m), 0);
   return (
     <>
       <StorePanel
@@ -79,14 +81,14 @@ export function GameStore({
         items={items.map(toPanelItem)}
         onItemClick={select}
         emptyText="Ce jeu ne propose aucun article pour le moment."
-        header={<StoreHeader game={game} />}
+        header={<StoreHeader game={game} bestPct={bestPct} />}
       />
       {open && <ItemDetail game={game} item={open} onClose={close} focusBuy={focusBuy} />}
     </>
   );
 }
 
-function StoreHeader({ game }: { game: StoreGame }) {
+function StoreHeader({ game, bestPct }: { game: StoreGame; bestPct: number }) {
   return (
     <>
       <GameIcon name={game.name} iconUrl={game.iconUrl} size={120} />
@@ -98,7 +100,7 @@ function StoreHeader({ game }: { game: StoreGame }) {
           <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor">
             <path d="M10 1.5 12.6 7l6 .6-4.5 4 1.3 5.9L10 14.6l-5.4 2.9L5.9 11.6 1.4 7.6l6-.6z" />
           </svg>
-          Meilleurs prix qu’en jeu
+          {bestPct > 0 ? `Jusqu’à −${bestPct} % par rapport au jeu` : 'Meilleurs prix qu’en jeu'}
         </span>
       </div>
     </>
@@ -220,7 +222,7 @@ function ItemDetail({ game, item, onClose, focusBuy = false }: { game: StoreGame
             <span className="text-2xl font-bold">{priceLabel(item, game.currency)}</span>
             {hasOld && (
               <>
-                <span className="text-ink-2 line-through">{formatMoney(item.oldPriceCents!, game.currency)}</span>
+                <span className="text-ink-2"><s>{formatMoney(item.oldPriceCents!, game.currency)}</s> en jeu</span>
                 <span className="rounded-full bg-ok/10 px-2 py-0.5 text-xs font-bold text-[color-mix(in_srgb,var(--ok)_60%,black)]">−{pct} %</span>
               </>
             )}

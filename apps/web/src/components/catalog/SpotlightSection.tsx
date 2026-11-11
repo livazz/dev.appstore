@@ -74,7 +74,7 @@ export function SpotlightCard({ s, hero = false }: { s: SpotlightEntry; hero?: b
 
         <Link
           href={`/games/${s.game.slug}?item=${encodeURIComponent(s.item.id)}`}
-          aria-label={`${s.item.title}, ${s.game.name} : ${price}. ${SPOTLIGHT_ANGLES[s.angle]}`}
+          aria-label={`${s.item.title}, ${s.game.name} : ${price}${s.item.oldPriceCents != null ? `, au lieu de ${formatMoney(s.item.oldPriceCents, s.game.currency)} en jeu (−${s.item.discountPct} %)` : ''}. ${SPOTLIGHT_ANGLES[s.angle]}`}
           className="group mt-auto flex items-center gap-3 rounded-[14px] bg-white/[0.08] p-2.5 ring-1 ring-white/10 transition-colors hover:bg-white/[0.14] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
           <span className="grid size-14 flex-none place-items-center overflow-hidden rounded-[10px] bg-white/10">
@@ -90,9 +90,14 @@ export function SpotlightCard({ s, hero = false }: { s: SpotlightEntry; hero?: b
             <span className="block truncate text-sm font-bold">{s.item.title}</span>
             <span className="block text-xs text-white/65">{s.pitch}</span>
           </span>
-          <span className="flex flex-none flex-col items-end gap-0.5">
-            {s.item.oldPriceCents != null && <s className="text-[11px] text-white/55">{formatMoney(s.item.oldPriceCents, s.game.currency)}</s>}
+          <span className="flex flex-none flex-col items-end gap-1">
+            {s.item.discountPct > 0 && <span className="rounded-full bg-[#16a34a] px-2 py-0.5 text-[11px] font-black text-white">−{s.item.discountPct} %</span>}
             <span className="rounded-full bg-brand px-3 py-1.5 text-sm font-black text-ink">{price}</span>
+            {s.item.oldPriceCents != null && (
+              <span className="text-[11px] text-white/60">
+                <s>{formatMoney(s.item.oldPriceCents, s.game.currency)}</s> en jeu
+              </span>
+            )}
           </span>
         </Link>
       </div>
