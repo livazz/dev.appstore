@@ -1,0 +1,104 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1243916409203404473
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8908177703169019224}
+  - component: {fileID: 7062470239385266524}
+  - component: {fileID: 7289900141041346430}
+  m_Layer: 0
+  m_Name: DevAppStore
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8908177703169019224
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1243916409203404473}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7062470239385266524
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1243916409203404473}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 32f1867fee204085a5c9238a46c28440, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DevAppStore.Runtime::DevAppStore.DevAppStoreClient
+  publishableKey: 
+  baseUrl: https://devappstore.com
+  pollIntervalSeconds: 30
+  linkPollSeconds: 3
+  autoAck: 1
+  dontDestroyOnLoad: 1
+  timeoutSeconds: 15
+--- !u!114 &7289900141041346430
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1243916409203404473}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 333e738e37b1d4520b7eb37e10142030, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DevAppStore.Runtime::DevAppStore.DevAppStoreDropIn
+  player: 0
+  playerName: 
+  onItemGranted:
+    m_PersistentCalls:
+      m_Calls: []
+  onItemRevoked:
+    m_PersistentCalls:
+      m_Calls: []
+  showButton: 1
+  buttonCorner: 1
+  showToasts: 1
+  labels:
+    button: Boutique web
+    title: Boutique web
+    steps: '1. Ouvrez la boutique
+
+      2. Connectez-vous
+
+      3. Saisissez ce code'
+    loading: "Un instant\u2026"
+    linked: "Compte li\xE9. Vos achats faits sur la boutique arrivent tout seuls dans le jeu."
+    openStore: Ouvrir la boutique
+    newCode: Nouveau code
+    unlink: "D\xE9lier ce compte"
+    close: Fermer
+    expired: "Code expir\xE9."
+    error: "Connexion impossible. R\xE9essayez dans un instant."
+    purchaseToast: "Achat re\xE7u !"
+    linkedToast: "Compte li\xE9 !"
+  onLinkCode:
+    m_PersistentCalls:
+      m_Calls: []
+  onLinked:
+    m_PersistentCalls:
+      m_Calls: []
+  onUnlinked:
+    m_PersistentCalls:
+      m_Calls: []

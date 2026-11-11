@@ -7,6 +7,7 @@ describe('données de démo lues dans packages/db/src/seed.ts', () => {
     expect(k.crystal.apiKey).toMatch(/^das_secret_/);
     expect(k.farm.apiKey).toMatch(/^das_secret_/);
     expect(k.crystal.webhookSecret).toMatch(/^whsec_/);
+    expect(k.farm.publishableKey).toMatch(/^das_pub_/);
   });
 
   it('parse un bloc DEMO_KEYS', () => {

@@ -124,7 +124,7 @@ describe('authentification de l’API v1 (CHK-API-01/03/04, D-04)', () => {
   it('authenticateApi ne renvoie aucun secret ; authenticateGame refuse la clé publique et les jeux suspendus', async () => {
     const auth = await apiKey.authenticateApi(req('/', { key: SECRET_A }));
     expect(auth?.kind).toBe('secret');
-    expect(Object.keys(auth!.game).sort()).toEqual(['currency', 'id', 'linkMethods', 'status', 'studioId', 'webhookUrl']);
+    expect(Object.keys(auth!.game).sort()).toEqual(['currency', 'id', 'linkMethods', 'slug', 'status', 'studioId', 'webhookUrl']) // slug : public (URL de la boutique);
     expect((await apiKey.authenticateApi(req('/', { key: PUB_A })))?.kind).toBe('publishable');
     expect((await apiKey.authenticateApi(req('/', { key: LEGACY_A2 })))?.game.id).toBe('gam_legacy'); // anciennes clés das_live_ acceptées
     expect(await apiKey.authenticateApi(req('/', { key: 'das_secret_test_susp' }))).toBeNull();

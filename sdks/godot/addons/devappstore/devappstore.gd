@@ -11,7 +11,7 @@ extends Node
 ## Clé PUBLIQUE uniquement (das_pub_…, non secrète). N'embarquez jamais la clé secrète (das_secret_…) dans le jeu.
 ##
 ## Contrat d'API (Authorization: Bearer <clé publique> ; après liaison, DevAppStore-Player-Token: <jeton joueur>) :
-##   POST   /api/v1/link-codes               -> { "code", "expires_at", "link_request_id" }
+##   POST   /api/v1/link-codes               -> { "code", "expires_at", "link_request_id", "link_url", "store_url" }
 ##   GET    /api/v1/link-requests/{id}       -> { "status": "pending"|"linked"|"expired"|"claimed", "player_token"? }
 ##   GET    /api/v1/deliveries?player_id=…   -> { "data": PurchaseEvent[] }            (jeton requis)
 ##   POST   /api/v1/deliveries/{id}/ack      -> { "ok": true }                         (jeton requis)
@@ -33,8 +33,14 @@ signal linked(player_id: String)
 signal unlinked()
 ## Émis pour toute erreur réseau ou API. [param status] vaut 0 si la requête n'a pas abouti.
 signal request_failed(endpoint: String, status: int, code: String, message: String)
+## Intégration « glisser-déposer » : un achat est arrivé, créditez [param quantity] × [param product_id].
+## Dès qu'un script est connecté à ce signal, l'accusé de réception part tout seul après votre fonction
+## (réglage devappstore/delivery/auto_ack) : inutile d'appeler [method ack].
+signal item_granted(product_id: String, quantity: int)
+## Intégration « glisser-déposer » : un achat a été remboursé, retirez l'objet.
+signal item_revoked(product_id: String, quantity: int)
 
-const SDK_VERSION := "0.2.0"
+const SDK_VERSION := "0.3.0"
 const STATE_PATH := "user://devappstore_sdk.cfg"
 const PLAYER_TOKEN_HEADER := "DevAppStore-Player-Token"
 const MIN_POLL_GAP_MSEC := 5000
@@ -51,6 +57,8 @@ var poll_interval_sec: float = 60.0
 var poll_on_focus: bool = true
 ## Identifiant du joueur dans VOTRE jeu (celui qui est lié sur Dev AppStore).
 var player_id: String = ""
+## Acquitter tout seul après [signal item_granted] / [signal item_revoked]. Réglage : devappstore/delivery/auto_ack.
+var auto_ack: bool = true
 
 var _timer: Timer
 var _polling := false
@@ -67,6 +75,11 @@ var _acks_in_flight: Dictionary = {}
 var _tokens: Dictionary = {}
 ## Incrémenté pour annuler l'attente de liaison en cours.
 var _link_wait_id := 0
+## Identifiant créé pour cet appareil quand le jeu n'a pas de comptes (persisté sur disque).
+var _device_id: String = ""
+## Boutique web du jeu et page de saisie du code, reçues avec le dernier code de liaison (la première est persistée).
+var _store_url: String = ""
+var _link_url: String = ""
 
 
 func _ready() -> void:
@@ -76,8 +89,12 @@ func _ready() -> void:
 		publishable_key = str(ProjectSettings.get_setting("devappstore/api/api_key", ""))  # réglage de la 0.1 (déprécié)
 	poll_interval_sec = float(ProjectSettings.get_setting("devappstore/delivery/poll_interval_sec", 60.0))
 	poll_on_focus = bool(ProjectSettings.get_setting("devappstore/delivery/poll_on_focus", true))
+	auto_ack = bool(ProjectSettings.get_setting("devappstore/delivery/auto_ack", true))
 	_check_key()
 	_load_state()
+	# Jeu sans comptes : un identifiant est créé pour cet appareil. Un jeu avec comptes appelle set_player_id().
+	if player_id.is_empty() and bool(ProjectSettings.get_setting("devappstore/player/use_device_id", true)):
+		player_id = _device_player_id()
 
 	_timer = Timer.new()
 	_timer.one_shot = false
@@ -191,10 +208,15 @@ func request_link_code(player_name: String = "") -> Dictionary:
 		var code := str(res.json["code"])
 		var expires_at := str(res.json.get("expires_at", ""))
 		var link_request_id := str(res.json.get("link_request_id", ""))
+		_link_url = str(res.json.get("link_url", ""))
+		var store_url := str(res.json.get("store_url", ""))
+		if not store_url.is_empty() and store_url != _store_url:
+			_store_url = store_url
+			_save_state()
 		link_code_received.emit(code, expires_at)
 		if not link_request_id.is_empty():
 			_wait_for_link(link_request_id, expires_at, player_id)
-		return {"code": code, "expires_at": expires_at, "link_request_id": link_request_id}
+		return {"code": code, "expires_at": expires_at, "link_request_id": link_request_id, "link_url": _link_url, "store_url": store_url}
 	_report_failure("link-codes", res)
 	return {}
 
@@ -215,6 +237,16 @@ func unlink() -> void:
 	_clear_token(pid)
 
 
+## Ouvre la boutique web du jeu dans le navigateur (la page de saisie du code tant que le compte n'est pas lié).
+func open_store() -> void:
+	var url := base_url
+	if not is_linked() and not _link_url.is_empty():
+		url = _link_url
+	elif not _store_url.is_empty():
+		url = _store_url
+	OS.shell_open(url)
+
+
 ## Nombre d'accusés de réception en attente d'envoi (utile pour le débogage).
 func pending_ack_count() -> int:
 	return _pending_ack.size()
@@ -228,6 +260,13 @@ func _check_key() -> void:
 	if not publishable_key.is_empty() and not publishable_key.begins_with("das_pub_"):
 		push_error("[Dev AppStore] La clé configurée n'est pas une clé publique (das_pub_…). Une clé secrète embarquée dans le jeu " +
 			"peut être extraite et donne accès aux achats de tous les joueurs : utilisez la clé publique.")
+
+
+func _device_player_id() -> String:
+	if _device_id.is_empty():
+		_device_id = "dev_" + Crypto.new().generate_random_bytes(16).hex_encode()
+		_save_state()
+	return _device_id
 
 
 func _token_for(pid: String) -> String:
@@ -291,10 +330,24 @@ func _handle_event(ev: Dictionary) -> void:
 		_send_ack(id)  # le jeu a déjà crédité : on renvoie seulement l'ack
 		return
 	_emitted[id] = ev
+	# Intégration glisser-déposer : un script est connecté à item_granted ou item_revoked.
+	var drop_in := not item_granted.get_connections().is_empty() or not item_revoked.get_connections().is_empty()
+	var product_id := str(ev.get("product_id", ""))
+	var quantity := int(ev.get("quantity", 1))
 	if ev.get("event") == "purchase.refunded":
 		refund_received.emit(ev)
+		if drop_in:
+			item_revoked.emit(product_id, quantity)
+			if auto_ack:
+				ack(id)
 	else:
 		purchase_received.emit(ev)
+		if not item_granted.get_connections().is_empty():
+			item_granted.emit(product_id, quantity)
+			if auto_ack:
+				ack(id)
+		elif purchase_received.get_connections().is_empty():
+			push_warning("[Dev AppStore] Achat « %s » reçu, mais aucun script n'est connecté à item_granted : il reste en attente et sera reproposé au prochain lancement." % product_id)
 
 
 func _send_ack(delivery_id: String) -> void:
@@ -411,6 +464,8 @@ func _load_state() -> void:
 		_pending_ack[str(id)] = true
 	for id in cfg.get_value("acks", "done", []):
 		_acked.append(str(id))
+	_device_id = str(cfg.get_value("device", "player_id", ""))
+	_store_url = str(cfg.get_value("device", "store_url", ""))
 	var tokens: Variant = cfg.get_value("tokens", "by_player", {})
 	if tokens is Dictionary:
 		for pid in tokens:
@@ -422,6 +477,8 @@ func _save_state() -> void:
 	cfg.set_value("acks", "pending", _pending_ack.keys())
 	cfg.set_value("acks", "done", _acked)
 	cfg.set_value("tokens", "by_player", _tokens)
+	cfg.set_value("device", "player_id", _device_id)
+	cfg.set_value("device", "store_url", _store_url)
 	var err := cfg.save(STATE_PATH)
 	if err != OK:
 		push_warning("[Dev AppStore] Impossible d'enregistrer %s : %s" % [STATE_PATH, error_string(err)])

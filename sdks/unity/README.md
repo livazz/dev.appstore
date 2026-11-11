@@ -3,6 +3,33 @@
 Les achats faits par vos joueurs sur la boutique web Dev AppStore arrivent **automatiquement** dans le jeu.
 Unity 2021.3 ou plus récent, toutes plateformes (UnityWebRequest + JsonUtility, aucune dépendance).
 
+## Le plus simple : le prefab glisser-déposer
+
+1. Glissez `devappstore-unity-<version>.unitypackage` dans la fenêtre **Project** (ou installez le paquet par UPM, voir
+   plus bas), puis glissez le prefab **DevAppStore** (dossier `Prefabs`) dans votre première scène.
+2. Dans l'inspecteur, collez la **clé publique** du jeu (`das_pub_…`) dans **Publishable Key**.
+3. Sous **On Item Granted (String, Int32)**, cliquez sur **+**, glissez l'objet qui gère votre inventaire et choisissez,
+   dans « Dynamic Parameters », la méthode qui crédite le joueur :
+
+```csharp
+public void Grant(string productId, int quantity) { /* créditer, puis sauvegarder */ }
+```
+
+C'est tout. Le prefab affiche un bouton **Boutique web** : le joueur y trouve le code à saisir sur la boutique, une seule
+fois. Ensuite ses achats arrivent au lancement du jeu, à chaque retour dans le jeu et toutes les 30 secondes, et sont
+acquittés une fois votre méthode exécutée. **On Item Revoked** reçoit les remboursements.
+
+- **Joueur** : par défaut (`This Device`), le prefab crée un identifiant et le garde sur l'appareil. Si votre jeu a des
+  comptes, choisissez `Set By Game` et appelez `GetComponent<DevAppStoreDropIn>().SetPlayer(id, nom)` à la connexion.
+- **Votre propre menu** : décochez **Show Button** et reliez votre bouton à `OpenLinkPanel()`. Pour un écran entièrement
+  sur mesure, utilisez les événements **On Link Code**, **On Linked** et **On Unlinked**.
+- **Sécurité des achats** : si rien n'est branché sur **On Item Granted**, ou si votre méthode lève une exception, l'achat
+  n'est pas acquitté ; il reste en attente sur Dev AppStore et sera reproposé.
+- **En local** (`http://localhost:3000`) : *Project Settings → Player → Allow downloads over HTTP* → *Always allowed*.
+- Les textes affichés au joueur se traduisent dans **Labels**. L'écran intégré utilise IMGUI : aucune dépendance.
+
+Vérifié dans Unity 6 par `e2e/tests/sdk-unity.spec.ts` (code de liaison, achat, objet reçu, accusé de réception).
+
 ## Quelle clé ?
 
 Ce SDK est pour un jeu **sans serveur** : il utilise la clé **publique** du jeu (`das_pub_…`, page *Intégration* de
@@ -96,6 +123,11 @@ public class Shop : MonoBehaviour
 
 > Le temps réel (flux SSE) est disponible dans le SDK JavaScript ; en Unity, l'interrogation au premier plan suffit
 > (le joueur revient de son navigateur), avec `CheckNow()` pour forcer une vérification.
+
+## Nouveautés de la 0.3
+
+Prefab glisser-déposer (`DevAppStoreDropIn`), `link_url` et `store_url` dans `LinkCode`, `PurchaseHandlerCount`. Aucun
+changement incompatible : le code écrit pour la 0.2 fonctionne tel quel.
 
 ## Migration depuis 0.1
 

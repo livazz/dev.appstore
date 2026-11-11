@@ -1,13 +1,14 @@
 import { guardApi } from '@/server/api-rate-limit';
 import { corsError, corsPreflight, withCors } from '@/server/delivery-http';
 import { createLinkCode, linkCodeRequestSchema } from '@/server/linking';
+import { siteUrl } from '@/lib/seo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/v1/link-codes — appelé par le serveur du studio (clé secrète) ou par le SDK client (clé publique).
- * Corps : { player_id, player_name? } → 200 { code, expires_at, link_request_id }.
+ * Corps : { player_id, player_name? } → 200 { code, expires_at, link_request_id, link_url, store_url }.
  * Le jeu affiche le code ; le joueur le saisit sur /games/[slug]/link (valable 10 min, usage unique).
  * Avec la clé publique, le SDK interroge ensuite GET /api/v1/link-requests/{link_request_id} pour obtenir son jeton joueur.
  * Sécurité : avec la clé publique, n'importe quel client peut demander un code pour n'importe quel player_id ; le jeton
@@ -38,9 +39,17 @@ export async function POST(req: Request) {
     }
     return corsError(403, r.error, r.message);
   }
+  const store = `${siteUrl()}/games/${encodeURIComponent(auth.game.slug)}`;
   return withCors(
     Response.json(
-      { code: r.code, expires_at: r.expiresAt.toISOString(), link_request_id: r.linkRequestId },
+      {
+        code: r.code,
+        expires_at: r.expiresAt.toISOString(),
+        link_request_id: r.linkRequestId,
+        // Pages à ouvrir dans le navigateur du joueur depuis le jeu (bouton « Ouvrir la boutique » des SDK).
+        link_url: `${store}/link`,
+        store_url: store,
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     ),
   );

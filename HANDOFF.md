@@ -57,7 +57,8 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
   (brouillons, bandeau « Projet », non indexées), documentation développeur `/docs`.
 - Sécurité : isolement des studios, clés secrète/publique + jetons joueur, garde SSRF, limiteurs de débit (API + auth),
   plafond SSE, en-têtes de sécurité, configuration validée au démarrage (`apps/web/src/env.ts`).
-- SDK : JS (`packages/sdk-js`), Unity, Godot, Unreal (`sdks/`, non compilés faute de moteur), jeu de démo.
+- SDK : JS (`packages/sdk-js`), Unity (compilé et essayé dans Unity 6, voir « Intégration glisser-déposer »), Godot et
+  Unreal (`sdks/`, jamais ouverts dans leur moteur), jeu de démo.
 - Illustrations (2026-11-10) : 74 visuels générés (source PNG hors dépôt, `~/Downloads/illustrations-74`), convertis en
   WebP (3,8 Mo) par `node scripts/optimize-art.mjs <dossier>` dans `apps/web/public/art/` (items, icons, games, site).
   Bibliothèque proposée aux studios dans la fenêtre d'article (« Choisir dans la bibliothèque », `lib/art-library.ts`) ;
@@ -100,6 +101,30 @@ côte ; à défaut la première capture du jeu). Le logo-bannière du jeu est po
 une image, très peu de texte, et une histoire liée à l'actualité. L'histoire disparaît si son article est désactivé.
 Contenus : Crystal Clash et Pixel Farm dans `seed.ts` ; vrais jeux dans `.data/real-tops/editorial.json` (local, slug →
 histoire, lu par `real-tops:seed`), à tenir à jour à la main selon l'actualité. Pas encore d'écran studio / admin.
+
+## Intégration glisser-déposer (11 novembre 2026)
+
+Tutoriel `/docs/integration` (lié depuis l'onglet Intégration du studio) et paquets téléchargeables `/sdk/…`.
+
+- **Unity 0.3** : prefab `sdks/unity/Prefabs/DevAppStore.prefab` (généré par Unity, ne pas l'écrire à la main) = client +
+  `DevAppStoreDropIn` : identifiant de joueur créé sur l'appareil (ou `SetPlayer`), bouton « Boutique web » et écran du
+  code en IMGUI (aucune dépendance), événements d'inspecteur **On Item Granted / Revoked (string, int)**. Sans écouteur ou
+  si la méthode lève une exception : pas d'accusé de réception, l'achat est reproposé.
+- **Godot 0.3** : signaux `item_granted` / `item_revoked` avec accusé automatique, identifiant d'appareil, scène
+  `link_button.tscn`. **Jamais ouvert dans Godot** (non installé) : à essayer avant de s'y fier.
+- **API** : `POST /api/v1/link-codes` renvoie aussi `link_url` et `store_url` (spec OpenAPI et test de contrat à jour).
+- **Paquets** : `npm run sdk:pack` (`scripts/pack-sdks.ts`, tar/gzip et zip sans dépendance) écrit
+  `apps/web/public/sdk/devappstore-unity-<v>.unitypackage` et `devappstore-godot-<v>.zip` ; à relancer après toute
+  modification de `sdks/unity` ou `sdks/godot` (`sdk-packages.test.ts` échoue sinon). Versions annoncées :
+  `apps/web/src/lib/docs/sdk-packages.ts`.
+- **Essai dans le moteur** (facultatif, ignoré sans la variable) :
+  `cd e2e && UNITY_EDITOR=/Applications/Unity/Hub/Editor/6000.6.8f1/Unity.app/Contents/MacOS/Unity npx playwright test sdk-unity --trace off`
+  crée un projet Unity, pose le prefab, branche l'événement, et vérifie code de liaison → achat simulé → objet reçu →
+  accusé. Outils : `sdks/unity/Tests~/` (`SdkTools.BuildPrefab` régénère le prefab, `BuildShotPlayer` refait les captures
+  de `apps/web/public/docs/`). L'import du `.unitypackage` dans un projet vierge a été vérifié à la main.
+- Restes : pont vers Unity IAP (déclencher les récompenses existantes sans rien brancher), essai Godot, Unreal en
+  glisser-déposer, capture réelle de l'inspecteur (reconstitution HTML pour l'instant), code prérempli dans `link_url`
+  (écarté : faciliterait l'hameçonnage, cf. revue de sécurité F11).
 
 ## Poids des images (11 novembre 2026)
 

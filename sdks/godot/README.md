@@ -3,6 +3,32 @@
 Remet automatiquement au jeu les achats faits sur la place de marché Dev AppStore.
 GDScript pur, aucune dépendance. **Godot 4.2 ou plus récent.**
 
+## Le plus simple : glisser-déposer
+
+1. Décompressez `devappstore-godot-<version>.zip` à la racine du projet (dossier `addons/devappstore`), puis activez le
+   plugin **DevAppStore** dans *Projet > Paramètres du projet > Plugins*.
+2. Collez la **clé publique** du jeu (`das_pub_…`) dans le réglage `devappstore/api/publishable_key`, et l'adresse de
+   Dev AppStore dans `devappstore/api/base_url`.
+3. Glissez `res://addons/devappstore/link_button.tscn` dans votre menu : c'est le bouton **Boutique web**, avec sa
+   fenêtre de code de liaison.
+4. Connectez le signal `item_granted` à votre inventaire :
+
+```gdscript
+func _ready() -> void:
+	DevAppStore.item_granted.connect(_on_item_granted)
+	DevAppStore.item_revoked.connect(_on_item_revoked)  # remboursements
+
+func _on_item_granted(product_id: String, quantity: int) -> void:
+	Inventory.add(product_id, quantity)
+	Save.write()  # sauvegardez avant de rendre la main : l'accusé de réception part juste après
+```
+
+Rien d'autre : un identifiant de joueur est créé pour l'appareil (`devappstore/player/use_device_id`), les achats sont
+récupérés au lancement, au retour dans le jeu et à intervalle régulier, puis acquittés tout seuls
+(`devappstore/delivery/auto_ack`). Si votre jeu a des comptes, appelez `DevAppStore.set_player_id(id)` à la connexion.
+
+> Cette partie glisser-déposer (0.3) n'a pas encore été essayée dans l'éditeur Godot : relisez-la avant de livrer.
+
 ## Quelle clé ?
 
 Ce SDK est pour un jeu **sans serveur** : il utilise la clé **publique** du jeu (`das_pub_…`, page *Intégration* de

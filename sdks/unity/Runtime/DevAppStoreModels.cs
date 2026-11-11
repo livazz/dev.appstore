@@ -40,6 +40,10 @@ namespace DevAppStore
         public string expires_at;
         /// <summary>Demande de liaison interrogée par le client pour obtenir le jeton joueur après la saisie du code.</summary>
         public string link_request_id;
+        /// <summary>Page de la boutique où le joueur saisit le code (à ouvrir dans le navigateur).</summary>
+        public string link_url;
+        /// <summary>Boutique web du jeu.</summary>
+        public string store_url;
     }
 
     /// <summary>Réponse de GET /api/v1/link-requests/{id}.</summary>

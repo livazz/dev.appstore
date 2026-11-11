@@ -98,6 +98,9 @@ describe('POST /api/v1/link-codes', () => {
   it('200 (clé secrète et clé publique)', async () => {
     const body = await contract(P, 'post', await linkCodesRoute.POST(req(P, { method: 'POST', key: SECRET, body: { player_id: 'p_secret', player_name: 'Nova' } })), 200);
     expect(body.code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    // Adresses à ouvrir dans le navigateur du joueur depuis le jeu (bouton « Ouvrir la boutique » des SDK).
+    expect(body.store_url).toMatch(/^https?:\/\/[^/]+\/games\/[a-z0-9_-]+$/);
+    expect(body.link_url).toBe(`${body.store_url}/link`);
     await contract(P, 'post', await linkCodesRoute.POST(req(P, { method: 'POST', key: PUB, body: { player_id: 'p_pub', player_name: null } })), 200);
   });
   it('400 invalid_json / invalid_request, 401, 403 method_disabled', async () => {

@@ -16,6 +16,8 @@ export type DemoGameKey = 'crystal' | 'farm';
 export interface DemoKey {
   apiKey: string;
   webhookSecret: string;
+  /** Clé publique (`das_pub_…`) embarquée dans le client du jeu ; absente des anciens seeds. */
+  publishableKey?: string;
 }
 
 /** Extrait `DEMO_KEYS` du source du seed. */
@@ -27,7 +29,8 @@ export function parseDemoKeys(source: string): Record<DemoGameKey, DemoKey> {
     const apiKey = /apiKey\s*:\s*['"]([^'"]+)['"]/.exec(entry)?.[1];
     const webhookSecret = /webhookSecret\s*:\s*['"]([^'"]+)['"]/.exec(entry)?.[1];
     if (!apiKey || !webhookSecret) throw new Error(`DEMO_KEYS.${k} illisible dans packages/db/src/seed.ts`);
-    return { apiKey, webhookSecret };
+    const publishableKey = /publishableKey\s*:\s*['"]([^'"]+)['"]/.exec(entry)?.[1];
+    return { apiKey, webhookSecret, ...(publishableKey ? { publishableKey } : {}) };
   };
   return { crystal: read('crystal'), farm: read('farm') };
 }

@@ -186,7 +186,7 @@ devappstore.onPurchase(player.id, async (e) => {
           secrète) ou en temps réel via le SDK embarqué (clé publique + jeton joueur).
         </p>
         <p className="mt-1 text-sm text-ink-2">
-          Guide complet : <Link href="/docs/demarrage-rapide" className="text-primary underline">documentation développeur</Link>.
+          Le plus simple : <Link href="/docs/integration" className="text-primary underline">intégration glisser-déposer</Link> (prefab Unity, plugin Godot). Guide complet : <Link href="/docs/demarrage-rapide" className="text-primary underline">documentation développeur</Link>.
         </p>
       </div>
 

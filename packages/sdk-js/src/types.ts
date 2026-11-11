@@ -36,6 +36,10 @@ export interface LinkCode {
   expires_at: string;
   /** Demande de liaison à interroger (`waitForLink`) pour obtenir le jeton joueur (clé publique). */
   link_request_id?: string | null;
+  /** Page de la boutique où le joueur saisit le code (à ouvrir dans son navigateur). */
+  link_url?: string;
+  /** Boutique web du jeu. */
+  store_url?: string;
 }
 
 /** Réponse de `GET /api/v1/link-requests/{id}`. */

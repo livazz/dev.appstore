@@ -13,6 +13,10 @@ const SETTINGS := {
 	"devappstore/api/publishable_key": ["", TYPE_STRING, PROPERTY_HINT_NONE, ""],
 	"devappstore/delivery/poll_interval_sec": [60.0, TYPE_FLOAT, PROPERTY_HINT_RANGE, "0,3600,1,suffix:s"],
 	"devappstore/delivery/poll_on_focus": [true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
+	# Acquitter tout seul après les signaux item_granted / item_revoked (intégration glisser-déposer).
+	"devappstore/delivery/auto_ack": [true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
+	# Jeu sans comptes : créer un identifiant de joueur pour cet appareil. Sinon, appelez DevAppStore.set_player_id().
+	"devappstore/player/use_device_id": [true, TYPE_BOOL, PROPERTY_HINT_NONE, ""],
 }
 
 

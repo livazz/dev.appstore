@@ -18,7 +18,8 @@
     "db:migrate": "npm run db:migrate -w @devappstore/db",
     "demo": "npm run dev -w @devappstore/demo-game",
     "real-tops:fetch": "tsx scripts/real-tops/fetch.ts",
-    "real-tops:seed": "tsx scripts/real-tops/seed.ts"
+    "real-tops:seed": "tsx scripts/real-tops/seed.ts",
+    "sdk:pack": "tsx scripts/pack-sdks.ts"
   },
   "engines": {
     "node": ">=20"

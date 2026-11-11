@@ -55,6 +55,22 @@ export const DOC_PAGES: DocPage[] = [
     ],
   },
   {
+    slug: 'integration',
+    title: 'Intégration glisser-déposer',
+    description: 'Un prefab à poser dans Unity, un plugin dans Godot : les achats du site arrivent dans le jeu sans écrire de code réseau.',
+    group: 'Prise en main',
+    keywords: 'tutoriel prefab unitypackage drag drop glisser déposer plugin addon unity godot sans code',
+    sections: [
+      { id: 'en-bref', title: 'En bref' },
+      { id: 'comment-ca-marche', title: 'Le parcours d’un achat', keywords: 'synchronisation sauvegarde livraison automatique' },
+      { id: 'unity', title: 'Unity : le prefab', keywords: 'unitypackage inspecteur on item granted' },
+      { id: 'godot', title: 'Godot : le plugin', keywords: 'addon autoload signal item_granted' },
+      { id: 'joueur', title: 'Ce que voit le joueur', keywords: 'code de liaison boutique web bouton' },
+      { id: 'tester', title: 'Tester en deux minutes', keywords: 'essai paiement simulé' },
+      { id: 'questions', title: 'Questions fréquentes', keywords: 'hors ligne double crédit remboursement comptes serveur clé' },
+    ],
+  },
+  {
     slug: 'concepts',
     title: 'Concepts',
     description: 'Liaison de compte, cycle de vie d’une livraison, idempotence et remboursements.',

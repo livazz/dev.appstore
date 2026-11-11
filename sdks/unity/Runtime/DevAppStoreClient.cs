@@ -26,7 +26,7 @@ namespace DevAppStore
     [DisallowMultipleComponent]
     public class DevAppStoreClient : MonoBehaviour
     {
-        public const string Version = "0.2.0";
+        public const string Version = "0.3.0";
         public const string PlayerTokenHeader = "DevAppStore-Player-Token";
 
         [Tooltip("Clé PUBLIQUE du jeu (das_pub_…), page Intégration de l'espace studio. Jamais la clé secrète.")]
@@ -77,6 +77,9 @@ namespace DevAppStore
         public string PlayerToken { get; private set; }
         /// <summary>Vrai si les achats du joueur courant sont accessibles (jeton joueur présent).</summary>
         public bool IsLinked => !string.IsNullOrEmpty(PlayerToken);
+
+        /// <summary>Nombre d'abonnés à <see cref="OnPurchase"/> (utilisé par le prefab glisser-déposer pour ne jamais acquitter un achat que personne n'a reçu).</summary>
+        public int PurchaseHandlerCount => OnPurchase == null ? 0 : OnPurchase.GetInvocationList().Length;
 
         private readonly HashSet<string> _processed = new HashSet<string>();
         private readonly List<string> _processedOrder = new List<string>();

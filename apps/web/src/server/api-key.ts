@@ -34,6 +34,8 @@ export const SECRET_KEY_OVERLAP_MS = 24 * 3600_000;
 /** Jeu authentifié, sans aucun secret (ni `webhookSecret`, ni `apiKeyHash`). */
 export interface ApiGame {
   id: string;
+  /** Segment d'URL de la boutique (/games/{slug}). */
+  slug: string;
   studioId: string;
   status: (typeof games.$inferSelect)['status'];
   linkMethods: (typeof games.$inferSelect)['linkMethods'];
@@ -54,6 +56,7 @@ export type ApiAuth =
 
 const gameColumns = {
   id: games.id,
+  slug: games.slug,
   studioId: games.studioId,
   status: games.status,
   linkMethods: games.linkMethods,
