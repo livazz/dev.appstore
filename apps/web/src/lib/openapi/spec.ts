@@ -392,7 +392,7 @@ export function buildOpenApiSpec({ serverUrl = 'https://devappstore.com' }: Open
         },
         LinkCode: {
           type: 'object',
-          required: ['code', 'expires_at', 'link_request_id', 'link_url', 'store_url'],
+          required: ['code', 'expires_at', 'link_request_id', 'link_url', 'store_url', 'web_discount_percent'],
           additionalProperties: false,
           properties: {
             code: { type: 'string', pattern: '^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$', example: 'K7QF-M2XA', description: 'Code à afficher dans le jeu.' },
@@ -400,6 +400,7 @@ export function buildOpenApiSpec({ serverUrl = 'https://devappstore.com' }: Open
             link_request_id: { type: 'string', example: 'lnc_3f9Q…', description: 'À interroger sur `GET /api/v1/link-requests/{id}`.' },
             link_url: { type: 'string', format: 'uri', example: 'https://devappstore.com/games/crystal-clash/link', description: 'Page où le joueur saisit le code, à ouvrir dans son navigateur.' },
             store_url: { type: 'string', format: 'uri', example: 'https://devappstore.com/games/crystal-clash', description: 'Boutique web du jeu.' },
+            web_discount_percent: { type: 'integer', minimum: 0, maximum: 99, example: 30, description: 'Plus forte réduction de la boutique web par rapport aux prix en jeu (prix barrés des articles actifs), en %. 0 si aucune. À afficher au joueur à côté du bouton de la boutique.' },
           },
         },
         LinkRequestStatus: {

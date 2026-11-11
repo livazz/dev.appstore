@@ -57,11 +57,12 @@ export const DOC_PAGES: DocPage[] = [
   {
     slug: 'integration',
     title: 'Intégration glisser-déposer',
-    description: 'Un prefab à poser dans Unity, un plugin dans Godot : les achats du site arrivent dans le jeu sans écrire de code réseau.',
+    description: 'Un prefab à poser dans Unity, un plugin dans Godot : les achats du site, 30 % moins chers qu’en jeu pour vos joueurs, arrivent dans le jeu sans écrire de code réseau.',
     group: 'Prise en main',
     keywords: 'tutoriel prefab unitypackage drag drop glisser déposer plugin addon unity godot sans code',
     sections: [
       { id: 'en-bref', title: 'En bref' },
+      { id: 'pourquoi', title: 'Pourquoi le faire : −30 % pour vos joueurs', keywords: 'réduction prix web moins cher audience revenu commission' },
       { id: 'comment-ca-marche', title: 'Le parcours d’un achat', keywords: 'synchronisation sauvegarde livraison automatique' },
       { id: 'unity', title: 'Unity : le prefab', keywords: 'unitypackage inspecteur on item granted' },
       { id: 'godot', title: 'Godot : le plugin', keywords: 'addon autoload signal item_granted' },

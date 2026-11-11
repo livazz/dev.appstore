@@ -67,6 +67,13 @@ En cas de base corrompue (« RuntimeError: Aborted() » PGlite, processus coupé
   (https://livazz.github.io/dev.appstore/), régénéré à la main.
 - Migration Drizzle initiale : `packages/db/drizzle/0000_initial.sql`. Dépendances à jour (audit sans haute/critique).
 
+- **Rappel du −30 %** (argument commercial à répéter aux studios et aux joueurs) : `POST /api/v1/link-codes` renvoie
+  `web_discount_percent` (plus forte réduction affichée de la boutique, `getGameWebDiscountPct`, 0 si aucune) ; le prefab
+  Unity et le bouton Godot l'affichent dans l'écran du code (« Jusqu'à −N % par rapport aux achats en jeu », libellé
+  modifiable, jamais un chiffre en dur). Le tutoriel a une section « Pourquoi le faire » avec le comparatif en jeu / web
+  (`PriceCompare`, `WEB_DISCOUNT_PCT = 30`). À trancher : l'import de catalogue propose encore −20 % par défaut
+  (`DEFAULT_WEB_DISCOUNT_BPS = 2000` dans `packages/importers/src/pricing.ts`).
+
 ## Ce qui reste à faire
 
 1. **Vague 6 : faite et fusionnée (10 novembre 2026)** — temps réel multi-instance (LISTEN/NOTIFY, `RATE_LIMIT_STORE=postgres`,

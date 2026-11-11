@@ -40,6 +40,8 @@ export interface LinkCode {
   link_url?: string;
   /** Boutique web du jeu. */
   store_url?: string;
+  /** Plus forte réduction de la boutique web par rapport aux prix en jeu, en % (0 si aucune). */
+  web_discount_percent?: number;
 }
 
 /** Réponse de `GET /api/v1/link-requests/{id}`. */

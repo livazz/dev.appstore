@@ -101,6 +101,7 @@ describe('POST /api/v1/link-codes', () => {
     // Adresses à ouvrir dans le navigateur du joueur depuis le jeu (bouton « Ouvrir la boutique » des SDK).
     expect(body.store_url).toMatch(/^https?:\/\/[^/]+\/games\/[a-z0-9_-]+$/);
     expect(body.link_url).toBe(`${body.store_url}/link`);
+    expect(Number.isInteger(body.web_discount_percent)).toBe(true);
     await contract(P, 'post', await linkCodesRoute.POST(req(P, { method: 'POST', key: PUB, body: { player_id: 'p_pub', player_name: null } })), 200);
   });
   it('400 invalid_json / invalid_request, 401, 403 method_disabled', async () => {

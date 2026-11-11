@@ -100,6 +100,19 @@ export function maxDiscountPct(list: PromoFields[], now: Date | number = Date.no
   return list.reduce((m, i) => Math.max(m, activeDiscountPct(i, now)), 0);
 }
 
+/**
+ * Plus forte réduction d'un jeu par rapport aux prix en jeu (prix barré de ses articles actifs), en % ; 0 si aucune.
+ * Renvoyée aux SDK avec le code de liaison.
+ */
+export async function getGameWebDiscountPct(gameId: string, database: DB = db): Promise<number> {
+  const rows = await database
+    .select({ priceCents: items.priceCents, oldPriceCents: items.oldPriceCents, promoStartsAt: items.promoStartsAt, promoEndsAt: items.promoEndsAt })
+    .from(items)
+    .where(and(eq(items.gameId, gameId), eq(items.active, true)));
+  // Seuls les prix barrés affichés maintenant comptent (hors fenêtre de promo, rien n'est annoncé au joueur).
+  return maxDiscountPct(rows);
+}
+
 /** Échappe les jokers LIKE (% _ \) d'une saisie utilisateur. */
 export function escapeLike(s: string) {
   return s.replace(/[\\%_]/g, (c) => `\\${c}`);

@@ -6,6 +6,8 @@ extends Button
 ## l'inspecteur (traduction). Nécessite le plugin DevAppStore activé (autoload « DevAppStore »).
 
 @export var player_name: String = ""
+## Rappel de la réduction du web par rapport aux achats en jeu. {0} = le pourcentage réel de votre boutique.
+@export var discount_text: String = "Jusqu'à −{0} % par rapport aux achats en jeu"
 @export_multiline var steps_text: String = "1. Ouvrez la boutique\n2. Connectez-vous\n3. Saisissez ce code"
 @export_multiline var linked_text: String = "Compte lié. Vos achats faits sur la boutique arrivent tout seuls dans le jeu."
 @export var open_store_text: String = "Ouvrir la boutique"
@@ -17,6 +19,7 @@ extends Button
 
 var _popup: PopupPanel
 var _message: Label
+var _deal: Label
 var _code: Label
 var _action: Button
 var _unlink: Button
@@ -73,6 +76,11 @@ func _build() -> void:
 	title.add_theme_font_size_override("font_size", 20)
 	box.add_child(title)
 
+	_deal = Label.new()
+	_deal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_deal.add_theme_color_override("font_color", Color("ffd43b"))
+	box.add_child(_deal)
+
 	_message = Label.new()
 	_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_message)
@@ -100,6 +108,10 @@ func _build() -> void:
 func _refresh() -> void:
 	var linked_now: bool = _is_linked()
 	_unlink.visible = linked_now
+	var sdk: Node = _sdk()
+	var pct: int = int(sdk.get("web_discount_percent")) if sdk != null else 0
+	_deal.visible = pct > 0 and not discount_text.is_empty()
+	_deal.text = discount_text.replace("{0}", str(pct))
 	_code.visible = not linked_now
 	if linked_now:
 		_code.text = ""

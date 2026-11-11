@@ -1,3 +1,4 @@
+import { DEFAULT_PLATFORM_FEE_BPS, feeCents, formatMoney, STORE_FEE_BPS } from '@devappstore/core';
 import type { ReactNode } from 'react';
 
 /*
@@ -9,6 +10,46 @@ import type { ReactNode } from 'react';
 function Art({ src, className = '' }: { src: string; className?: string }) {
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={src} alt="" loading="lazy" decoding="async" className={`object-contain ${className}`} />;
+}
+
+/** Réduction web conseillée par rapport au prix en jeu (celle des boutiques du catalogue). */
+export const WEB_DISCOUNT_PCT = 30;
+
+/**
+ * Le même article en jeu et sur le web : ce que paie le joueur, ce que garde le studio. Calculé depuis les commissions
+ * de @devappstore/core (store 30 %, Dev AppStore 5 %), pour un article à 9,99 € en jeu.
+ */
+export function PriceCompare() {
+  const inGame = 999;
+  const web = Math.round((inGame * (100 - WEB_DISCOUNT_PCT)) / 100);
+  const cols = [
+    { where: 'Dans le jeu', price: inGame, keep: inGame - feeCents(inGame, STORE_FEE_BPS), fee: `Le store garde ${STORE_FEE_BPS / 100} %`, web: false },
+    { where: 'Sur le web', price: web, keep: web - feeCents(web, DEFAULT_PLATFORM_FEE_BPS), fee: `Dev AppStore garde ${DEFAULT_PLATFORM_FEE_BPS / 100} %`, web: true },
+  ];
+  return (
+    <figure className="my-6">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {cols.map((c) => (
+          <div key={c.where} className={`relative flex items-center gap-4 rounded-[16px] p-4 ${c.web ? 'bg-ink text-white' : 'border border-line bg-surface text-ink'}`}>
+            <Art src="/art/items/gems-2.webp" className="size-20 flex-none" />
+            <div className="min-w-0">
+              <p className={`text-[11px] font-black tracking-wide uppercase ${c.web ? 'text-brand' : 'text-ink-3'}`}>{c.where}</p>
+              <p className="text-2xl leading-tight font-black">
+                <span className={c.web ? '' : 'text-ink-2 line-through decoration-2'}>{formatMoney(c.price)}</span>
+              </p>
+              <p className={`mt-1 text-sm leading-5 ${c.web ? 'text-white/70' : 'text-ink-2'}`}>
+                {c.fee}. Vous touchez <strong className={c.web ? 'text-white' : 'text-ink'}>{formatMoney(c.keep)}</strong>.
+              </p>
+            </div>
+            {c.web && <span className="absolute -top-2.5 right-3 rounded-full bg-brand px-3 py-1 text-sm font-black text-ink">−{WEB_DISCOUNT_PCT} %</span>}
+          </div>
+        ))}
+      </div>
+      <figcaption className="mt-2 text-center text-xs text-ink-3">
+        Le même sac de gemmes. Le joueur paie {WEB_DISCOUNT_PCT} % de moins, vous touchez presque autant par vente (hors taxes).
+      </figcaption>
+    </figure>
+  );
 }
 
 /** Les trois gestes de l'intégration, en images. */
@@ -35,7 +76,7 @@ export function QuickSteps() {
 /** Parcours d'un achat, du site au jeu. */
 export function FlowDiagram() {
   const nodes: { art: string; where: string; title: string; text: string }[] = [
-    { art: '/art/items/gems-2.webp', where: 'Sur le site', title: 'Le joueur achète', text: 'Il paie sur la boutique web de votre jeu.' },
+    { art: '/art/items/gems-2.webp', where: 'Sur le site', title: 'Le joueur achète', text: `Sur la boutique web de votre jeu, ${WEB_DISCOUNT_PCT} % moins cher qu’en jeu.` },
     { art: '/art/items/chest-rare.webp', where: 'Chez Dev AppStore', title: 'L’achat est gardé', text: 'Il attend en sécurité, même si le jeu est fermé.' },
     { art: '/art/site/step-link.webp', where: 'Dans votre jeu', title: 'Le jeu vient le chercher', text: 'Au lancement, au retour dans le jeu, puis toutes les 30 secondes.' },
     { art: '/art/site/step-delivered.webp', where: 'Dans votre jeu', title: 'L’objet est donné', text: 'Votre méthode le crédite, puis le jeu confirme la réception.' },
@@ -131,7 +172,7 @@ export function InspectorMock() {
 export function GameScreens() {
   const shots = [
     { src: '/docs/unity-bouton.webp', alt: 'Dans le jeu, un bouton jaune « Boutique web » en haut à droite de l’écran.', label: 'Le bouton ajouté à votre jeu' },
-    { src: '/docs/unity-code-de-liaison.webp', alt: 'Écran « Boutique web » : trois étapes, le code KG5N-C2T4 en grand, puis les boutons « Ouvrir la boutique » et « Fermer ».', label: 'L’écran du code de liaison' },
+    { src: '/docs/unity-code-de-liaison.webp', alt: 'Écran « Boutique web » : le rappel de la réduction, trois étapes, le code LQJC-6H2N en grand, puis les boutons « Ouvrir la boutique » et « Fermer ».', label: 'L’écran du code de liaison' },
   ];
   return (
     <figure className="my-6">

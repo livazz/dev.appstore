@@ -11,7 +11,7 @@ extends Node
 ## Clé PUBLIQUE uniquement (das_pub_…, non secrète). N'embarquez jamais la clé secrète (das_secret_…) dans le jeu.
 ##
 ## Contrat d'API (Authorization: Bearer <clé publique> ; après liaison, DevAppStore-Player-Token: <jeton joueur>) :
-##   POST   /api/v1/link-codes               -> { "code", "expires_at", "link_request_id", "link_url", "store_url" }
+##   POST   /api/v1/link-codes               -> { "code", "expires_at", "link_request_id", "link_url", "store_url", "web_discount_percent" }
 ##   GET    /api/v1/link-requests/{id}       -> { "status": "pending"|"linked"|"expired"|"claimed", "player_token"? }
 ##   GET    /api/v1/deliveries?player_id=…   -> { "data": PurchaseEvent[] }            (jeton requis)
 ##   POST   /api/v1/deliveries/{id}/ack      -> { "ok": true }                         (jeton requis)
@@ -80,6 +80,8 @@ var _device_id: String = ""
 ## Boutique web du jeu et page de saisie du code, reçues avec le dernier code de liaison (la première est persistée).
 var _store_url: String = ""
 var _link_url: String = ""
+## Plus forte réduction de la boutique web par rapport aux achats en jeu, en % (0 tant qu'elle n'est pas connue).
+var web_discount_percent: int = 0
 
 
 func _ready() -> void:
@@ -210,13 +212,16 @@ func request_link_code(player_name: String = "") -> Dictionary:
 		var link_request_id := str(res.json.get("link_request_id", ""))
 		_link_url = str(res.json.get("link_url", ""))
 		var store_url := str(res.json.get("store_url", ""))
-		if not store_url.is_empty() and store_url != _store_url:
-			_store_url = store_url
+		var discount := int(res.json.get("web_discount_percent", 0))
+		if (not store_url.is_empty() and store_url != _store_url) or discount != web_discount_percent:
+			if not store_url.is_empty():
+				_store_url = store_url
+			web_discount_percent = discount
 			_save_state()
 		link_code_received.emit(code, expires_at)
 		if not link_request_id.is_empty():
 			_wait_for_link(link_request_id, expires_at, player_id)
-		return {"code": code, "expires_at": expires_at, "link_request_id": link_request_id, "link_url": _link_url, "store_url": store_url}
+		return {"code": code, "expires_at": expires_at, "link_request_id": link_request_id, "link_url": _link_url, "store_url": store_url, "web_discount_percent": web_discount_percent}
 	_report_failure("link-codes", res)
 	return {}
 
@@ -466,6 +471,7 @@ func _load_state() -> void:
 		_acked.append(str(id))
 	_device_id = str(cfg.get_value("device", "player_id", ""))
 	_store_url = str(cfg.get_value("device", "store_url", ""))
+	web_discount_percent = int(cfg.get_value("device", "web_discount_percent", 0))
 	var tokens: Variant = cfg.get_value("tokens", "by_player", {})
 	if tokens is Dictionary:
 		for pid in tokens:
@@ -479,6 +485,7 @@ func _save_state() -> void:
 	cfg.set_value("tokens", "by_player", _tokens)
 	cfg.set_value("device", "player_id", _device_id)
 	cfg.set_value("device", "store_url", _store_url)
+	cfg.set_value("device", "web_discount_percent", web_discount_percent)
 	var err := cfg.save(STATE_PATH)
 	if err != OK:
 		push_warning("[Dev AppStore] Impossible d'enregistrer %s : %s" % [STATE_PATH, error_string(err)])

@@ -45,6 +45,8 @@ namespace DevAppStore
         {
             public string button = "Boutique web";
             public string title = "Boutique web";
+            [Tooltip("Rappel de la réduction du web par rapport aux achats en jeu. {0} = le pourcentage réel de votre boutique, envoyé par Dev AppStore. Masqué si votre boutique n'a aucun prix barré.")]
+            public string discount = "Jusqu'à −{0} % par rapport aux achats en jeu";
             public string steps = "1. Ouvrez la boutique\n2. Connectez-vous\n3. Saisissez ce code";
             public string loading = "Un instant…";
             public string linked = "Compte lié. Vos achats faits sur la boutique arrivent tout seuls dans le jeu.";
@@ -60,6 +62,7 @@ namespace DevAppStore
 
         private const string DeviceIdKey = "devappstore.device_player_id";
         private const string StoreUrlKey = "devappstore.store_url";
+        private const string DiscountKey = "devappstore.web_discount_percent";
 
         [Header("Joueur")]
         [Tooltip("This Device : le SDK crée un identifiant et le mémorise sur l'appareil (jeu sans comptes).\nSet By Game : votre jeu appelle SetPlayer(id) quand le joueur est connecté.")]
@@ -106,6 +109,7 @@ namespace DevAppStore
         private string _error;
         private DateTime _expiresUtc;
         private string _storeUrl;
+        private int _discountPct;
         private string _toast;
         private float _toastUntil;
         private int _codeListeners;
@@ -116,6 +120,7 @@ namespace DevAppStore
         {
             Client = GetComponent<DevAppStoreClient>();
             _storeUrl = PlayerPrefs.GetString(StoreUrlKey, "");
+            _discountPct = PlayerPrefs.GetInt(DiscountKey, 0);
         }
 
         private void OnEnable()
@@ -208,6 +213,7 @@ namespace DevAppStore
                         _expiresUtc = DateTime.UtcNow.AddMinutes(10);
                     }
                     RememberStoreUrl(link.store_url, link.link_url);
+                    RememberDiscount(link.web_discount_percent);
                     onLinkCode.Invoke(link.code);
                 },
                 err =>
@@ -241,6 +247,23 @@ namespace DevAppStore
             _storeUrl = storeUrl;
             PlayerPrefs.SetString(StoreUrlKey, storeUrl);
             PlayerPrefs.Save();
+        }
+
+/// <summary>Réduction de la boutique web par rapport aux achats en jeu, en % (0 tant qu'elle n'est pas connue).</summary>
+        public int WebDiscountPercent => _discountPct;
+
+        private void RememberDiscount(int pct)
+        {
+            if (pct == _discountPct) return;
+            _discountPct = pct;
+            PlayerPrefs.SetInt(DiscountKey, pct);
+            PlayerPrefs.Save();
+        }
+
+        private string DiscountText()
+        {
+            if (_discountPct <= 0 || string.IsNullOrEmpty(labels.discount)) return null;
+            return labels.discount.Replace("{0}", _discountPct.ToString(CultureInfo.InvariantCulture));
         }
 
         private static string DevicePlayerId()
@@ -303,7 +326,7 @@ namespace DevAppStore
 
         // ------------------------------------------------------------------ Interface intégrée (IMGUI, sans dépendance)
 
-        private GUIStyle _panelStyle, _titleStyle, _textStyle, _codeStyle, _primaryStyle, _secondaryStyle, _toastStyle;
+        private GUIStyle _panelStyle, _titleStyle, _textStyle, _codeStyle, _dealStyle, _primaryStyle, _secondaryStyle, _toastStyle;
         private Texture2D _texPanel, _texBrand, _texBrandDown, _texGhost, _texGhostDown, _texDim;
 
         private static Texture2D Fill(Color c)
@@ -333,6 +356,8 @@ namespace DevAppStore
             _titleStyle.normal.textColor = Color.white;
             _textStyle = new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true, richText = false };
             _textStyle.normal.textColor = new Color(1f, 1f, 1f, 0.82f);
+            _dealStyle = new GUIStyle(GUI.skin.label) { fontSize = 15, fontStyle = FontStyle.Bold, wordWrap = true };
+            _dealStyle.normal.textColor = brand;
             _codeStyle = new GUIStyle(GUI.skin.label) { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
             _codeStyle.normal.textColor = brand;
             _codeStyle.normal.background = _texGhost;
@@ -396,9 +421,11 @@ namespace DevAppStore
             {
                 GUI.DrawTexture(new Rect(0, 0, w, h), _texDim);
                 float pw = Mathf.Min(340f, w - left - right - 2 * margin);
-                float ph = Mathf.Min(IsLinked ? 250f : 330f, h - top - bottom - 2 * margin);
+                float ph = Mathf.Min((IsLinked ? 250f : 330f) + (_discountPct > 0 ? 26f : 0f), h - top - bottom - 2 * margin);
                 GUILayout.BeginArea(new Rect((w - pw) / 2f, (h - ph) / 2f, pw, ph), _panelStyle);
                 GUILayout.Label(labels.title, _titleStyle);
+                string deal = DiscountText();
+                if (deal != null) GUILayout.Label(deal, _dealStyle);
                 GUILayout.Space(6);
                 if (IsLinked)
                 {

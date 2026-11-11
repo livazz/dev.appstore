@@ -126,7 +126,7 @@ public class Shop : MonoBehaviour
 
 ## Nouveautés de la 0.3
 
-Prefab glisser-déposer (`DevAppStoreDropIn`), `link_url` et `store_url` dans `LinkCode`, `PurchaseHandlerCount`. Aucun
+Prefab glisser-déposer (`DevAppStoreDropIn`), `link_url`, `store_url` et `web_discount_percent` dans `LinkCode` (l'écran fourni rappelle au joueur la réduction réelle de la boutique web), `PurchaseHandlerCount`. Aucun
 changement incompatible : le code écrit pour la 0.2 fonctionne tel quel.
 
 ## Migration depuis 0.1

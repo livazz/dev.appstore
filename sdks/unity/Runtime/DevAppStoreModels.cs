@@ -44,6 +44,8 @@ namespace DevAppStore
         public string link_url;
         /// <summary>Boutique web du jeu.</summary>
         public string store_url;
+        /// <summary>Plus forte réduction de la boutique web par rapport aux prix en jeu, en % (0 si aucune).</summary>
+        public int web_discount_percent;
     }
 
     /// <summary>Réponse de GET /api/v1/link-requests/{id}.</summary>

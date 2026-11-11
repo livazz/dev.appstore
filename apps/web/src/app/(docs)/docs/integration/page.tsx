@@ -1,5 +1,5 @@
 import { CodeBlock } from '@/components/docs/CodeBlock';
-import { DownloadCard, FlowDiagram, GameScreens, InspectorMock, QuickSteps } from '@/components/docs/IntegrationVisuals';
+import { DownloadCard, FlowDiagram, GameScreens, InspectorMock, PriceCompare, QuickSteps, WEB_DISCOUNT_PCT } from '@/components/docs/IntegrationVisuals';
 import { A, C, Callout, DocPage, H2, H3, P, Step, Steps, UL } from '@/components/docs/prose';
 import { DOCS_FACTS } from '@/lib/docs/facts';
 import { SDK_PACKAGES } from '@/lib/docs/sdk-packages';
@@ -55,6 +55,24 @@ export default function IntegrationPage() {
       </P>
       <QuickSteps />
 
+      <H2 id="pourquoi">Pourquoi le faire : −{WEB_DISCOUNT_PCT} % pour vos joueurs</H2>
+      <P>
+        Le but n’est pas seulement de vendre sur le web : c’est d’y vendre <strong>{WEB_DISCOUNT_PCT} % moins cher qu’en jeu</strong>.
+        Vous touchez les joueurs qui aiment votre jeu mais trouvent vos achats trop chers, sans rien perdre ou presque sur chaque
+        vente.
+      </P>
+      <PriceCompare />
+      <UL>
+        <li>
+          <strong>Vos joueurs achèteront avec une forte réduction.</strong> Fixez vos prix web en conséquence : les quelques minutes
+          d’intégration se remboursent par les achats de joueurs qui n’auraient pas payé le prix en jeu.
+        </li>
+        <li>
+          <strong>Indiquez le prix en jeu de chaque article</strong> (champ « ancien prix » de l’éditeur de boutique). La boutique
+          l’affiche barré, avec la réduction, et le jeu la rappelle au joueur.
+        </li>
+      </UL>
+
       <H2 id="comment-ca-marche">Le parcours d’un achat</H2>
       <FlowDiagram />
       <P>
@@ -64,7 +82,8 @@ export default function IntegrationPage() {
       </P>
       <P>
         Pour savoir à qui livrer, le joueur relie une fois son jeu à son compte du site : le jeu affiche un code, il le saisit sur la
-        boutique. C’est fourni aussi, vous n’avez pas d’écran à dessiner.
+        boutique. C’est fourni aussi, vous n’avez pas d’écran à dessiner. Cet écran lui rappelle la réduction de votre boutique : c’est ce
+        qui lui donne envie de faire le détour.
       </P>
 
       <H2 id="unity">Unity : le prefab</H2>
@@ -161,9 +180,16 @@ export default function IntegrationPage() {
       <H2 id="joueur">Ce que voit le joueur</H2>
       <GameScreens />
       <UL>
-        <li>Dans le jeu, il appuie sur « Boutique web » : un code s’affiche, valable {DOCS_FACTS.linkCodeTtlMin} minutes.</li>
+        <li>
+          Dans le jeu, il appuie sur « Boutique web » : l’écran annonce la réduction réelle de votre boutique (« Jusqu’à −
+          {WEB_DISCOUNT_PCT} % par rapport aux achats en jeu ») et affiche un code, valable {DOCS_FACTS.linkCodeTtlMin} minutes.
+        </li>
         <li>Sur la boutique de votre jeu, il se connecte, saisit ce code et confirme que c’est bien son compte de jeu.</li>
         <li>C’est fait une fois par appareil. Ensuite, chaque achat arrive dans le jeu, avec un petit message « Achat reçu ! ».</li>
+        <li>
+          Rappelez-le vous aussi, là où le joueur hésite : à côté de vos prix en jeu, dans vos actualités, sur vos réseaux. « Le même
+          objet, {WEB_DISCOUNT_PCT} % moins cher sur le web » est votre meilleur argument.
+        </li>
       </UL>
 
       <H2 id="tester">Tester en deux minutes</H2>
@@ -202,6 +228,12 @@ export default function IntegrationPage() {
       <P>
         Vous recevez l’identifiant produit et la quantité sur <C>On Item Revoked</C> (Unity) ou <C>item_revoked</C> (Godot) : retirez
         l’objet.
+      </P>
+      <H3 id="q-prix">Quel prix mettre sur le web ?</H3>
+      <P>
+        Nous conseillons {WEB_DISCOUNT_PCT} % de moins qu’en jeu, et de renseigner le prix en jeu comme ancien prix. Le pourcentage
+        affiché au joueur, sur la boutique comme dans le jeu, est calculé à partir de vos vrais prix : rien n’est annoncé si vous
+        n’accordez aucune réduction.
       </P>
       <H3 id="q-identifiants">Quels identifiants produit vais-je recevoir ?</H3>
       <P>
