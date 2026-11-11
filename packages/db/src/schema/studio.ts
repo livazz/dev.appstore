@@ -25,6 +25,8 @@ export type GameSpotlight = {
   order?: number;
   /** Images de couverture : une image paysage, ou jusqu'à trois captures portrait juxtaposées. À défaut : première capture du jeu. */
   covers?: string[];
+  /** Logo du jeu posé sur la couverture (version allégée de la bannière) ; à défaut : la bannière du jeu. */
+  logo?: string;
 };
 
 /** Studio (compte vendeur). Le paiement est reversé sur son compte Stripe Connect. */

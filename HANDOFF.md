@@ -101,6 +101,15 @@ une image, très peu de texte, et une histoire liée à l'actualité. L'histoire
 Contenus : Crystal Clash et Pixel Farm dans `seed.ts` ; vrais jeux dans `.data/real-tops/editorial.json` (local, slug →
 histoire, lu par `real-tops:seed`), à tenir à jour à la main selon l'actualité. Pas encore d'écran studio / admin.
 
+## Poids des images (11 novembre 2026)
+
+L'accueil chargeait 228 images (9,9 Mo) d'un coup : les icônes de jeu n'étaient pas en chargement différé et pesaient
+512 px pour 18 à 120 px affichés. Désormais : `GameIcon` en `loading="lazy"`, icônes des vrais jeux en 256 px, variantes
+allégées pour les cartes de l'accueil (`cover-<n>.webp`, `logo.webp`, générées par `real-tops:seed`), pictos d'étapes en
+168 px, et `Cache-Control` d'une heure sur `/art/*` (`next.config.ts`). Résultat : 1,7 Mo à l'ouverture. Restes : le
+JavaScript du mode développement (3,7 Mo, absent d'un build de production), `hero.webp` (185 Ko), les icônes des jeux
+fictifs encore en 512 px, et pas de redimensionnement à la demande (`images.unoptimized`).
+
 ## Vrais tops en local
 
 Pour voir de **vrais jeux** (top 100 « les plus rentables » Jeux de l'App Store France + top 100 des ventes Steam avec

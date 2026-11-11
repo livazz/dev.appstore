@@ -21,7 +21,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Revue de sécurité (CHK-HDR-01) : CSP, frame-ancestors 'none', Referrer-Policy, Permissions-Policy, HSTS (prod).
   async headers() {
-    return securityHeaders({ dev: process.env.NODE_ENV !== 'production' });
+    return [
+      ...securityHeaders({ dev: process.env.NODE_ENV !== 'production' }),
+      // Illustrations (public/art) : une heure de cache navigateur, puis revalidation en arrière-plan pendant un jour.
+      { source: '/art/:path*', headers: [{ key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=86400' }] },
+    ];
   },
   // Ajout studio-editor : @devappstore/core réexporte crypto.ts/ids.ts (node:crypto). Les composants client
   // (StorePanel, ItemCard, éditeur) n'utilisent que ses constantes et formatMoney/slugify, mais webpack

@@ -92,6 +92,12 @@ describe('getSpotlights', () => {
     expect(list.map((s) => s.game.id)).toEqual(['gam_pc', 'gam_b', 'gam_a']);
     expect(list[0]!.covers).toEqual(['/x.webp', '/y.webp']);
   });
+  it('le logo de l’histoire remplace la bannière du jeu', async () => {
+    await t.update(games).set({ bannerUrl: '/art/games/pc/banner.webp', spotlight: spot('itm_pc', { order: 1, logo: '/art/games/pc/logo.webp' }) }).where(eq(games.id, 'gam_pc'));
+    expect((await getSpotlights({ now: NOW }, t))[0]!.game.bannerUrl).toBe('/art/games/pc/logo.webp');
+    await t.update(games).set({ spotlight: spot('itm_pc', { order: 1 }) }).where(eq(games.id, 'gam_pc'));
+    expect((await getSpotlights({ now: NOW }, t))[0]!.game.bannerUrl).toBe('/art/games/pc/banner.webp');
+  });
   it('filtre par plateforme et respecte la limite', async () => {
     expect((await getSpotlights({ platform: 'pc', now: NOW }, t)).map((s) => s.game.id)).toEqual(['gam_pc']);
     expect((await getSpotlights({ platform: 'mobile', limit: 1, now: NOW }, t)).map((s) => s.game.id)).toEqual(['gam_b']);

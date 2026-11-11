@@ -22,6 +22,7 @@ for await (const file of walk(SRC)) {
   let width = WIDTH[top] ?? 1024;
   if (rel.endsWith('icon.png')) width = 512;
   if (/site\/(hero|studios-hero)\.png$/.test(rel)) width = 1200;
+  if (/site\/step-[a-z]+\.png$/.test(rel)) width = 168; // pictos des 3 étapes de l'accueil, affichés à 56 px
   const out = path.join(OUT, rel.replace(/\.png$/, '.webp'));
   await mkdir(path.dirname(out), { recursive: true });
   await sharp(file).resize({ width, withoutEnlargement: true }).webp({ quality: 82, alphaQuality: 90, effort: 5 }).toFile(out);

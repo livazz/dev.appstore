@@ -32,6 +32,7 @@ export interface SpotlightEntry {
     category: string;
     platform: GamePlatform;
     iconUrl: string | null;
+    /** Logo posé sur la couverture : variante allégée si l'histoire en fournit une, sinon la bannière du jeu. */
     bannerUrl: string | null;
     currency: Currency;
   };
@@ -67,6 +68,7 @@ export function parseSpotlight(raw: unknown): GameSpotlight | null {
     ...(str(s.date, 40) ? { date: str(s.date, 40)! } : {}),
     ...(typeof s.order === 'number' && Number.isFinite(s.order) ? { order: s.order } : {}),
     ...(covers.length ? { covers } : {}),
+    ...(str(s.logo, 200) ? { logo: str(s.logo, 200)! } : {}),
   };
 }
 
@@ -107,7 +109,7 @@ export async function getSpotlights(
     if (!it) continue; // article retiré ou désactivé : l'histoire n'est plus affichée
     const oldPriceCents = displayedOldPrice(it, now);
     out.push({
-      game: { id: g.id, slug: g.slug, name: g.name, category: g.category, platform: g.platform, iconUrl: g.iconUrl, bannerUrl: g.bannerUrl, currency: g.currency },
+      game: { id: g.id, slug: g.slug, name: g.name, category: g.category, platform: g.platform, iconUrl: g.iconUrl, bannerUrl: g.spotlight.logo ?? g.bannerUrl, currency: g.currency },
       rank: ranked.get(g.id) ?? null,
       kind: g.spotlight.kind,
       title: g.spotlight.title,

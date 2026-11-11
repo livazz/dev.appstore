@@ -13,6 +13,8 @@ export function GameIcon({ name, iconUrl, size }: { name: string; iconUrl: strin
       alt=""
       width={size}
       height={size}
+      loading="lazy"
+      decoding="async"
       className="flex-none border border-black/5 bg-surface object-cover"
       style={{ width: size, height: size, borderRadius: radius }}
     />

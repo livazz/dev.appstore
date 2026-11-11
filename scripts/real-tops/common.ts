@@ -129,10 +129,45 @@ const sharp: Sharp = createRequire(path.join(ROOT, 'apps/web/package.json'))('sh
 
 export type ImageKind = 'icon' | 'banner' | 'shot' | 'item';
 
+/** Côté des icônes : affichées à 120 px au plus (240 px sur écran Retina). */
+const ICON_SIZE = 256;
+
+/** Réduit sur place une icône déjà téléchargée en plus grand (anciens téléchargements en 512 px). */
+export async function ensureIconSize(slug: string): Promise<void> {
+  const file = artFile(slug, 'icon');
+  if (!existsSync(file)) return;
+  const { width = 0 } = await sharp(file).metadata();
+  if (width <= ICON_SIZE) return;
+  const buf = await sharp(readFileSync(file)).resize(ICON_SIZE, ICON_SIZE, { fit: 'cover' }).webp({ quality: 80, effort: 5 }).toBuffer();
+  writeFileSync(file, buf);
+}
+
+/**
+ * Variante allégée d'une image locale (`/art/local/<slug>/<nom>.webp` → `<variante>.webp`, largeur maximale donnée),
+ * pour les cartes de l'accueil. Régénérée seulement si la source est plus récente. Renvoie l'URL de la variante.
+ */
+export async function lightVariant(url: string, slug: string, name: string, width: number): Promise<string> {
+  const src = path.join(ROOT, 'apps/web/public', url);
+  const out = artFile(slug, name);
+  if (!existsSync(src)) return url;
+  if (!existsSync(out) || statSync(out).mtimeMs < statSync(src).mtimeMs) {
+    await sharp(src).resize({ width, withoutEnlargement: true }).webp({ quality: 76, alphaQuality: 85, effort: 5 }).toFile(out);
+  }
+  return artUrl(slug, name);
+}
+
+/** Dimensions d'une image locale (0 × 0 si absente). */
+export async function imageSize(url: string): Promise<{ width: number; height: number }> {
+  const file = path.join(ROOT, 'apps/web/public', url);
+  if (!existsSync(file)) return { width: 0, height: 0 };
+  const { width = 0, height = 0 } = await sharp(file).metadata();
+  return { width, height };
+}
+
 async function toWebp(input: Buffer, out: string, kind: ImageKind) {
   mkdirSync(path.dirname(out), { recursive: true });
   let img = sharp(input, { failOn: 'none' });
-  if (kind === 'icon') img = img.resize(512, 512, { fit: 'cover', position: 'attention' });
+  if (kind === 'icon') img = img.resize(ICON_SIZE, ICON_SIZE, { fit: 'cover', position: 'attention' });
   else if (kind === 'banner') img = img.resize({ width: 1600, withoutEnlargement: true });
   else if (kind === 'shot') img = img.resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true });
   else img = img.resize({ width: 512, withoutEnlargement: true });
